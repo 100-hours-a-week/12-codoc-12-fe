@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# push 하기 전 build 강제
+# 실패 시 push 중단
+npm run build

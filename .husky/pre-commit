@@ -1,0 +1,6 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# commit 하기 전 eslint 강제
+# 실패 시 commit 중단
+npm run lint
