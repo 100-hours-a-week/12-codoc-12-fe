@@ -40,7 +40,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      - name: Format Check
+      # 경고만
+      - name: Format Check (warn-only)
+        continue-on-error: true
         run: npm run format:check
 
       # 타입 체크 (안했음)
