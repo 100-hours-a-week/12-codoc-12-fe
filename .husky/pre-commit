@@ -3,4 +3,7 @@
 
 # commit 하기 전 eslint 강제
 # 실패 시 commit 중단
-npm run lint
+# npm run lint
+
+# 스테이징만 자동 정리
+npx lint-staged 
