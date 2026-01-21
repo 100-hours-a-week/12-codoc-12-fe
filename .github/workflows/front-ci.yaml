@@ -103,6 +103,10 @@ jobs:
           OUT="$(echo $OUT | xargs)"
           echo "paths=$OUT" >> $GITHUB_OUTPUT
           echo "Detected: $OUT"
+          if [ -z "$OUT" ]; then
+            echo "ERROR: No build output directory found (dist/build/.next)"
+            exit 1
+          fi
 
       # 12. artifact 업로드 (main / develop)
       - name: Upload Artifact
@@ -146,7 +150,6 @@ jobs:
               \"description\": \"**상태**: ${STATUS}\\n**이벤트**: ${EVENT}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
               \"color\": ${COLOR},
               \"fields\": [
-                {\"name\": \"SHA\", \"value\": \"${SHA}\"},
                 {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG_ESCAPED}\"},
                 {\"name\": \"로그\", \"value\": \"${RUN_URL}\"}
               ]
