@@ -32,7 +32,7 @@ jobs:
           name: frontend-build
           path: ./artifact
           run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ github.token }}
 
       # 2. 다운로드 확인
       - name: List downloaded files
@@ -47,8 +47,9 @@ jobs:
           host: ${{ secrets.FE_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "./artifact/*"
+          source: "artifact/**"
           target: "/home/ubuntu/fe/incoming/release"
+          strip_components: 1
 
       # 4. 배포 스크립트 실행
       - name: Execute FE Deploy Script
@@ -84,11 +85,10 @@ jobs:
           curl -X POST -H "Content-Type: application/json" \
           -d "{
             \"embeds\": [{
-              \"title\": \"FE 배포 결과 (artifact 기반)\",
+              \"title\": \"FE CD 결과\",
               \"description\": \"**상태**: ${STATUS}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
               \"color\": ${COLOR},
               \"fields\": [
-                {\"name\": \"커밋\", \"value\": \"${SHA}\"},
                 {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG}\"},
                 {\"name\": \"로그\", \"value\": \"${RUN_URL}\"}
               ]
