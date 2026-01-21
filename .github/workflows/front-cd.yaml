@@ -1,0 +1,93 @@
+name: frontend-cd
+
+on:
+  # frontend-ci가 끝났을 때, 그 결과를 트리거로 CD 실행
+  workflow_run:
+    workflows: ["frontend-ci"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read   # workflow_run의 artifact 다운로드에 필요
+
+# EC2 한 대라서 배포는 항상 1개만 진행되도록 잠금
+concurrency:
+  group: frontend-cd-single-ec2
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    # 조건:
+    # - CI 성공
+    # - CI가 main push 이벤트에서 실행된 run
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. CI run-id로부터 artifact 다운로드
+      - name: Download FE Artifact (from CI run)
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./artifact
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GIT_TOKEN }}
+
+      # 2. 다운로드 구조 확인(디버깅)
+      - name: List downloaded files
+        run: |
+          echo "Downloaded artifact:"
+          find ./artifact -maxdepth 3 -type f | head -n 200
+
+      # 3. 빌드 산출물을 EC2 incoming/release로 업로드
+      - name: Upload FE Build Folder to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.FE_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "artifact/**"
+          target: "/home/ubuntu/fe/incoming/release"
+
+      # 4. EC2에서 deploy.sh 실행
+      - name: Execute FE Deploy Script
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.FE_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            set -e
+            test -f /home/ubuntu/fe/deploy.sh
+            chmod +x /home/ubuntu/fe/deploy.sh
+            bash /home/ubuntu/fe/deploy.sh
+
+      # 5. Discord 알림
+      - name: Notify Discord
+        if: always()
+        run: |
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="성공"
+            COLOR="65280"
+          else
+            STATUS="실패"
+            COLOR="16711680"
+          fi
+
+          curl -X POST -H "Content-Type: application/json" \
+          -d '{
+            "embeds": [{
+              "title": "FE 배포 알림 (artifact 기반)",
+              "description": "**상태**: '"$STATUS"'\n**브랜치**: main\n**담당자**: ${{ github.actor }}",
+              "color": '"$COLOR"',
+              "fields": [{
+                "name": "CI Run 로그",
+                "value": "'"$RUN_URL"'"
+              }]
+            }]
+          }' \
+          ${{ secrets.DISCORD_WEBHOOK }}

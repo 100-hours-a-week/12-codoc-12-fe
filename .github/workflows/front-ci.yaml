@@ -1,16 +1,22 @@
 name: frontend-ci
 
 on:
+  # 1) PR이 develop/main으로 들어올 때: 품질 게이트(병합 전 검증)
   pull_request:
     branches: [develop, main]
+
+  # 2) main 브랜치에 push될 때(=머지 포함): 운영 기준 검증 + 산출물(artifact) 업로드
   push:
     branches: [main]
+
+  # 3) 필요하면 수동 실행
   workflow_dispatch: {}
 
 permissions:
   contents: read
 
-# CI 동시 실행 제어
+# 같은 PR/브랜치에서 커밋이 연속으로 올라오면
+# 이전 실행을 취소하고 최신 커밋만 검증해서 CI 낭비를 줄임
 concurrency:
   group: frontend-ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -20,9 +26,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. 레포 코드 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 2. Node 20 환경 구성 + npm 캐시 사용 -> 속도 개선
       - name: Setup Node.js (20)
         uses: actions/setup-node@v4
         with:
@@ -30,33 +38,36 @@ jobs:
           cache: "npm"
           cache-dependency-path: package-lock.json
 
-      # CI에서는 로컬 훅(Husky) 불필요, 설치 단계에서 비활성화
+      # 3. 의존성 설치
+      # package-lock.json 기준
+      # - HUSKY=0: CI 환경에서 Husky 훅 설치/실행을 끔
       - name: Install
         env:
           HUSKY: 0
         run: npm ci
 
-      # PR 품질 게이트(전체 기준)
+      # 4. ESLint 검사(코드 품질)
       - name: Lint
         run: npm run lint
 
-      # 경고만
+      # 5. Prettier 포맷 체크(스타일)
+      # - continue-on-error: true라서 포맷이 달라도 CI 자체는 막지 않음(경고용)
       - name: Format Check (warn-only)
         continue-on-error: true
         run: npm run format:check
 
-      # 타입 체크 (안했음)
+      # 6. 타입체크(안했음)
       - name: Typecheck
         run: npm run typecheck --if-present
 
-      # npm audit: warn-only, 경고는 디코로 보냄
-      # npm install로 설치되는 라이브러리들에 공개된 보안 취약점이 있는지 검사
+      # 7. 의존성 취약점 검사(npm audit)
+      # - high 이상을 json으로 받아서 카운트만 추출
+      # - continue-on-error: true라서 취약점이 있어도 CI를 실패로 만들진 않고 경고만 보냄
       - name: Dependency Audit (warn-only)
         id: audit
         continue-on-error: true
         run: |
           npm audit --audit-level=high --json > audit.json
-
           node - <<'NODE'
           const fs = require('fs');
           let high = 0, critical = 0;
@@ -69,6 +80,7 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `high=${high}\ncritical=${critical}\n`);
           NODE
 
+      # 8. audit 결과가 high/critical이면 Discord 경고 알림
       - name: Notify Audit (Discord)
         if: steps.audit.outputs.high != '0' || steps.audit.outputs.critical != '0'
         run: |
@@ -77,12 +89,17 @@ jobs:
           -d "{\"content\":\"⚠️ **Frontend Audit 경고 (warn-only)**\\nHigh: ${{ steps.audit.outputs.high }} / Critical: ${{ steps.audit.outputs.critical }}\\nRepo: ${{ github.repository }}\\nRef: ${{ github.ref }}\\nActor: ${{ github.actor }}\\nRun: ${RUN_URL}\"}" \
           ${{ secrets.DISCORD_WEBHOOK }}
 
+      # 9. 테스트 스크립트가 존재하면 실행, 없으면 스킵
       - name: Test
         run: npm test --if-present
 
+      # 10. 빌드
       - name: Build
         run: npm run build
 
+      # 11. 빌드 산출물 폴더 자동 감지
+      # - 프로젝트가 Vite(dist)인지, CRA(build)인지, Next(.next)인지에 따라 산출물 폴더가 다름
+      # - 실제 생성된 폴더만 골라서 artifact로 올리기 위함
       - name: Detect build output
         id: out
         run: |
@@ -94,27 +111,47 @@ jobs:
           echo "paths=$OUT" >> $GITHUB_OUTPUT
           echo "Detected: $OUT"
 
+      # 12. main push일 때만 artifact 업로드
+      # - CD는 이 artifact를 받아서 EC2로 배포함
+      # - 이름(frontend-build)을 고정했음 -> CD에서 찾기가 쉬움
       - name: Upload Artifact (main only)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-build-${{ github.sha }}
+          name: frontend-build
           path: ${{ steps.out.outputs.paths }}
           if-no-files-found: error
           retention-days: 7
 
-      - name: Notify Failure (Discord)
-        if: failure()
+      # 13. Discord 알림(항상)
+      # - 성공/실패 모두 알림
+      - name: Notify Discord (always)
+        if: always()
         run: |
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          curl -X POST -H "Content-Type: application/json" \
-          -d "{\"content\":\"❌ **Frontend CI 실패**\\nRepo: ${{ github.repository }}\\nRef: ${{ github.ref }}\\nActor: ${{ github.actor }}\\nRun: ${RUN_URL}\"}" \
-          ${{ secrets.DISCORD_WEBHOOK }}
 
-      - name: Notify Success (Discord)
-        if: success()
-        run: |
-          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="성공"
+            COLOR="65280"
+          else
+            STATUS="실패"
+            COLOR="16711680"
+          fi
+
+          REF="${{ github.ref_name }}"
+          EVENT="${{ github.event_name }}"
+          ACTOR="${{ github.actor }}"
+
           curl -X POST -H "Content-Type: application/json" \
-          -d "{\"content\":\"✅ **Frontend CI 성공**\\nRepo: ${{ github.repository }}\\nRef: ${{ github.ref }}\\nActor: ${{ github.actor }}\\nRun: ${RUN_URL}\"}" \
+          -d '{
+            "embeds": [{
+              "title": "FE CI 결과",
+              "description": "**상태**: '"$STATUS"'\n**이벤트**: '"$EVENT"'\n**브랜치**: '"$REF"'\n**담당자**: '"$ACTOR"'",
+              "color": '"$COLOR"',
+              "fields": [{
+                "name": "로그 확인",
+                "value": "'"$RUN_URL"'"
+              }]
+            }]
+          }' \
           ${{ secrets.DISCORD_WEBHOOK }}
