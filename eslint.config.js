@@ -1,13 +1,17 @@
-import js from '@eslint/js';
-import prettier from 'eslint-config-prettier';
-import globals from 'globals';
-import reactHooks from 'eslint-plugin-react-hooks';
-import reactRefresh from 'eslint-plugin-react-refresh';
-import { defineConfig, globalIgnores } from 'eslint/config';
+import js from '@eslint/js'
+import prettier from 'eslint-config-prettier'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import { defineConfig, globalIgnores } from 'eslint/config'
+import react from 'eslint-plugin-react'
 
 export default defineConfig([
   globalIgnores(['dist']),
   {
+    plugins: {
+      react,
+    },
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
@@ -35,6 +39,7 @@ export default defineConfig([
       'no-var': 'error',
       'prefer-const': 'error',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
+      'react/jsx-uses-vars': 'error',
     },
   },
-]);
+])
