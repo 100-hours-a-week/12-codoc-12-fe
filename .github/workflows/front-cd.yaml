@@ -85,7 +85,7 @@ jobs:
           curl -X POST -H "Content-Type: application/json" \
           -d "{
             \"embeds\": [{
-              \"title\": \"FE CD 결과\",
+              \"title\": \"[FE] CD 결과 알림\",
               \"description\": \"**상태**: ${STATUS}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
               \"color\": ${COLOR},
               \"fields\": [
