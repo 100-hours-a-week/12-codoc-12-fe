@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { getAccessToken, refreshAccessToken } from '@/lib/auth'
+import { getAccessToken, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
+
+const resolveStatus = (token) => {
+  const tokenStatus = getAccessTokenStatus(token)
+  if (tokenStatus === 'ONBOARDING') {
+    return 'onboarding'
+  }
+  if (tokenStatus === 'ACTIVE') {
+    return 'ready'
+  }
+  return null
+}
 
 export default function AuthGate({ children }) {
   const [status, setStatus] = useState('checking')
@@ -12,17 +23,18 @@ export default function AuthGate({ children }) {
     let isMounted = true
 
     const ensureSession = async () => {
-      if (getAccessToken()) {
+      const existingToken = getAccessToken()
+      if (existingToken) {
         if (isMounted) {
-          setStatus('ready')
+          setStatus(resolveStatus(existingToken) ?? 'unauthenticated')
         }
         return
       }
 
       try {
-        await refreshAccessToken()
+        const token = await refreshAccessToken()
         if (isMounted) {
-          setStatus('ready')
+          setStatus(resolveStatus(token) ?? 'unauthenticated')
         }
       } catch {
         if (isMounted) {
@@ -42,9 +54,15 @@ export default function AuthGate({ children }) {
     if (status === 'unauthenticated') {
       navigate('/login', { replace: true, state: { from: location.pathname } })
     }
+    if (status === 'onboarding' && location.pathname !== '/onboarding') {
+      navigate('/onboarding', { replace: true })
+    }
+    if (status === 'ready' && location.pathname === '/onboarding') {
+      navigate('/', { replace: true })
+    }
   }, [location.pathname, navigate, status])
 
-  if (status !== 'ready') {
+  if (status === 'checking') {
     return (
       <div className="min-h-screen bg-muted/40 text-foreground">
         <div className="mx-auto flex min-h-screen w-full max-w-[430px] items-center justify-center bg-background px-6 text-sm text-muted-foreground">

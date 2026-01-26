@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
-import { getAccessToken, refreshAccessToken } from '@/lib/auth'
+import { getAccessToken, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
 
 const fallbackMessage = '서비스 코독에 오신걸 환영 합니다'
 
@@ -33,15 +33,30 @@ export default function Login() {
   }, [])
 
   useEffect(() => {
-    if (getAccessToken()) {
-      navigate('/', { replace: true })
+    const redirectWithStatus = (token) => {
+      const status = getAccessTokenStatus(token)
+      if (status === 'ONBOARDING') {
+        navigate('/onboarding', { replace: true })
+        return true
+      }
+      if (status === 'ACTIVE') {
+        navigate('/', { replace: true })
+        return true
+      }
+      return false
+    }
+
+    const existingToken = getAccessToken()
+    if (existingToken && redirectWithStatus(existingToken)) {
       return
     }
 
     const tryRefresh = async () => {
       try {
-        await refreshAccessToken()
-        navigate('/', { replace: true })
+        const token = await refreshAccessToken()
+        if (!redirectWithStatus(token)) {
+          navigate('/', { replace: true })
+        }
       } catch {
         // Stay on login screen when refresh fails.
       }

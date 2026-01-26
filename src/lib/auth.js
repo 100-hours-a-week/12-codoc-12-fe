@@ -4,6 +4,35 @@ let accessToken = null
 
 export const getAccessToken = () => accessToken
 
+const decodeBase64Url = (value) => {
+  if (!value) {
+    return null
+  }
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
+  try {
+    return atob(padded)
+  } catch {
+    return null
+  }
+}
+
+export const getAccessTokenPayload = (token = accessToken) => {
+  const part = token?.split?.('.')?.[1]
+  const decoded = decodeBase64Url(part)
+  if (!decoded) {
+    return null
+  }
+  try {
+    return JSON.parse(decoded)
+  } catch {
+    return null
+  }
+}
+
+export const getAccessTokenStatus = (token = accessToken) =>
+  getAccessTokenPayload(token)?.status ?? null
+
 export const setAccessToken = (token) => {
   accessToken = token
 }

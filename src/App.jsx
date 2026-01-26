@@ -5,12 +5,21 @@ import MainLayout from '@/layouts/MainLayout'
 import Home from '@/pages/Home'
 import Login from '@/pages/Login'
 import MyPage from '@/pages/MyPage'
+import Onboarding from '@/pages/Onboarding'
 import Problems from '@/pages/Problems'
 
 function App() {
   return (
     <Routes>
       <Route element={<Login />} path="/login" />
+      <Route
+        element={
+          <AuthGate>
+            <Onboarding />
+          </AuthGate>
+        }
+        path="/onboarding"
+      />
       <Route
         element={
           <AuthGate>

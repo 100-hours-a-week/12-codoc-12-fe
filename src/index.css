@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -23,6 +25,8 @@
   --input: 240 5.9% 90%;
   --ring: 240 10% 3.9%;
   --radius: 0.5rem;
+  --font-body: 'Space Grotesk', sans-serif;
+  --font-display: 'Playfair Display', serif;
 }
 
 .dark {
@@ -53,4 +57,5 @@
 
 body {
   @apply bg-background text-foreground;
+  font-family: var(--font-body);
 }
