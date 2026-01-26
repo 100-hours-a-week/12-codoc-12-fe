@@ -8,11 +8,5 @@ export function Button({ variant = 'primary', className, ...props }) {
       ? 'bg-primary text-primary-foreground hover:opacity-90'
       : 'bg-secondary text-secondary-foreground hover:opacity-90'
 
-  return (
-    <button
-      className={cn(baseClasses, variantClasses, className)}
-      type="button"
-      {...props}
-    />
-  )
+  return <button className={cn(baseClasses, variantClasses, className)} type="button" {...props} />
 }

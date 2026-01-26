@@ -3,7 +3,7 @@ name: frontend-cd
 on:
   # frontend-ci 완료 후 트리거
   workflow_run:
-    workflows: ["frontend-ci"]
+    workflows: ['frontend-ci']
     types: [completed]
 
 permissions:
@@ -47,8 +47,8 @@ jobs:
           host: ${{ secrets.FE_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "artifact/**"
-          target: "/home/ubuntu/fe/incoming/release"
+          source: 'artifact/**'
+          target: '/home/ubuntu/fe/incoming/release'
           strip_components: 1
 
       # 4. 배포 스크립트 실행
