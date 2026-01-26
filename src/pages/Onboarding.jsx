@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 
 import { api } from '@/lib/api'
-import { refreshAccessToken } from '@/lib/auth'
+import { clearAccessToken } from '@/lib/auth'
 
 const steps = [
   {
@@ -36,8 +35,6 @@ export default function Onboarding() {
   const [answers, setAnswers] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
-  const navigate = useNavigate()
-
   const isResult = stepIndex >= steps.length
   const current = steps[stepIndex]
 
@@ -105,8 +102,8 @@ export default function Onboarding() {
     setSubmitError('')
     try {
       await api.patch('/api/user/init-survey', payload)
-      await refreshAccessToken()
-      navigate('/', { replace: true })
+      clearAccessToken()
+      window.location.replace('/')
     } catch {
       setSubmitError('설문 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
