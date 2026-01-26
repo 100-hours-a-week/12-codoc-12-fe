@@ -18,7 +18,9 @@ export default function MainLayout() {
       <div className="mx-auto min-h-screen w-full max-w-[430px] bg-background shadow-sm">
         <header className="border-b bg-background">
           <div className="flex items-center justify-center px-4 py-5 sm:px-6 sm:py-6">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
+              {title}
+            </h1>
           </div>
         </header>
         <main className="px-4 py-5 pb-24 sm:px-6 sm:py-8 sm:pb-28">{content}</main>
