@@ -146,8 +146,8 @@ jobs:
           curl -X POST -H "Content-Type: application/json" \
           -d "{
             \"embeds\": [{
-              \"title\": \"FE CI 결과\",
-              \"description\": \"**상태**: ${STATUS}\\n**이벤트**: ${EVENT}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
+              \"title\": \"[FE] CI 결과 알림\",
+              \"description\": \"**상태**: ${STATUS}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
               \"color\": ${COLOR},
               \"fields\": [
                 {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG_ESCAPED}\"},
