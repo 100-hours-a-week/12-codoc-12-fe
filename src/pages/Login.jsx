@@ -69,7 +69,13 @@ export default function Login() {
     <div className="min-h-screen bg-muted/40 text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col items-center justify-center gap-6 bg-background px-6 py-12 text-center">
         <div className="space-y-3">
-          <h1 className="text-2xl font-semibold tracking-tight">CodoↃ</h1>
+          <h1 className="text-2xl font-semibold tracking-tight font-[var(--font-display)]">
+            <span aria-hidden>Codo</span>
+            <span aria-hidden className="inline-block -translate-y-[1px] scale-x-[-1]">
+              C
+            </span>
+            <span className="sr-only">Codoc</span>
+          </h1>
           <p className="text-sm text-muted-foreground">{welcomeMessage}</p>
         </div>
         <a

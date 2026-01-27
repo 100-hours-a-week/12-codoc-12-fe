@@ -10,7 +10,6 @@ const navItems = [
 ]
 
 export default function MainLayout() {
-  const title = 'CodoↃ'
   const content = <Outlet />
 
   return (
@@ -19,7 +18,11 @@ export default function MainLayout() {
         <header className="border-b bg-background">
           <div className="flex items-center justify-center px-4 py-5 sm:px-6 sm:py-6">
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
-              {title}
+              <span aria-hidden>Codo</span>
+              <span aria-hidden className="inline-block -translate-y-[1px] scale-x-[-1]">
+                C
+              </span>
+              <span className="sr-only">Codoc</span>
             </h1>
           </div>
         </header>
