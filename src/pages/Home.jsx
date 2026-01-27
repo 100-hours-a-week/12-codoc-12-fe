@@ -1,10 +1,30 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api } from '@/lib/api'
 
-const heatmapWeeks = 28
 const heatmapRows = 7
-const heatmapDays = heatmapWeeks * heatmapRows
+const heatmapCellPx = 16
+const heatmapGapPx = 4
+const colWidthPx = heatmapCellPx + heatmapGapPx
+const rootPaddingPx = 12
+const heatmapPaddingPx = 8
+const tooltipOffsetPx = 6
+const tooltipHeightPx = 36
+
+const monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 const levelClasses = [
   'bg-[#ebedf0]',
@@ -34,20 +54,56 @@ const addDays = (date, days) => {
   return next
 }
 
-const buildHeatmapCells = (dailySolveCount) => {
-  const today = new Date()
-  const startDate = addDays(today, -(heatmapDays - 1))
+const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
+
+const getContributionRange = (today) => {
+  const fromDate = addDays(today, -364)
+  return { fromDate, toDate: today, today }
+}
+
+const buildMonthMarkers = (range) => {
+  const markers = []
+  const cursor = new Date(range.fromDate.getFullYear(), range.fromDate.getMonth(), 1)
+
+  while (cursor < range.fromDate) {
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+
+  while (cursor <= range.toDate) {
+    const dayIndex = daysBetween(range.fromDate, cursor)
+    const colIndex = Math.floor(dayIndex / heatmapRows)
+    markers.push({
+      key: formatDate(cursor),
+      label: monthNames[cursor.getMonth()],
+      leftPx: colIndex * colWidthPx,
+    })
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+
+  return markers
+}
+
+const buildHeatmapModel = (dailySolveCount, range) => {
   const countByDate = new Map(
     (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
   )
+  const totalDays = Math.max(1, daysBetween(range.fromDate, range.toDate) + 1)
+  const weeks = Math.ceil(totalDays / heatmapRows)
+  const totalCells = weeks * heatmapRows
+  const minWidthPx = weeks * colWidthPx
 
-  return Array.from({ length: heatmapDays }, (_, idx) => {
-    const date = addDays(startDate, idx)
+  const cells = Array.from({ length: totalCells }, (_, idx) => {
+    if (idx >= totalDays) {
+      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
+    }
+    const date = addDays(range.fromDate, idx)
     const key = formatDate(date)
     const solveCount = countByDate.get(key) ?? 0
     const level = Math.min(5, Math.max(0, solveCount))
-    return { id: key, level }
+    return { id: key, level, date: key, solveCount }
   })
+
+  return { cells, weeks, minWidthPx, startDate: range.fromDate, totalDays }
 }
 
 function QuestCard({ quest, onClaim }) {
@@ -88,12 +144,177 @@ function QuestCard({ quest, onClaim }) {
   )
 }
 
+function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell }) {
+  const [tooltipLeft, setTooltipLeft] = useState(rootPaddingPx)
+  const [tooltipTop, setTooltipTop] = useState(heatmapPaddingPx)
+  const rootRef = useRef(null)
+
+  useEffect(() => {
+    const container = scrollRef.current
+    const root = rootRef.current
+    if (!container || !root || !selectedCell?.date) {
+      return
+    }
+    const cellEl = root.querySelector(`[data-date="${selectedCell.date}"]`)
+    const rootRect = root.getBoundingClientRect()
+    const cellRect = cellEl?.getBoundingClientRect()
+
+    const minLeft = rootPaddingPx
+    const maxLeft = Math.max(minLeft, root.clientWidth - 180 - rootPaddingPx)
+
+    if (cellRect) {
+      const cellCenterLeft = cellRect.left - rootRect.left + heatmapCellPx / 2
+      const rawLeft = cellCenterLeft - 90
+      const nextLeft = Math.min(maxLeft, Math.max(minLeft, rawLeft))
+      setTooltipLeft(nextLeft)
+
+      const rawTop = cellRect.top - rootRect.top + heatmapCellPx + tooltipOffsetPx
+      const maxTop = Math.max(heatmapPaddingPx, root.clientHeight - tooltipHeightPx - rootPaddingPx)
+      setTooltipTop(Math.min(maxTop, Math.max(heatmapPaddingPx, rawTop)))
+      return
+    }
+
+    const fallbackLeft = selectedCell.colIdx * colWidthPx - container.scrollLeft
+    const nextLeft = Math.min(maxLeft, Math.max(minLeft, rootPaddingPx + fallbackLeft))
+    setTooltipLeft(nextLeft)
+
+    const rowTop = selectedCell.rowIdx * (heatmapCellPx + heatmapGapPx)
+    const nextTop = heatmapPaddingPx + rowTop + heatmapCellPx + tooltipOffsetPx
+    const maxTop = Math.max(heatmapPaddingPx, root.clientHeight - tooltipHeightPx - rootPaddingPx)
+    setTooltipTop(Math.min(maxTop, nextTop))
+  }, [scrollRef, selectedCell])
+
+  useEffect(() => {
+    if (!selectedCell?.date) {
+      return
+    }
+    const container = scrollRef.current
+    const root = rootRef.current
+    if (!container || !root) {
+      return
+    }
+    const handleScroll = () => onSelectCell(null)
+    const handlePointerDown = (event) => {
+      if (!root.contains(event.target)) {
+        onSelectCell(null)
+      }
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [onSelectCell, scrollRef, selectedCell])
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.08)]"
+    >
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">연속 학습</h3>
+          <span className="text-xs font-semibold text-muted-foreground">올해</span>
+        </div>
+
+        <div className="rounded-2xl bg-[#f6f7f8] p-3">
+          <div ref={scrollRef} className="overflow-x-auto pb-1">
+            <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
+              <div
+                className="grid gap-1"
+                style={{
+                  gridTemplateColumns: `repeat(${model.weeks}, ${heatmapCellPx}px)`,
+                }}
+              >
+                {Array.from({ length: model.weeks }).map((_, colIdx) => (
+                  <div key={colIdx} className="grid grid-rows-7 gap-1">
+                    {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
+                      const index = colIdx * heatmapRows + rowIdx
+                      const cell = model.cells[index]
+                      return (
+                        <div
+                          key={`${colIdx}-${rowIdx}`}
+                          className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]} ${
+                            cell.date && selectedCell?.date === cell.date
+                              ? 'ring-2 ring-black/70'
+                              : ''
+                          }`}
+                          data-date={cell.date ?? undefined}
+                          role={cell.date ? 'button' : undefined}
+                          tabIndex={cell.date ? 0 : undefined}
+                          onClick={() => {
+                            if (!cell.date) {
+                              return
+                            }
+                            if (selectedCell?.date === cell.date) {
+                              onSelectCell(null)
+                              return
+                            }
+                            onSelectCell({ ...cell, colIdx, rowIdx })
+                          }}
+                          onKeyDown={(event) => {
+                            if (cell.date && (event.key === 'Enter' || event.key === ' ')) {
+                              event.preventDefault()
+                              onSelectCell({ ...cell, colIdx, rowIdx })
+                            }
+                          }}
+                        />
+                      )
+                    })}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="relative mt-2 h-6" style={{ minWidth: `${model.minWidthPx}px` }}>
+              {monthMarkers.map((marker) => (
+                <div
+                  key={marker.key}
+                  className="absolute top-0 text-[10px] font-semibold text-muted-foreground"
+                  style={{ left: `${marker.leftPx}px` }}
+                >
+                  <div className="h-2 border-l border-black/20" />
+                  <div className="mt-1 -translate-x-1">{marker.label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {selectedCell?.date ? (
+            <div
+              className="pointer-events-none absolute z-20 rounded-lg bg-black px-3 py-2 text-xs font-semibold text-white shadow-lg"
+              style={{ left: `${tooltipLeft}px`, top: `${tooltipTop}px` }}
+            >
+              {selectedCell.date} : {selectedCell.solveCount}문제 해결
+            </div>
+          ) : null}
+
+          <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
+            <span>Less</span>
+            <div className="flex items-center gap-1">
+              {levelClasses.map((cls) => (
+                <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
+              ))}
+            </div>
+            <span>More</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Home() {
   const [quests, setQuests] = useState([])
   const [dailySolveCount, setDailySolveCount] = useState([])
   const [streak, setStreak] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const heatmapScrollRef = useRef(null)
+  const [selectedCell, setSelectedCell] = useState(null)
+
+  const today = useMemo(() => new Date(), [])
+  const contributionRange = useMemo(() => getContributionRange(today), [today])
+  const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
 
   useEffect(() => {
     let mounted = true
@@ -102,9 +323,8 @@ export default function Home() {
       setIsLoading(true)
       setLoadError('')
 
-      const today = new Date()
-      const fromDate = formatDate(addDays(today, -(heatmapDays - 1)))
-      const toDate = formatDate(today)
+      const fromDate = formatDate(contributionRange.fromDate)
+      const toDate = formatDate(contributionRange.toDate)
 
       try {
         const [questRes, contributionRes, streakRes] = await Promise.all([
@@ -134,6 +354,7 @@ export default function Home() {
         setQuests(mappedQuests)
         setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
         setStreak(streakRes.data?.data?.streak ?? 0)
+        setSelectedCell(null)
       } catch {
         if (!mounted) {
           return
@@ -151,9 +372,26 @@ export default function Home() {
     return () => {
       mounted = false
     }
-  }, [])
+  }, [contributionRange.fromDate, contributionRange.toDate])
 
-  const heatmapCells = useMemo(() => buildHeatmapCells(dailySolveCount), [dailySolveCount])
+  const heatmapModel = useMemo(
+    () => buildHeatmapModel(dailySolveCount, contributionRange),
+    [contributionRange, dailySolveCount],
+  )
+
+  useEffect(() => {
+    const container = heatmapScrollRef.current
+    if (!container || !heatmapModel?.weeks) {
+      return
+    }
+    const dayIndex = Math.min(
+      heatmapModel.totalDays - 1,
+      Math.max(0, daysBetween(heatmapModel.startDate, contributionRange.today)),
+    )
+    const targetCol = Math.floor(dayIndex / heatmapRows)
+    const targetLeft = Math.max(0, (targetCol + 1) * colWidthPx - container.clientWidth)
+    container.scrollTo({ left: targetLeft, behavior: 'auto' })
+  }, [contributionRange.today, heatmapModel])
 
   const handleClaim = async (userQuestId) => {
     if (!userQuestId) {
@@ -220,46 +458,17 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-base font-semibold">{streak}일 연속 학습</h3>
-            <span className="text-xs font-semibold text-muted-foreground">최근 28주</span>
-          </div>
+      <Heatmap
+        model={heatmapModel}
+        monthMarkers={monthMarkers}
+        scrollRef={heatmapScrollRef}
+        selectedCell={selectedCell}
+        onSelectCell={setSelectedCell}
+      />
 
-          <div className="rounded-2xl bg-[#f6f7f8] p-3">
-            <div
-              className="grid gap-1"
-              style={{ gridTemplateColumns: `repeat(${heatmapWeeks}, minmax(0, 1fr))` }}
-            >
-              {Array.from({ length: heatmapWeeks }).map((_, colIdx) => (
-                <div key={colIdx} className="grid grid-rows-7 gap-1">
-                  {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
-                    const index = colIdx * heatmapRows + rowIdx
-                    const cell = heatmapCells[index]
-                    return (
-                      <div
-                        key={`${colIdx}-${rowIdx}`}
-                        className={`aspect-square w-full rounded-[2px] ${levelClasses[cell.level]}`}
-                      />
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
-              <span>Less</span>
-              <div className="flex items-center gap-1">
-                {levelClasses.map((cls) => (
-                  <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
-                ))}
-              </div>
-              <span>More</span>
-            </div>
-          </div>
-        </div>
-      </section>
+      <div className="sr-only" aria-live="polite">
+        {streak}일 연속 학습
+      </div>
     </div>
   )
 }
