@@ -6,6 +6,7 @@ import Home from '@/pages/Home'
 import Login from '@/pages/Login'
 import MyPage from '@/pages/MyPage'
 import Onboarding from '@/pages/Onboarding'
+import ProblemDetail from '@/pages/ProblemDetail'
 import Problems from '@/pages/Problems'
 
 function App() {
@@ -29,6 +30,7 @@ function App() {
       >
         <Route element={<Home />} index />
         <Route element={<Problems />} path="problems" />
+        <Route element={<ProblemDetail />} path="problems/:problemId" />
         <Route element={<MyPage />} path="my" />
       </Route>
     </Routes>

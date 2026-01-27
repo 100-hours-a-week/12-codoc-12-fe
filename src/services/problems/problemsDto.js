@@ -39,6 +39,35 @@ export const toProblemListItem = (item) => ({
   bookmarked: Boolean(item.bookmarked),
 })
 
+export const toProblemDetail = (item = {}) => ({
+  id: item.problemId ?? item.id ?? null,
+  title: item.title ?? '',
+  level: normalizeLevel(item.level),
+  status: normalizeStatus(item.status),
+  bookmarked: Boolean(item.bookmarked),
+  content: item.content ?? '',
+  summaryCards: Array.isArray(item.summaryCards)
+    ? item.summaryCards.map((card, index) => {
+        const safeCard = card ?? {}
+        return {
+          id: safeCard.summaryCardId ?? `summary-${index}`,
+          paragraphType: safeCard.paragraphType ?? '',
+          choices: Array.isArray(safeCard.choices) ? safeCard.choices : [],
+        }
+      })
+    : [],
+  quizzes: Array.isArray(item.quizzes)
+    ? item.quizzes.map((quiz, index) => {
+        const safeQuiz = quiz ?? {}
+        return {
+          id: safeQuiz.quizId ?? `quiz-${index}`,
+          question: safeQuiz.question ?? '',
+          choices: Array.isArray(safeQuiz.choices) ? safeQuiz.choices : [],
+        }
+      })
+    : [],
+})
+
 export const toProblemListResponse = (apiResponse) => {
   const data = apiResponse?.data ?? {}
   const items = Array.isArray(data.items) ? data.items : []
@@ -48,4 +77,9 @@ export const toProblemListResponse = (apiResponse) => {
     nextCursor: data.nextCursor ?? null,
     hasNextPage: Boolean(data.hasNextPage),
   }
+}
+
+export const toProblemDetailResponse = (apiResponse) => {
+  const data = apiResponse?.data ?? {}
+  return toProblemDetail(data)
 }
