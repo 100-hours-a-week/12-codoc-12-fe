@@ -5,36 +5,62 @@ import { clearAccessToken } from '@/lib/auth'
 
 const steps = [
   {
-    id: 'goal',
-    title: '당신의 목표를 알려주세요',
-    prompt: '코딩 학습에서 가장 바라는 한 가지를 고르면, 맞춤 퀘스트를 추천해요.',
-    options: ['문제 풀이 습관 만들기', '개념을 빠르게 정리하기', '면접 대비', '프로젝트 실전 감각'],
+    id: 'experience',
+    title: '코딩 테스트 문제를 풀어본 적이 있나요?',
+    options: ['한 번도 없다', '몇 문제 풀어봤다', '꾸준히 풀고 있다'],
   },
   {
     id: 'level',
-    title: '현재 레벨은 어느 정도인가요?',
-    prompt: '난이도 조정을 위해 현재 수준을 선택해주세요.',
-    options: ['입문', '초급', '중급', '고급'],
+    title: '알고리즘 공부를 해본 적 있나요?',
+    options: ['없다', '개념만 들어봤다 (정렬, 탐색 등)', '문제로 연습해봤다'],
   },
   {
-    id: 'topic',
-    title: '관심 있는 분야를 골라주세요',
-    prompt: '초기에 집중하고 싶은 영역을 1개만 선택해도 좋아요.',
-    options: ['알고리즘', '자료구조', '프론트엔드', '백엔드'],
+    id: 'blocker',
+    title: '코테 문제를 보면 보통 어디서 막히나요?',
+    options: [
+      '문제 이해부터 어렵다',
+      '어떤 알고리즘을 써야 할지 모르겠다',
+      '코드로 옮기는 과정이 어렵다',
+      '잘 모르겠다',
+    ],
   },
   {
     id: 'pace',
-    title: '하루 목표는 얼마나?',
-    prompt: '매일 달성할 학습량을 정하면 루틴을 만들기 쉬워요.',
-    options: ['가볍게 10분', '30분 집중', '1시간 이상', '주말 몰아서'],
+    title: '하루에 얼마나 공부하고 싶나요?',
+    options: ['한 문제', '세 문제', '다섯 문제 이상'],
   },
 ]
+
+const initLevelMap = {
+  없다: 'NEWBIE',
+  '개념만 들어봤다 (정렬, 탐색 등)': 'PUPIL',
+  '문제로 연습해봤다': 'SPECIALIST',
+}
+
+const dailyGoalMap = {
+  '한 문제': 'ONE',
+  '세 문제': 'THREE',
+  '다섯 문제 이상': 'FIVE',
+}
+
+const levelLabelMap = {
+  NEWBIE: '초보자',
+  PUPIL: '입문자',
+  SPECIALIST: '숙련자',
+}
+
+const goalLabelMap = {
+  ONE: '한 문제',
+  THREE: '세 문제',
+  FIVE: '다섯 문제 이상',
+}
 
 export default function Onboarding() {
   const [stepIndex, setStepIndex] = useState(0)
   const [answers, setAnswers] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+
   const isResult = stepIndex >= steps.length
   const current = steps[stepIndex]
 
@@ -44,6 +70,25 @@ export default function Onboarding() {
     }
     return Math.round(((stepIndex + 1) / steps.length) * 100)
   }, [isResult, stepIndex])
+
+  const payload = useMemo(() => {
+    const initLevel = initLevelMap[answers.level]
+    const dailyGoal = dailyGoalMap[answers.pace]
+    if (!initLevel || !dailyGoal) {
+      return null
+    }
+    return { initLevel, dailyGoal }
+  }, [answers.level, answers.pace])
+
+  const resultSummary = useMemo(() => {
+    if (!payload) {
+      return null
+    }
+    return {
+      levelLabel: levelLabelMap[payload.initLevel],
+      goalLabel: goalLabelMap[payload.dailyGoal],
+    }
+  }, [payload])
 
   const handleSelect = (option) => {
     if (!current) {
@@ -55,34 +100,8 @@ export default function Onboarding() {
 
   const canMoveNext = isResult || Boolean(answers[current?.id])
 
-  const payload = useMemo(() => {
-    const initLevelMap = {
-      입문: 'NEWBIE',
-      초급: 'PUPIL',
-      중급: 'PUPIL',
-      고급: 'SPECIALIST',
-    }
-    const dailyGoalMap = {
-      '가볍게 10분': 'ONE',
-      '30분 집중': 'THREE',
-      '1시간 이상': 'FIVE',
-      '주말 몰아서': 'THREE',
-    }
-    const initLevel = initLevelMap[answers.level]
-    const dailyGoal = dailyGoalMap[answers.pace]
-
-    if (!initLevel || !dailyGoal) {
-      return null
-    }
-
-    return { initLevel, dailyGoal }
-  }, [answers.level, answers.pace])
-
   const handleNext = () => {
-    if (isResult) {
-      return
-    }
-    if (!canMoveNext) {
+    if (isResult || !canMoveNext) {
       return
     }
     setStepIndex((prev) => Math.min(prev + 1, steps.length))
@@ -112,126 +131,121 @@ export default function Onboarding() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#f6f3ea] text-foreground">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 -top-32 h-72 w-72 rounded-full bg-[#ffe5b4] opacity-70 blur-3xl" />
-        <div className="absolute -bottom-28 -right-16 h-80 w-80 rounded-full bg-[#cfe9ff] opacity-70 blur-3xl" />
-      </div>
-
-      <div className="relative mx-auto flex min-h-screen w-full max-w-[480px] flex-col justify-between px-5 py-10 sm:px-6">
-        <div className="space-y-8">
-          <div className="space-y-4">
-            <p className="text-xs uppercase tracking-[0.35em] text-muted-foreground">
-              Codoc Onboarding
-            </p>
-            <div className="space-y-2">
-              <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl font-[var(--font-display)]">
-                너의 학습 루틴을 설계할게요
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                몇 가지 질문에 답하면, 오늘부터 시작할 코독의 퀘스트가 완성됩니다.
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-foreground/10 bg-white/90 p-6 shadow-sm backdrop-blur">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>진행률</span>
+    <div className="min-h-screen bg-[#f4f5f7] text-foreground">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 py-10 sm:px-6">
+        <div className="rounded-[28px] bg-[#eef0f2] px-5 pb-8 pt-6 shadow-sm">
+          {!isResult ? (
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <span>
+                    질문 {stepIndex + 1} / {steps.length}
+                  </span>
                   <span>{progress}%</span>
                 </div>
-                <div className="h-2 w-full rounded-full bg-muted">
+                <div className="h-2 w-full rounded-full bg-[#d9dadd]">
                   <div
-                    className="h-full rounded-full bg-foreground transition-all"
+                    className="h-full rounded-full bg-[#7b7d82] transition-all"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
               </div>
 
-              {!isResult ? (
-                <div className="space-y-5">
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                      Step {stepIndex + 1} / {steps.length}
-                    </p>
-                    <h2 className="text-xl font-semibold font-[var(--font-display)]">
-                      {current.title}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">{current.prompt}</p>
-                  </div>
+              <div className="flex justify-start">
+                <div className="h-20 w-20 rounded-full bg-[#e2e3e6]" />
+              </div>
 
-                  <div className="grid gap-3">
-                    {current.options.map((option) => {
-                      const selected = answers[current.id] === option
-                      return (
-                        <button
-                          key={option}
-                          className={`flex w-full items-center justify-between rounded-2xl border px-4 py-4 text-left text-sm font-medium transition ${
-                            selected
-                              ? 'border-foreground bg-foreground text-background shadow-sm'
-                              : 'border-foreground/10 bg-white hover:border-foreground/40'
-                          }`}
-                          type="button"
-                          onClick={() => handleSelect(option)}
-                        >
-                          <span>{option}</span>
-                          <span className="text-xs opacity-70">{selected ? '선택됨' : '선택'}</span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <h2 className="text-xl font-semibold font-[var(--font-display)]">
-                    설문이 준비됐어요
-                  </h2>
-                  <p className="text-sm text-muted-foreground">
-                    곧 퀘스트 추천을 시작할게요. 아래 선택 내용을 확인해 주세요.
-                  </p>
-                  <div className="grid gap-3 text-sm">
-                    {steps.map((step) => (
-                      <div
-                        key={step.id}
-                        className="rounded-2xl border border-foreground/10 bg-white px-4 py-3"
+              <div className="space-y-6">
+                <h1 className="text-lg font-semibold leading-snug">{current.title}</h1>
+                <div className="space-y-3">
+                  {current.options.map((option) => {
+                    const selected = answers[current.id] === option
+                    return (
+                      <button
+                        key={option}
+                        className={`w-full rounded-2xl px-4 py-4 text-left text-sm font-medium transition ${
+                          selected
+                            ? 'bg-[#7b7d82] text-white'
+                            : 'bg-[#d7d8da] text-foreground hover:bg-[#cfd1d4]'
+                        }`}
+                        type="button"
+                        onClick={() => handleSelect(option)}
                       >
-                        <p className="text-xs text-muted-foreground">{step.title}</p>
-                        <p className="font-medium">{answers[step.id]}</p>
-                      </div>
-                    ))}
-                  </div>
-                  {submitError ? <p className="text-xs text-red-500">{submitError}</p> : null}
+                        {option}
+                      </button>
+                    )
+                  })}
                 </div>
-              )}
+              </div>
+
+              {stepIndex > 0 ? (
+                <button
+                  className="inline-flex items-center gap-1 text-sm font-medium text-foreground/80"
+                  type="button"
+                  onClick={handlePrev}
+                >
+                  <span aria-hidden>←</span>
+                  이전 질문
+                </button>
+              ) : null}
             </div>
-          </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex justify-center">
+                <div className="h-20 w-20 rounded-2xl bg-[#7b7d82]" />
+              </div>
+              <div className="space-y-1 text-center">
+                <p className="text-base font-semibold">설문 완료!</p>
+                <p className="text-sm text-muted-foreground">당신의 레벨을 분석했습니다</p>
+              </div>
+              <div className="rounded-3xl bg-[#d7d8da] px-4 py-6 text-center">
+                <p className="text-sm text-foreground/80">당신은</p>
+                <p className="mt-1 text-xl font-semibold">{resultSummary?.levelLabel ?? '-'}</p>
+                <p className="mt-3 text-sm text-foreground/80">기초부터 차근차근 시작해보세요!</p>
+              </div>
+              <div className="flex items-center justify-between rounded-2xl bg-[#e2e3e6] px-4 py-3 text-sm font-semibold">
+                <span>하루 목표</span>
+                <span>{resultSummary?.goalLabel ?? '-'}</span>
+              </div>
+              {submitError ? (
+                <p className="text-center text-xs text-red-500">{submitError}</p>
+              ) : null}
+              <div className="space-y-3 pt-2">
+                <button
+                  className="w-full rounded-2xl bg-[#cfd1d4] px-4 py-3 text-sm font-semibold"
+                  type="button"
+                  onClick={() => {
+                    setStepIndex(0)
+                    setSubmitError('')
+                  }}
+                >
+                  다시 하기
+                </button>
+                <button
+                  className="w-full rounded-2xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-60"
+                  disabled={!payload || isSubmitting}
+                  type="button"
+                  onClick={handleSubmit}
+                >
+                  {isSubmitting ? '저장 중...' : '코테 공부 시작하기'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="mt-8 flex items-center justify-between gap-3">
-          <button
-            className="rounded-full border border-foreground/30 px-4 py-2 text-sm font-medium text-foreground/80 transition hover:border-foreground"
-            disabled={stepIndex === 0}
-            type="button"
-            onClick={handlePrev}
-          >
-            이전
-          </button>
-          <button
-            className="rounded-full bg-foreground px-6 py-2 text-sm font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
-            disabled={isResult ? !payload || isSubmitting : !canMoveNext}
-            type="button"
-            onClick={isResult ? handleSubmit : handleNext}
-          >
-            {isResult
-              ? isSubmitting
-                ? '저장 중...'
-                : '설문 저장하기'
-              : stepIndex === steps.length - 1
-                ? '결과 보기'
-                : '다음'}
-          </button>
-        </div>
+        {!isResult ? (
+          <div className="mt-6">
+            <button
+              className="w-full rounded-2xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-60"
+              disabled={!canMoveNext}
+              type="button"
+              onClick={handleNext}
+            >
+              {stepIndex === steps.length - 1 ? '결과 보기' : '다음'}
+            </button>
+          </div>
+        ) : null}
       </div>
     </div>
   )
