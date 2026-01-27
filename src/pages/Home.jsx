@@ -1,137 +1,263 @@
-import { Award, CalendarDays, Flame, Sparkles } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 
-const quests = [
-  {
-    title: '오늘의 요약 카드 1장',
-    detail: '빈칸 채우기까지 완료',
-    points: '+20XP',
-    status: '진행 중',
-  },
-  { title: '퀴즈 3문항 도전', detail: '30분 집중 모드', points: '+30XP', status: '대기' },
-  { title: '알고리즘 문제 1개 풀이', detail: '난이도 중급', points: '+40XP', status: '완료' },
+import { api } from '@/lib/api'
+
+const heatmapWeeks = 28
+const heatmapRows = 7
+const heatmapDays = heatmapWeeks * heatmapRows
+
+const levelClasses = [
+  'bg-[#ebedf0]',
+  'bg-[#d6f5d6]',
+  'bg-[#b7ecb7]',
+  'bg-[#8ddb8d]',
+  'bg-[#57c957]',
+  'bg-[#2ea043]',
 ]
 
-const heatmap = Array.from({ length: 35 }, (_, idx) => ({
-  id: idx,
-  level: idx % 5,
-}))
+const statusCopy = {
+  IN_PROGRESS: { action: '진행 중', variant: 'claim', disabled: true },
+  COMPLETED: { action: '경험치 획득', variant: 'claim', disabled: false },
+  CLAIMED: { action: '획득 완료', variant: 'done', disabled: true },
+}
 
-const statCards = [
-  { label: '연속 학습', value: '6일', icon: Flame },
-  { label: '완료 퀘스트', value: '18개', icon: Award },
-  { label: '이번 주 목표', value: '65%', icon: CalendarDays },
-]
+const formatDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const addDays = (date, days) => {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
+const buildHeatmapCells = (dailySolveCount) => {
+  const today = new Date()
+  const startDate = addDays(today, -(heatmapDays - 1))
+  const countByDate = new Map(
+    (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
+  )
+
+  return Array.from({ length: heatmapDays }, (_, idx) => {
+    const date = addDays(startDate, idx)
+    const key = formatDate(date)
+    const solveCount = countByDate.get(key) ?? 0
+    const level = Math.min(5, Math.max(0, solveCount))
+    return { id: key, level }
+  })
+}
+
+function QuestCard({ quest, onClaim }) {
+  const isDone = quest.variant === 'done'
+  return (
+    <article className="flex min-h-[190px] flex-col justify-between rounded-[24px] border border-black/10 bg-white/95 p-4 shadow-[0_14px_28px_rgba(15,23,42,0.08)]">
+      <div className="space-y-4">
+        <div
+          className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition ${
+            isDone ? 'border-[#3f3f46] bg-[#e5e7eb]' : 'border-[#bfc3c9] bg-[#f4f5f7]'
+          }`}
+        >
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-full border text-xl font-semibold ${
+              isDone
+                ? 'border-[#3f3f46] bg-white text-[#3f3f46]'
+                : 'border-dashed border-[#9ca3af] text-[#9ca3af]'
+            }`}
+          >
+            {isDone ? '✓' : '•'}
+          </div>
+        </div>
+        <p className="text-sm font-semibold leading-snug">{quest.title}</p>
+      </div>
+      <button
+        className={`mt-6 w-full rounded-xl px-3 py-2 text-xs font-semibold transition ${
+          isDone
+            ? 'bg-[#e5e7eb] text-[#6b7280]'
+            : 'border border-black/10 bg-white text-foreground hover:bg-[#f3f4f6]'
+        } disabled:cursor-not-allowed disabled:opacity-60`}
+        disabled={quest.disabled}
+        type="button"
+        onClick={() => onClaim(quest.userQuestId)}
+      >
+        {quest.action}
+      </button>
+    </article>
+  )
+}
 
 export default function Home() {
+  const [quests, setQuests] = useState([])
+  const [dailySolveCount, setDailySolveCount] = useState([])
+  const [streak, setStreak] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+
+  useEffect(() => {
+    let mounted = true
+
+    const fetchHome = async () => {
+      setIsLoading(true)
+      setLoadError('')
+
+      const today = new Date()
+      const fromDate = formatDate(addDays(today, -(heatmapDays - 1)))
+      const toDate = formatDate(today)
+
+      try {
+        const [questRes, contributionRes, streakRes] = await Promise.all([
+          api.get('/api/user/quests'),
+          api.get('/api/user/contribution', {
+            params: { from_date: fromDate, to_date: toDate },
+          }),
+          api.get('/api/user/streak'),
+        ])
+
+        if (!mounted) {
+          return
+        }
+
+        const questItems = questRes.data?.data?.quests ?? []
+        const mappedQuests = questItems.slice(0, 3).map((item) => {
+          const statusMeta = statusCopy[item.status] ?? statusCopy.IN_PROGRESS
+          return {
+            userQuestId: item.userQuestId,
+            title: item.title,
+            action: statusMeta.action,
+            variant: statusMeta.variant,
+            disabled: statusMeta.disabled,
+          }
+        })
+
+        setQuests(mappedQuests)
+        setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
+        setStreak(streakRes.data?.data?.streak ?? 0)
+      } catch {
+        if (!mounted) {
+          return
+        }
+        setLoadError('홈 데이터를 불러오지 못했습니다.')
+      } finally {
+        if (mounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    fetchHome()
+
+    return () => {
+      mounted = false
+    }
+  }, [])
+
+  const heatmapCells = useMemo(() => buildHeatmapCells(dailySolveCount), [dailySolveCount])
+
+  const handleClaim = async (userQuestId) => {
+    if (!userQuestId) {
+      return
+    }
+    try {
+      await api.post(`/api/user/quests/${userQuestId}`)
+      window.location.reload()
+    } catch {
+      setLoadError('보상 수령에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    }
+  }
+
+  const questItems =
+    quests.length > 0
+      ? quests
+      : [
+          {
+            userQuestId: null,
+            title: '퀘스트를 준비 중입니다',
+            action: '잠시만요',
+            variant: 'claim',
+            disabled: true,
+          },
+          {
+            userQuestId: null,
+            title: '곧 새로운 퀘스트가 도착해요',
+            action: '잠시만요',
+            variant: 'claim',
+            disabled: true,
+          },
+          {
+            userQuestId: null,
+            title: '조금만 기다려주세요',
+            action: '잠시만요',
+            variant: 'claim',
+            disabled: true,
+          },
+        ]
+
   return (
-    <div className="space-y-8">
-      <section className="relative overflow-hidden rounded-[28px] border border-foreground/10 bg-gradient-to-br from-[#fff5df] via-white to-[#e5f4ff] p-6">
-        <div className="absolute -right-10 top-6 h-32 w-32 rounded-full bg-[#ffd08a] opacity-60 blur-2xl" />
-        <div className="absolute -left-16 bottom-4 h-36 w-36 rounded-full bg-[#b9dcff] opacity-60 blur-2xl" />
+    <div className="space-y-6">
+      <section className="relative overflow-hidden rounded-[28px] border border-black/5 bg-gradient-to-br from-[#fff7e8] via-[#ffffff] to-[#eaf4ff] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.10)]">
+        <div className="pointer-events-none absolute -right-16 -top-12 h-40 w-40 rounded-full bg-[#ffd89e] opacity-60 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-[#b9dcff] opacity-60 blur-3xl" />
         <div className="relative space-y-3">
-          <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Today</p>
-          <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl font-[var(--font-display)]">
-            오늘은 루틴을 만들기 좋은 날
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            코독이 추천한 퀘스트를 완료하면, 새로운 문제 세트가 열립니다.
-          </p>
-          <div className="inline-flex items-center gap-2 rounded-full bg-foreground px-4 py-2 text-xs font-semibold text-background">
-            <Sparkles className="h-4 w-4" />
-            퀘스트 추천 새로고침
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">오늘의 퀘스트</h2>
+            <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+              {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
+            </span>
           </div>
-        </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-3">
-        {statCards.map(({ label, value, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-2xl border border-foreground/10 bg-white p-4 shadow-sm"
-          >
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{label}</span>
-              <Icon className="h-4 w-4" />
-            </div>
-            <p className="mt-3 text-lg font-semibold">{value}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-end justify-between">
-          <h3 className="text-lg font-semibold">오늘의 퀘스트</h3>
-          <span className="text-xs text-muted-foreground">3개 중 1개 완료</span>
-        </div>
-        <div className="grid gap-3">
-          {quests.map((quest) => (
-            <article
-              key={quest.title}
-              className="rounded-2xl border border-foreground/10 bg-white p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-semibold">{quest.title}</p>
-                  <p className="text-xs text-muted-foreground">{quest.detail}</p>
-                </div>
-                <span className="rounded-full bg-muted px-3 py-1 text-[11px] font-semibold">
-                  {quest.status}
-                </span>
-              </div>
-              <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
-                <span>{quest.points}</span>
-                <button className="font-semibold text-foreground" type="button">
-                  자세히 보기
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex items-end justify-between">
-          <h3 className="text-lg font-semibold">학습 히트맵</h3>
-          <span className="text-xs text-muted-foreground">지난 5주</span>
-        </div>
-        <div className="rounded-2xl border border-foreground/10 bg-white p-4">
-          <div className="grid grid-cols-7 gap-2">
-            {heatmap.map((cell) => (
-              <div
-                key={cell.id}
-                className={`h-4 w-4 rounded-[6px] ${
-                  cell.level === 0
-                    ? 'bg-muted'
-                    : cell.level === 1
-                      ? 'bg-[#ffd08a]'
-                      : cell.level === 2
-                        ? 'bg-[#ffb658]'
-                        : cell.level === 3
-                          ? 'bg-[#ff914d]'
-                          : 'bg-[#ff6b4a]'
-                }`}
+          {loadError ? <p className="text-xs font-semibold text-red-500">{loadError}</p> : null}
+          <div className="grid grid-cols-3 gap-3">
+            {questItems.map((quest) => (
+              <QuestCard
+                key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}`}
+                quest={quest}
+                onClaim={handleClaim}
               />
             ))}
           </div>
-          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-            <span>이번 주 4일 연속 달성</span>
-            <span>최고 기록 9일</span>
-          </div>
+          {isLoading ? <p className="text-xs text-muted-foreground">불러오는 중...</p> : null}
         </div>
       </section>
 
-      <section className="rounded-2xl border border-foreground/10 bg-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="space-y-1">
-            <h3 className="text-lg font-semibold">퀘스트 리워드</h3>
-            <p className="text-xs text-muted-foreground">오늘 보상을 받을 준비가 되었어요.</p>
+      <section className="rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-semibold">{streak}일 연속 학습</h3>
+            <span className="text-xs font-semibold text-muted-foreground">최근 28주</span>
           </div>
-          <button
-            className="rounded-full bg-foreground px-4 py-2 text-sm font-semibold text-background"
-            type="button"
-          >
-            보상 수령하기
-          </button>
+
+          <div className="rounded-2xl bg-[#f6f7f8] p-3">
+            <div
+              className="grid gap-1"
+              style={{ gridTemplateColumns: `repeat(${heatmapWeeks}, minmax(0, 1fr))` }}
+            >
+              {Array.from({ length: heatmapWeeks }).map((_, colIdx) => (
+                <div key={colIdx} className="grid grid-rows-7 gap-1">
+                  {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
+                    const index = colIdx * heatmapRows + rowIdx
+                    const cell = heatmapCells[index]
+                    return (
+                      <div
+                        key={`${colIdx}-${rowIdx}`}
+                        className={`aspect-square w-full rounded-[2px] ${levelClasses[cell.level]}`}
+                      />
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
+              <span>Less</span>
+              <div className="flex items-center gap-1">
+                {levelClasses.map((cls) => (
+                  <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
+                ))}
+              </div>
+              <span>More</span>
+            </div>
+          </div>
         </div>
       </section>
     </div>
