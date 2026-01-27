@@ -58,3 +58,16 @@ export const refreshAccessToken = async () => {
   setAccessToken(token)
   return token
 }
+
+export const logout = async () => {
+  const token = getAccessToken()
+  try {
+    await refreshClient.post(
+      '/api/auth/logout',
+      {},
+      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
+    )
+  } finally {
+    clearAccessToken()
+  }
+}
