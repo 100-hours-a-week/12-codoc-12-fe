@@ -1,5 +1,6 @@
 import { ArrowUp, Filter, RefreshCw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -270,34 +271,38 @@ export default function Problems() {
                 )
 
                 return (
-                  <Card
+                  <Link
                     key={problem.id}
-                    className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md"
+                    className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
+                    aria-label={`${problem.title} 상세 보기`}
+                    to={`/problems/${problem.id}`}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                          {problem.title}
-                          {problem.bookmarked ? <span aria-label="북마크">⭐</span> : null}
-                        </h3>
-                        <span className="text-lg text-muted-foreground">{'›'}</span>
-                      </div>
-                      <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-                        <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
-                          Lv {problem.level}
-                        </Badge>
-                        {problem.status !== 'not_attempted' ? (
-                          <Badge
-                            className={`rounded-full px-3 py-1 ${
-                              statusOption?.pillClass ?? 'bg-background text-foreground/80'
-                            }`}
-                          >
-                            {statusOption?.label}
+                    <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                            {problem.title}
+                            {problem.bookmarked ? <span aria-label="북마크">⭐</span> : null}
+                          </h3>
+                          <span className="text-lg text-muted-foreground">{'›'}</span>
+                        </div>
+                        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                          <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
+                            Lv {problem.level}
                           </Badge>
-                        ) : null}
-                      </div>
-                    </CardContent>
-                  </Card>
+                          {problem.status !== 'not_attempted' ? (
+                            <Badge
+                              className={`rounded-full px-3 py-1 ${
+                                statusOption?.pillClass ?? 'bg-background text-foreground/80'
+                              }`}
+                            >
+                              {statusOption?.label}
+                            </Badge>
+                          ) : null}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 )
               })}
               {visibleProblems.length === 0 ? (
