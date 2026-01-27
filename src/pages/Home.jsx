@@ -144,7 +144,7 @@ function QuestCard({ quest, onClaim }) {
   )
 }
 
-function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell }) {
+function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell, streak }) {
   const [tooltipLeft, setTooltipLeft] = useState(rootPaddingPx)
   const [tooltipTop, setTooltipTop] = useState(heatmapPaddingPx)
   const rootRef = useRef(null)
@@ -213,9 +213,8 @@ function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell })
       className="relative rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.08)]"
     >
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold">연속 학습</h3>
-          <span className="text-xs font-semibold text-muted-foreground">올해</span>
+        <div className="flex items-center">
+          <h3 className="text-base font-semibold">{streak}일 연속 학습</h3>
         </div>
 
         <div className="rounded-2xl bg-[#f6f7f8] p-3">
@@ -464,11 +463,8 @@ export default function Home() {
         scrollRef={heatmapScrollRef}
         selectedCell={selectedCell}
         onSelectCell={setSelectedCell}
+        streak={streak}
       />
-
-      <div className="sr-only" aria-live="polite">
-        {streak}일 연속 학습
-      </div>
     </div>
   )
 }
