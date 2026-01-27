@@ -7,6 +7,25 @@ const years = [2023, 2024, 2025, 2026]
 const heatmapRows = 7
 const heatmapCellPx = 16
 const heatmapGapPx = 4
+const colWidthPx = heatmapCellPx + heatmapGapPx
+const heatmapPaddingPx = 8
+const tooltipOffsetPx = 6
+const rootPaddingPx = 12
+
+const monthNames = [
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'May',
+  'Jun',
+  'Jul',
+  'Aug',
+  'Sep',
+  'Oct',
+  'Nov',
+  'Dec',
+]
 
 const levelClasses = [
   'bg-[#ebedf0]',
@@ -38,6 +57,28 @@ const getContributionRange = (year) => {
   return { fromDate: startOfYear, toDate: endOfYear }
 }
 
+const buildMonthMarkers = (range) => {
+  const markers = []
+  const cursor = new Date(range.fromDate.getFullYear(), range.fromDate.getMonth(), 1)
+
+  while (cursor < range.fromDate) {
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+
+  while (cursor <= range.toDate) {
+    const dayIndex = daysBetween(range.fromDate, cursor)
+    const colIndex = Math.floor(dayIndex / heatmapRows)
+    markers.push({
+      key: formatDate(cursor),
+      label: monthNames[cursor.getMonth()],
+      leftPx: colIndex * colWidthPx,
+    })
+    cursor.setMonth(cursor.getMonth() + 1)
+  }
+
+  return markers
+}
+
 const buildHeatmapCells = (dailySolveCount, range) => {
   const countByDate = new Map(
     (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
@@ -45,17 +86,17 @@ const buildHeatmapCells = (dailySolveCount, range) => {
   const totalDays = Math.max(1, Math.round((range.toDate - range.fromDate) / 86400000) + 1)
   const weeks = Math.ceil(totalDays / heatmapRows)
   const totalCells = weeks * heatmapRows
-  const minWidthPx = weeks * (heatmapCellPx + heatmapGapPx)
+  const minWidthPx = weeks * colWidthPx
 
   const cells = Array.from({ length: totalCells }, (_, idx) => {
     if (idx >= totalDays) {
-      return { id: `pad-${idx}`, level: 0 }
+      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
     }
     const date = addDays(range.fromDate, idx)
     const key = formatDate(date)
     const solveCount = countByDate.get(key) ?? 0
     const level = Math.min(5, Math.max(0, solveCount))
-    return { id: key, level }
+    return { id: key, level, date: key, solveCount }
   })
 
   return { cells, weeks, minWidthPx, startDate: range.fromDate, totalDays }
@@ -70,33 +111,122 @@ function StatCard({ label, value }) {
   )
 }
 
-function Heatmap({ model, scrollRef }) {
+function Heatmap({ model, monthMarkers, scrollRef, onSelectCell, selectedCell }) {
+  const [tooltipLeft, setTooltipLeft] = useState(8)
+  const [tooltipTop, setTooltipTop] = useState(heatmapPaddingPx)
+  const rootRef = useRef(null)
+
+  useEffect(() => {
+    const container = scrollRef.current
+    const root = rootRef.current
+    if (!container || !root || !selectedCell?.date) {
+      return
+    }
+    const rawLeft = selectedCell.colIdx * colWidthPx - container.scrollLeft
+    const minLeft = rootPaddingPx
+    const maxLeft = Math.max(minLeft, root.clientWidth - 180 - rootPaddingPx)
+    const nextLeft = Math.min(maxLeft, Math.max(minLeft, rootPaddingPx + rawLeft))
+    setTooltipLeft(nextLeft)
+    const gridHeightPx = heatmapRows * heatmapCellPx + (heatmapRows - 1) * heatmapGapPx
+    const rowTop = selectedCell.rowIdx * (heatmapCellPx + heatmapGapPx)
+    const nextTop = heatmapPaddingPx + rowTop + heatmapCellPx + tooltipOffsetPx
+    const maxTop = heatmapPaddingPx + gridHeightPx - 28
+    setTooltipTop(Math.min(maxTop, nextTop))
+  }, [scrollRef, selectedCell])
+
+  useEffect(() => {
+    if (!selectedCell?.date) {
+      return
+    }
+    const container = scrollRef.current
+    const root = rootRef.current
+    if (!container || !root) {
+      return
+    }
+    const handleScroll = () => onSelectCell(null)
+    const handlePointerDown = (event) => {
+      if (!root.contains(event.target)) {
+        onSelectCell(null)
+      }
+    }
+    container.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('pointerdown', handlePointerDown)
+    }
+  }, [onSelectCell, scrollRef, selectedCell])
+
   return (
-    <div className="rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
+    <div
+      ref={rootRef}
+      className="relative rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
+    >
       <div ref={scrollRef} className="overflow-x-auto pb-1">
-        <div
-          className="grid gap-1"
-          style={{
-            gridTemplateColumns: `repeat(${model.weeks}, ${heatmapCellPx}px)`,
-            minWidth: `${model.minWidthPx}px`,
-          }}
-        >
-          {Array.from({ length: model.weeks }).map((_, colIdx) => (
-            <div key={colIdx} className="grid grid-rows-7 gap-1">
-              {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
-                const index = colIdx * heatmapRows + rowIdx
-                const cell = model.cells[index]
-                return (
-                  <div
-                    key={`${colIdx}-${rowIdx}`}
-                    className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]}`}
-                  />
-                )
-              })}
+        <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
+          <div
+            className="grid gap-1"
+            style={{
+              gridTemplateColumns: `repeat(${model.weeks}, ${heatmapCellPx}px)`,
+            }}
+          >
+            {Array.from({ length: model.weeks }).map((_, colIdx) => (
+              <div key={colIdx} className="grid grid-rows-7 gap-1">
+                {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
+                  const index = colIdx * heatmapRows + rowIdx
+                  const cell = model.cells[index]
+                  return (
+                    <div
+                      key={`${colIdx}-${rowIdx}`}
+                      className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]} ${
+                        cell.date && selectedCell?.date === cell.date ? 'ring-2 ring-black/70' : ''
+                      }`}
+                      role={cell.date ? 'button' : undefined}
+                      tabIndex={cell.date ? 0 : undefined}
+                      onClick={() => {
+                        if (!cell.date) {
+                          return
+                        }
+                        if (selectedCell?.date === cell.date) {
+                          onSelectCell(null)
+                          return
+                        }
+                        onSelectCell({ ...cell, colIdx, rowIdx })
+                      }}
+                      onKeyDown={(event) => {
+                        if (cell.date && (event.key === 'Enter' || event.key === ' ')) {
+                          event.preventDefault()
+                          onSelectCell({ ...cell, colIdx, rowIdx })
+                        }
+                      }}
+                    />
+                  )
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="relative mt-2 h-6" style={{ minWidth: `${model.minWidthPx}px` }}>
+          {monthMarkers.map((marker) => (
+            <div
+              key={marker.key}
+              className="absolute top-0 text-[10px] font-semibold text-muted-foreground"
+              style={{ left: `${marker.leftPx}px` }}
+            >
+              <div className="h-2 border-l border-black/20" />
+              <div className="mt-1 -translate-x-1">{marker.label}</div>
             </div>
           ))}
         </div>
       </div>
+      {selectedCell?.date ? (
+        <div
+          className="pointer-events-none absolute z-20 rounded-lg bg-black px-3 py-2 text-xs font-semibold text-white shadow-lg"
+          style={{ left: `${tooltipLeft}px`, top: `${tooltipTop}px` }}
+        >
+          {selectedCell.date} : {selectedCell.solveCount}문제 해결
+        </div>
+      ) : null}
       <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
         <span>Less</span>
         <div className="flex items-center gap-1">
@@ -114,7 +244,7 @@ export default function MyPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [nickname, setNickname] = useState('코딩 마스터')
   const [draftNickname, setDraftNickname] = useState(nickname)
-  const [year, setYear] = useState(2025)
+  const [year, setYear] = useState(new Date().getFullYear())
   const [isYearMenuOpen, setIsYearMenuOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -131,10 +261,12 @@ export default function MyPage() {
   const [stats, setStats] = useState({ solvedCount: 0, solvingCount: 0, totalXp: 0 })
   const [dailySolveCount, setDailySolveCount] = useState([])
   const heatmapScrollRef = useRef(null)
+  const [selectedCell, setSelectedCell] = useState(null)
 
   const helperText = useMemo(() => '2자 이상 15자 이하 입력 (공백, 특수문자, 비속어 제외)', [])
 
   const contributionRange = useMemo(() => getContributionRange(year), [year])
+  const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
 
   const heatmapModel = useMemo(
     () => buildHeatmapCells(dailySolveCount, contributionRange),
@@ -154,8 +286,7 @@ export default function MyPage() {
       Math.max(0, daysBetween(heatmapModel.startDate, targetDate)),
     )
     const targetCol = Math.floor(dayIndex / heatmapRows)
-    const colWidth = heatmapCellPx + heatmapGapPx
-    const targetLeft = Math.max(0, (targetCol + 1) * colWidth - container.clientWidth)
+    const targetLeft = Math.max(0, (targetCol + 1) * colWidthPx - container.clientWidth)
     container.scrollTo({ left: targetLeft, behavior: 'auto' })
   }, [contributionRange.toDate, heatmapModel, year])
 
@@ -243,12 +374,14 @@ export default function MyPage() {
           return
         }
         setDailySolveCount(data?.data?.dailySolveCount ?? [])
+        setSelectedCell(null)
       } catch {
         if (!mounted) {
           return
         }
         setLoadError('기여도 정보를 불러오지 못했습니다.')
         setDailySolveCount([])
+        setSelectedCell(null)
       } finally {
         if (mounted) {
           setIsLoadingContribution(false)
@@ -504,7 +637,13 @@ export default function MyPage() {
             ) : null}
           </div>
         </div>
-        <Heatmap model={heatmapModel} scrollRef={heatmapScrollRef} />
+        <Heatmap
+          model={heatmapModel}
+          monthMarkers={monthMarkers}
+          scrollRef={heatmapScrollRef}
+          selectedCell={selectedCell}
+          onSelectCell={setSelectedCell}
+        />
       </section>
 
       <section className="flex justify-end">
