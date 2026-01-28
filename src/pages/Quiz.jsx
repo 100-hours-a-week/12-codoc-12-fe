@@ -192,6 +192,9 @@ export default function Quiz() {
                 if (tab.id === 'problem') {
                   navigate(`/problems/${problemId}`)
                 }
+                if (tab.id === 'chatbot') {
+                  navigate(`/problems/${problemId}/chatbot`)
+                }
               }}
               type="button"
             >
