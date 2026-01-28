@@ -162,7 +162,7 @@ function Heatmap({ model, monthMarkers, scrollRef, onSelectCell, selectedCell })
       ref={rootRef}
       className="relative rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
     >
-      <div ref={scrollRef} className="overflow-x-auto pb-1">
+      <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1">
         <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
           <div
             className="grid gap-1"
@@ -258,6 +258,7 @@ export default function MyPage() {
   const [avatarError, setAvatarError] = useState('')
   const [selectedAvatarId, setSelectedAvatarId] = useState(null)
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false)
   const [stats, setStats] = useState({ solvedCount: 0, solvingCount: 0, totalXp: 0 })
   const [dailySolveCount, setDailySolveCount] = useState([])
   const heatmapScrollRef = useRef(null)
@@ -399,6 +400,7 @@ export default function MyPage() {
   const handleStartEdit = async () => {
     setDraftNickname(nickname)
     setIsEditing(true)
+    setIsAvatarPickerOpen(false)
 
     if (avatars.length > 0) {
       return
@@ -417,6 +419,7 @@ export default function MyPage() {
     setDraftNickname(nickname)
     setIsEditing(false)
     setAvatarError('')
+    setIsAvatarPickerOpen(false)
   }
 
   const handleSaveEdit = async () => {
@@ -437,6 +440,7 @@ export default function MyPage() {
       setNickname(updatedNickname)
       setAvatarUrl(updatedAvatarUrl)
       setIsEditing(false)
+      setIsAvatarPickerOpen(false)
       showToast('저장이 완료되었습니다.')
     } catch {
       setLoadError('프로필 저장에 실패했습니다.')
@@ -489,106 +493,134 @@ export default function MyPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-[28px] border border-black/10 bg-gradient-to-br from-white via-white to-[#f3f8ff] p-5 shadow-[0_18px_36px_rgba(15,23,42,0.10)]">
+      <section className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-3">
-            <div className="h-20 w-20 overflow-hidden rounded-full bg-[#4b5563]">
+          <div className="space-y-2">
+            <div className="relative h-20 w-20 overflow-hidden rounded-full bg-[#4b5563]">
               {avatarUrl ? (
                 <img alt="avatar" className="h-full w-full object-cover" src={avatarUrl} />
               ) : null}
+              {isEditing ? (
+                <button
+                  className="absolute left-1/2 top-1/2 w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70 bg-white/95 px-3 py-1 text-xs font-semibold text-foreground shadow-sm"
+                  type="button"
+                  onClick={() => setIsAvatarPickerOpen(true)}
+                >
+                  변경
+                </button>
+              ) : null}
             </div>
-            {!isEditing ? (
-              <div className="flex items-center gap-3 text-sm font-semibold">
-                <button className="text-foreground/80" type="button" onClick={handleStartEdit}>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isEditing ? (
+              <>
+                <button
+                  className="rounded-md border border-black/40 px-3 py-1.5 text-xs font-semibold"
+                  type="button"
+                  onClick={handleCancelEdit}
+                >
+                  취소
+                </button>
+                <button
+                  className="rounded-md border border-black/60 px-3 py-1.5 text-xs font-semibold text-foreground disabled:opacity-60"
+                  disabled={isSaving}
+                  type="button"
+                  onClick={handleSaveEdit}
+                >
+                  {isSaving ? '저장 중...' : '저장'}
+                </button>
+              </>
+            ) : (
+              <>
+                <button className="text-sm font-semibold" type="button" onClick={handleStartEdit}>
                   편집
                 </button>
                 <button
-                  className="text-foreground/60 disabled:opacity-60"
+                  className="text-sm font-semibold text-muted-foreground disabled:opacity-60"
                   disabled={isLoggingOut}
                   type="button"
                   onClick={handleLogout}
                 >
                   {isLoggingOut ? '로그아웃 중...' : '로그아웃'}
                 </button>
-              </div>
-            ) : (
-              <button
-                className="rounded-full border border-black/15 px-3 py-1 text-xs font-semibold"
-                type="button"
-              >
-                변경
-              </button>
+              </>
             )}
           </div>
-
-          {isEditing ? (
-            <div className="flex items-center gap-2">
-              <button
-                className="rounded-lg border border-black/15 px-3 py-1.5 text-xs font-semibold"
-                type="button"
-                onClick={handleCancelEdit}
-              >
-                취소
-              </button>
-              <button
-                className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background disabled:opacity-60"
-                disabled={isSaving}
-                type="button"
-                onClick={handleSaveEdit}
-              >
-                {isSaving ? '저장 중...' : '저장'}
-              </button>
-            </div>
-          ) : null}
         </div>
 
-        <div className="mt-5 space-y-3">
+        <div className="mt-3 space-y-2">
           {!isEditing ? (
             <h2 className="text-2xl font-semibold tracking-tight">{nickname}</h2>
           ) : (
-            <div className="space-y-2">
+            <>
               <input
-                className="w-full rounded-2xl border border-black/20 bg-white px-4 py-3 text-base font-semibold outline-none focus:border-black"
+                className="w-full rounded-lg border border-black/40 bg-white px-3 py-2.5 text-base font-semibold outline-none focus:border-black"
                 value={draftNickname}
                 onChange={(event) => setDraftNickname(event.target.value)}
                 placeholder="닉네임을 입력하세요"
               />
               <p className="text-[11px] font-semibold text-muted-foreground">{helperText}</p>
-            </div>
+            </>
           )}
         </div>
 
-        {isEditing ? (
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-muted-foreground">아바타 선택</p>
+        {isEditing && isAvatarPickerOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+            <div className="w-full max-w-[360px] rounded-2xl border border-black/10 bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+              <div className="flex items-center justify-center">
+                <p className="text-xl font-bold">프로필 이미지 변경</p>
+              </div>
               {avatarError ? (
-                <span className="text-[11px] font-semibold text-red-500">{avatarError}</span>
+                <p className="mt-2 text-[11px] font-semibold text-red-500">{avatarError}</p>
               ) : null}
-            </div>
-            <div className="grid grid-cols-4 gap-2">
-              {avatars.map((avatar) => {
-                const selected = avatar.avatarId === selectedAvatarId
-                return (
-                  <button
-                    key={avatar.avatarId}
-                    className={`overflow-hidden rounded-2xl border ${
-                      selected ? 'border-black' : 'border-black/10'
-                    }`}
-                    type="button"
-                    onClick={() => {
-                      setSelectedAvatarId(avatar.avatarId)
-                      setAvatarUrl(avatar.url)
-                    }}
-                  >
-                    <img
-                      alt="avatar option"
-                      className="h-16 w-full object-cover"
-                      src={avatar.url}
-                    />
-                  </button>
-                )
-              })}
+              <div className="mt-4 grid grid-cols-3 justify-items-center gap-4">
+                {avatars.map((avatar) => {
+                  const selected = avatar.avatarId === selectedAvatarId
+                  return (
+                    <button
+                      key={avatar.avatarId}
+                      className={`relative h-20 w-20 overflow-hidden rounded-full border ${
+                        selected ? 'border-black' : 'border-black/20'
+                      }`}
+                      type="button"
+                      onClick={() => {
+                        setSelectedAvatarId(avatar.avatarId)
+                        setAvatarUrl(avatar.url)
+                      }}
+                    >
+                      <img
+                        alt="avatar option"
+                        className="h-full w-full object-cover"
+                        src={avatar.url}
+                      />
+                      {selected ? (
+                        <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base font-semibold text-foreground shadow-sm">
+                            ✓
+                          </span>
+                        </span>
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="mt-5 flex items-center justify-center gap-3">
+                <button
+                  className="min-w-[96px] rounded-md border border-black/40 px-4 py-2 text-sm font-semibold"
+                  type="button"
+                  onClick={() => setIsAvatarPickerOpen(false)}
+                >
+                  취소
+                </button>
+                <button
+                  className="min-w-[96px] rounded-md border border-black/60 px-4 py-2 text-sm font-semibold"
+                  type="button"
+                  onClick={() => setIsAvatarPickerOpen(false)}
+                >
+                  확인
+                </button>
+              </div>
             </div>
           </div>
         ) : null}
