@@ -18,7 +18,13 @@ const SUMMARY_CARD_PROMPTS = {
   CONSTRAINT: '을 만족하는',
 }
 
-export default function ProblemSummaryCards({ summaryCards, problemId, onClose, onStatusChange }) {
+export default function ProblemSummaryCards({
+  summaryCards,
+  problemId,
+  onClose,
+  onStatusChange,
+  onQuizStart,
+}) {
   const [selectedChoices, setSelectedChoices] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [gradingResults, setGradingResults] = useState([])
@@ -178,9 +184,11 @@ export default function ProblemSummaryCards({ summaryCards, problemId, onClose, 
         disabled={isSubmitting || (!isSubmitEnabled && !isGraded)}
         onClick={() => {
           if (isGraded) {
-            if (!allCorrect) {
-              handleReset()
+            if (allCorrect) {
+              onQuizStart?.()
+              return
             }
+            handleReset()
             return
           }
           handleSubmit()
