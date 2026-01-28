@@ -43,10 +43,8 @@ const statusCopy = {
 }
 
 const formatDate = (date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
 }
 
 const addDays = (date, days) => {
@@ -56,6 +54,11 @@ const addDays = (date, days) => {
 }
 
 const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
+
+const getKstToday = () => {
+  const now = new Date()
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000)
+}
 
 const getContributionRange = (today) => {
   const fromDate = addDays(today, -364)
@@ -321,7 +324,7 @@ export default function Home() {
   const questTouchStartX = useRef(null)
   const questTouchLastX = useRef(null)
 
-  const today = useMemo(() => new Date(), [])
+  const today = useMemo(() => getKstToday(), [])
   const contributionRange = useMemo(() => getContributionRange(today), [today])
   const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
 
