@@ -38,10 +38,8 @@ const levelClasses = [
 ]
 
 const formatDate = (date) => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000)
+  return kst.toISOString().slice(0, 10)
 }
 
 const addDays = (date, days) => {
@@ -52,9 +50,14 @@ const addDays = (date, days) => {
 
 const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
 
+const getKstToday = () => {
+  const now = new Date()
+  return new Date(now.getTime() + 9 * 60 * 60 * 1000)
+}
+
 const getContributionRange = (year) => {
   const startOfYear = new Date(year, 0, 1)
-  const today = new Date()
+  const today = getKstToday()
   const isCurrentYear = year === today.getFullYear()
   const endDate = isCurrentYear
     ? new Date(today.getFullYear(), today.getMonth(), today.getDate())
@@ -252,7 +255,7 @@ export default function MyPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [nickname, setNickname] = useState('코딩 마스터')
   const [draftNickname, setDraftNickname] = useState(nickname)
-  const [year, setYear] = useState(new Date().getFullYear())
+  const [year, setYear] = useState(getKstToday().getFullYear())
   const [isYearMenuOpen, setIsYearMenuOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -278,7 +281,7 @@ export default function MyPage() {
   const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
 
   const heatmapModel = useMemo(() => {
-    const today = new Date()
+    const today = getKstToday()
     const isCurrentYear = year === today.getFullYear()
     const cutoffDate = isCurrentYear ? today : null
     return buildHeatmapCells(dailySolveCount, contributionRange, cutoffDate)
