@@ -26,7 +26,7 @@ export default function MainLayout() {
             </h1>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-5 pb-10 sm:px-6 sm:py-8">{content}</main>
+        <main className="flex-1 overflow-y-auto px-4 py-5">{content}</main>
         <footer className="shrink-0 border-t bg-background/95 backdrop-blur">
           <nav className="grid grid-cols-3 px-6 pb-3 pt-2">
             {navItems.map(({ to, label, Icon, end }) => (
