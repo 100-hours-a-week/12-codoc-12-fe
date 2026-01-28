@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api } from '@/lib/api'
+import StatusMessage from '@/components/StatusMessage'
 
 const heatmapRows = 7
 const heatmapCellPx = 16
@@ -97,6 +98,9 @@ const buildHeatmapModel = (dailySolveCount, range) => {
       return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
     }
     const date = addDays(range.fromDate, idx)
+    if (date > range.today) {
+      return { id: `future-${idx}`, level: 0, date: null, solveCount: 0 }
+    }
     const key = formatDate(date)
     const solveCount = countByDate.get(key) ?? 0
     const level = Math.min(5, Math.max(0, solveCount))
@@ -224,7 +228,7 @@ function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell, s
       </div>
 
       <div className="mt-1 rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
-        <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1">
+        <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1 pr-2">
           <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
             <div
               className="grid gap-1"
@@ -240,11 +244,9 @@ function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell, s
                     return (
                       <div
                         key={`${colIdx}-${rowIdx}`}
-                        className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]} ${
-                          cell.date && selectedCell?.date === cell.date
-                            ? 'ring-2 ring-black/70'
-                            : ''
-                        }`}
+                        className={`h-4 w-4 rounded-[2px] ${
+                          cell.date ? levelClasses[cell.level] : 'bg-transparent'
+                        } ${cell.date && selectedCell?.date === cell.date ? 'ring-2 ring-black/70' : ''}`}
                         data-date={cell.date ?? undefined}
                         role={cell.date ? 'button' : undefined}
                         tabIndex={cell.date ? 0 : undefined}
@@ -477,7 +479,7 @@ export default function Home() {
               {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
             </span>
           </div>
-          {loadError ? <p className="text-xs font-semibold text-red-500">{loadError}</p> : null}
+          {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
           <div className="relative">
             <div
               className="overflow-hidden"
@@ -553,7 +555,7 @@ export default function Home() {
               </div>
             </div>
           </div>
-          {isLoading ? <p className="text-xs text-muted-foreground">불러오는 중...</p> : null}
+          {isLoading ? <StatusMessage>불러오는 중...</StatusMessage> : null}
         </div>
       </section>
 

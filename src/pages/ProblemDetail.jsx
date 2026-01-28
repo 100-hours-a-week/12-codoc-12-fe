@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 
+import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -116,11 +117,11 @@ export default function ProblemDetail() {
 
       {isLoading ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-muted-foreground">문제 상세 정보를 불러오는 중입니다.</p>
+          <StatusMessage>문제 상세 정보를 불러오는 중입니다.</StatusMessage>
         </Card>
       ) : loadError ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-red-500">{loadError}</p>
+          <StatusMessage tone="error">{loadError}</StatusMessage>
           <Button className="mt-4" onClick={handleRetry} type="button" variant="secondary">
             다시 시도
           </Button>
@@ -242,7 +243,7 @@ export default function ProblemDetail() {
                       {problem.content}
                     </ReactMarkdown>
                   ) : (
-                    <p className="text-sm text-muted-foreground">문제 설명이 없습니다.</p>
+                    <StatusMessage>문제 설명이 없습니다.</StatusMessage>
                   )}
                 </section>
               </div>

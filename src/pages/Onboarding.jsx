@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 import { api } from '@/lib/api'
+import StatusMessage from '@/components/StatusMessage'
 import { clearAccessToken } from '@/lib/auth'
 
 const steps = [
@@ -208,7 +209,9 @@ export default function Onboarding() {
                 <span>{resultSummary?.goalLabel ?? '-'}</span>
               </div>
               {submitError ? (
-                <p className="text-center text-xs text-red-500">{submitError}</p>
+                <StatusMessage className="text-center" tone="error">
+                  {submitError}
+                </StatusMessage>
               ) : null}
               <div className="space-y-3 pt-2">
                 <button
