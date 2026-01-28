@@ -31,3 +31,13 @@ export const requestProblemDetail = async (problemId) => {
   const response = await api.get(`/api/problems/${problemId}`)
   return response.data
 }
+
+export const requestProblemBookmark = async (problemId) => {
+  const response = await api.put(`/api/problems/${problemId}/bookmark`)
+  return response.data
+}
+
+export const requestProblemBookmarkRemoval = async (problemId) => {
+  const response = await api.delete(`/api/problems/${problemId}/bookmark`)
+  return response.data
+}

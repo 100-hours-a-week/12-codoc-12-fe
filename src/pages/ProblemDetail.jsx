@@ -9,7 +9,11 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ProblemSummaryCards from '@/components/ProblemSummaryCards'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
-import { getProblemDetail } from '@/services/problems/problemsService'
+import {
+  getProblemDetail,
+  registerProblemBookmark,
+  removeProblemBookmark,
+} from '@/services/problems/problemsService'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -28,6 +32,7 @@ export default function ProblemDetail() {
   const [loadError, setLoadError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [isSummaryOpen, setIsSummaryOpen] = useState(false)
+  const [isBookmarking, setIsBookmarking] = useState(false)
 
   useEffect(() => {
     let isActive = true
@@ -94,6 +99,25 @@ export default function ProblemDetail() {
   const handleQuizStart = () => {
     if (problemId) {
       navigate(`/problems/${problemId}/quiz`)
+    }
+  }
+
+  const handleBookmarkToggle = async () => {
+    if (!problem?.id || isBookmarking) {
+      return
+    }
+
+    setIsBookmarking(true)
+
+    try {
+      const nextBookmarked = !problem.bookmarked
+      const response = nextBookmarked
+        ? await registerProblemBookmark(problem.id)
+        : await removeProblemBookmark(problem.id)
+
+      setProblem((prev) => (prev ? { ...prev, bookmarked: response.bookmarked } : prev))
+    } finally {
+      setIsBookmarking(false)
     }
   }
 
@@ -188,14 +212,21 @@ export default function ProblemDetail() {
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
-                    <Star
-                      aria-label={problem.bookmarked ? '북마크됨' : '북마크 안 됨'}
-                      className={`h-5 w-5 ${
-                        problem.bookmarked
-                          ? 'fill-foreground text-foreground'
-                          : 'text-muted-foreground'
-                      }`}
-                    />
+                    <button
+                      aria-label={problem.bookmarked ? '북마크 해제' : '북마크 추가'}
+                      className="rounded-full p-1 transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={isBookmarking}
+                      onClick={handleBookmarkToggle}
+                      type="button"
+                    >
+                      <Star
+                        className={`h-5 w-5 ${
+                          problem.bookmarked
+                            ? 'fill-foreground text-foreground'
+                            : 'text-muted-foreground'
+                        }`}
+                      />
+                    </button>
                   </div>
                   <div className="h-px bg-border" />
                 </div>
