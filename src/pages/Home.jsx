@@ -109,15 +109,15 @@ const buildHeatmapModel = (dailySolveCount, range) => {
 function QuestCard({ quest, onClaim }) {
   const isDone = quest.variant === 'done'
   return (
-    <article className="flex min-h-[190px] flex-col justify-between rounded-[24px] border border-black/10 bg-white/95 p-4 shadow-[0_14px_28px_rgba(15,23,42,0.08)]">
-      <div className="space-y-4">
+    <article className="flex min-h-[140px] flex-col justify-between rounded-[16px] border border-black/10 bg-white p-2.5 shadow-[0_6px_12px_rgba(15,23,42,0.06)]">
+      <div className="space-y-2.5">
         <div
-          className={`flex h-16 w-16 items-center justify-center rounded-full border-2 transition ${
+          className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full border-2 transition ${
             isDone ? 'border-[#3f3f46] bg-[#e5e7eb]' : 'border-[#bfc3c9] bg-[#f4f5f7]'
           }`}
         >
           <div
-            className={`flex h-12 w-12 items-center justify-center rounded-full border text-xl font-semibold ${
+            className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg font-semibold ${
               isDone
                 ? 'border-[#3f3f46] bg-white text-[#3f3f46]'
                 : 'border-dashed border-[#9ca3af] text-[#9ca3af]'
@@ -126,10 +126,20 @@ function QuestCard({ quest, onClaim }) {
             {isDone ? '✓' : '•'}
           </div>
         </div>
-        <p className="text-sm font-semibold leading-snug">{quest.title}</p>
+        <p
+          className="text-sm font-semibold leading-snug"
+          style={{
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
+          {quest.title}
+        </p>
       </div>
       <button
-        className={`mt-6 w-full rounded-xl px-3 py-2 text-xs font-semibold transition ${
+        className={`mt-4 w-full rounded-xl px-3 py-2 text-xs font-semibold transition ${
           isDone
             ? 'bg-[#e5e7eb] text-[#6b7280]'
             : 'border border-black/10 bg-white text-foreground hover:bg-[#f3f4f6]'
@@ -208,94 +218,89 @@ function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell, s
   }, [onSelectCell, scrollRef, selectedCell])
 
   return (
-    <div
-      ref={rootRef}
-      className="relative rounded-[28px] border border-black/10 bg-white p-4 shadow-[0_16px_36px_rgba(15,23,42,0.08)]"
-    >
-      <div className="space-y-4">
-        <div className="flex items-center">
-          <h3 className="text-base font-semibold">{streak}일 연속 학습</h3>
-        </div>
+    <div ref={rootRef} className="relative">
+      <div className="flex items-center">
+        <h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>
+      </div>
 
-        <div className="rounded-2xl bg-[#f6f7f8] p-3">
-          <div ref={scrollRef} className="overflow-x-auto pb-1">
-            <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
-              <div
-                className="grid gap-1"
-                style={{
-                  gridTemplateColumns: `repeat(${model.weeks}, ${heatmapCellPx}px)`,
-                }}
-              >
-                {Array.from({ length: model.weeks }).map((_, colIdx) => (
-                  <div key={colIdx} className="grid grid-rows-7 gap-1">
-                    {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
-                      const index = colIdx * heatmapRows + rowIdx
-                      const cell = model.cells[index]
-                      return (
-                        <div
-                          key={`${colIdx}-${rowIdx}`}
-                          className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]} ${
-                            cell.date && selectedCell?.date === cell.date
-                              ? 'ring-2 ring-black/70'
-                              : ''
-                          }`}
-                          data-date={cell.date ?? undefined}
-                          role={cell.date ? 'button' : undefined}
-                          tabIndex={cell.date ? 0 : undefined}
-                          onClick={() => {
-                            if (!cell.date) {
-                              return
-                            }
-                            if (selectedCell?.date === cell.date) {
-                              onSelectCell(null)
-                              return
-                            }
+      <div className="mt-1 rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
+        <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1">
+          <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
+            <div
+              className="grid gap-1"
+              style={{
+                gridTemplateColumns: `repeat(${model.weeks}, ${heatmapCellPx}px)`,
+              }}
+            >
+              {Array.from({ length: model.weeks }).map((_, colIdx) => (
+                <div key={colIdx} className="grid grid-rows-7 gap-1">
+                  {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
+                    const index = colIdx * heatmapRows + rowIdx
+                    const cell = model.cells[index]
+                    return (
+                      <div
+                        key={`${colIdx}-${rowIdx}`}
+                        className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]} ${
+                          cell.date && selectedCell?.date === cell.date
+                            ? 'ring-2 ring-black/70'
+                            : ''
+                        }`}
+                        data-date={cell.date ?? undefined}
+                        role={cell.date ? 'button' : undefined}
+                        tabIndex={cell.date ? 0 : undefined}
+                        onClick={() => {
+                          if (!cell.date) {
+                            return
+                          }
+                          if (selectedCell?.date === cell.date) {
+                            onSelectCell(null)
+                            return
+                          }
+                          onSelectCell({ ...cell, colIdx, rowIdx })
+                        }}
+                        onKeyDown={(event) => {
+                          if (cell.date && (event.key === 'Enter' || event.key === ' ')) {
+                            event.preventDefault()
                             onSelectCell({ ...cell, colIdx, rowIdx })
-                          }}
-                          onKeyDown={(event) => {
-                            if (cell.date && (event.key === 'Enter' || event.key === ' ')) {
-                              event.preventDefault()
-                              onSelectCell({ ...cell, colIdx, rowIdx })
-                            }
-                          }}
-                        />
-                      )
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="relative mt-2 h-6" style={{ minWidth: `${model.minWidthPx}px` }}>
-              {monthMarkers.map((marker) => (
-                <div
-                  key={marker.key}
-                  className="absolute top-0 text-[10px] font-semibold text-muted-foreground"
-                  style={{ left: `${marker.leftPx}px` }}
-                >
-                  <div className="h-2 border-l border-black/20" />
-                  <div className="mt-1 -translate-x-1">{marker.label}</div>
+                          }
+                        }}
+                      />
+                    )
+                  })}
                 </div>
               ))}
             </div>
           </div>
-          {selectedCell?.date ? (
-            <div
-              className="pointer-events-none absolute z-20 rounded-lg bg-black px-3 py-2 text-xs font-semibold text-white shadow-lg"
-              style={{ left: `${tooltipLeft}px`, top: `${tooltipTop}px` }}
-            >
-              {selectedCell.date} : {selectedCell.solveCount}문제 해결
-            </div>
-          ) : null}
-
-          <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
-            <span>Less</span>
-            <div className="flex items-center gap-1">
-              {levelClasses.map((cls) => (
-                <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
-              ))}
-            </div>
-            <span>More</span>
+          <div className="relative mt-2 h-6" style={{ minWidth: `${model.minWidthPx}px` }}>
+            {monthMarkers.map((marker) => (
+              <div
+                key={marker.key}
+                className="absolute top-0 text-[10px] font-semibold text-muted-foreground"
+                style={{ left: `${marker.leftPx}px` }}
+              >
+                <div className="h-2 border-l border-black/20" />
+                <div className="mt-1 -translate-x-1">{marker.label}</div>
+              </div>
+            ))}
           </div>
+        </div>
+        {selectedCell?.date ? (
+          <div
+            className="pointer-events-none absolute z-20 rounded-lg bg-black px-3 py-2 text-xs font-semibold text-white shadow-lg"
+            style={{ left: `${tooltipLeft}px`, top: `${tooltipTop}px` }}
+          >
+            {selectedCell.date} : {selectedCell.solveCount}문제 해결
+          </div>
+        ) : null}
+
+        <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
+          <span>Less</span>
+          <div className="flex items-center gap-1">
+            {levelClasses.map((cls) => (
+              <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
+            ))}
+          </div>
+          <span>More</span>
         </div>
       </div>
     </div>
@@ -310,6 +315,9 @@ export default function Home() {
   const [loadError, setLoadError] = useState('')
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
+  const [questPage, setQuestPage] = useState(0)
+  const questTouchStartX = useRef(null)
+  const questTouchLastX = useRef(null)
 
   const today = useMemo(() => new Date(), [])
   const contributionRange = useMemo(() => getContributionRange(today), [today])
@@ -339,7 +347,7 @@ export default function Home() {
         }
 
         const questItems = questRes.data?.data?.quests ?? []
-        const mappedQuests = questItems.slice(0, 3).map((item) => {
+        const mappedQuests = questItems.map((item) => {
           const statusMeta = statusCopy[item.status] ?? statusCopy.IN_PROGRESS
           return {
             userQuestId: item.userQuestId,
@@ -354,6 +362,7 @@ export default function Home() {
         setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
         setStreak(streakRes.data?.data?.streak ?? 0)
         setSelectedCell(null)
+        setQuestPage(0)
       } catch {
         if (!mounted) {
           return
@@ -430,28 +439,119 @@ export default function Home() {
             disabled: true,
           },
         ]
+  const questPages = Math.max(1, Math.ceil(questItems.length / 3))
+  const isQuestPaged = questItems.length > 3
+  const questOffsetPct = Math.min(questPages - 1, questPage) * (100 / questPages)
 
   return (
     <div className="space-y-6">
-      <section className="relative overflow-hidden rounded-[28px] border border-black/5 bg-gradient-to-br from-[#fff7e8] via-[#ffffff] to-[#eaf4ff] p-5 shadow-[0_18px_40px_rgba(15,23,42,0.10)]">
-        <div className="pointer-events-none absolute -right-16 -top-12 h-40 w-40 rounded-full bg-[#ffd89e] opacity-60 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-[#b9dcff] opacity-60 blur-3xl" />
+      <section className="rounded-[20px] border border-black/5 bg-white p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
         <div className="relative space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">오늘의 퀘스트</h2>
+            <div className="flex items-center gap-3">
+              {isQuestPaged ? (
+                <button
+                  className="flex h-6 w-6 items-center justify-center text-lg font-semibold text-black disabled:cursor-not-allowed disabled:opacity-30"
+                  type="button"
+                  onClick={() => setQuestPage((prev) => Math.max(0, prev - 1))}
+                  disabled={questPage === 0}
+                  aria-label="이전 퀘스트"
+                >
+                  ‹
+                </button>
+              ) : null}
+              <h2 className="text-lg font-semibold">오늘의 퀘스트</h2>
+              {isQuestPaged ? (
+                <button
+                  className="flex h-6 w-6 items-center justify-center text-lg font-semibold text-black disabled:cursor-not-allowed disabled:opacity-30"
+                  type="button"
+                  onClick={() => setQuestPage((prev) => Math.min(questPages - 1, prev + 1))}
+                  disabled={questPage >= questPages - 1}
+                  aria-label="다음 퀘스트"
+                >
+                  ›
+                </button>
+              ) : null}
+            </div>
             <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
               {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
             </span>
           </div>
           {loadError ? <p className="text-xs font-semibold text-red-500">{loadError}</p> : null}
-          <div className="grid grid-cols-3 gap-3">
-            {questItems.map((quest) => (
-              <QuestCard
-                key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}`}
-                quest={quest}
-                onClaim={handleClaim}
-              />
-            ))}
+          <div className="relative">
+            <div
+              className="overflow-hidden"
+              style={{ touchAction: 'pan-y' }}
+              onTouchStart={(event) => {
+                if (!isQuestPaged) {
+                  return
+                }
+                const startX = event.touches[0]?.clientX ?? null
+                questTouchStartX.current = startX
+                questTouchLastX.current = startX
+              }}
+              onTouchMove={(event) => {
+                if (!isQuestPaged) {
+                  return
+                }
+                questTouchLastX.current = event.touches[0]?.clientX ?? questTouchLastX.current
+              }}
+              onTouchEnd={(event) => {
+                if (!isQuestPaged || questTouchStartX.current == null) {
+                  return
+                }
+                const endX = questTouchLastX.current ?? event.changedTouches[0]?.clientX ?? null
+                if (endX == null) {
+                  questTouchStartX.current = null
+                  questTouchLastX.current = null
+                  return
+                }
+                const delta = questTouchStartX.current - endX
+                questTouchStartX.current = null
+                questTouchLastX.current = null
+                if (Math.abs(delta) < 40) {
+                  return
+                }
+                if (delta > 0) {
+                  setQuestPage((prev) => Math.min(questPages - 1, prev + 1))
+                } else {
+                  setQuestPage((prev) => Math.max(0, prev - 1))
+                }
+              }}
+              onTouchCancel={() => {
+                questTouchStartX.current = null
+                questTouchLastX.current = null
+              }}
+            >
+              <div
+                className="flex w-full transition-transform duration-300 ease-out"
+                style={{
+                  width: `${questPages * 100}%`,
+                  transform: `translateX(-${questOffsetPct}%)`,
+                }}
+              >
+                {Array.from({ length: questPages }).map((_, pageIndex) => {
+                  const sliceStart = pageIndex * 3
+                  const sliceEnd = sliceStart + 3
+                  const pageItems = questItems.slice(sliceStart, sliceEnd)
+                  return (
+                    <div
+                      key={`quest-page-${pageIndex}`}
+                      className="grid flex-none grid-cols-3 gap-1 px-0.5"
+                      style={{ width: `${100 / questPages}%` }}
+                    >
+                      {pageItems.map((quest) => (
+                        <QuestCard
+                          key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}-${pageIndex}`}
+                          quest={quest}
+                          onClaim={handleClaim}
+                        />
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
           {isLoading ? <p className="text-xs text-muted-foreground">불러오는 중...</p> : null}
         </div>

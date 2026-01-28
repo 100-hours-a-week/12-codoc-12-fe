@@ -59,3 +59,22 @@ body {
   @apply bg-background text-foreground;
   font-family: var(--font-body);
 }
+
+.heatmap-scroll {
+  scrollbar-gutter: stable both-edges;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.45) transparent;
+}
+
+.heatmap-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+
+.heatmap-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.heatmap-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(0, 0, 0, 0.45);
+  border-radius: 999px;
+}
