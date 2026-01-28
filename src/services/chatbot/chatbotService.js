@@ -1,3 +1,5 @@
+import { getAccessToken } from '@/lib/auth'
+
 import { requestChatbotMessage } from './chatbotApi'
 import { parseChatbotStreamEvent, toChatbotMessageResponse } from './chatbotDto'
 import { toChatbotMessageRequest } from './chatbotRequestDto'
@@ -8,30 +10,115 @@ export const sendChatbotMessage = async (payload = {}) => {
 }
 
 export const createChatbotStream = (conversationId, handlers = {}) => {
-  const { onMessage, onFinal, onError, onStatus } = handlers
+  const { onToken, onFinal, onError, onStatus } = handlers
+  const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const url = `${baseUrl}/api/chatbot/messages/${conversationId}/stream`
-  const source = new EventSource(url, { withCredentials: true })
+  const token = getAccessToken()
 
-  source.onmessage = (event) => {
-    if (event?.data) {
-      onMessage?.(event.data)
+  const handleParsedEvent = (eventType, data) => {
+    const parsed = parseChatbotStreamEvent(data)
+    if (!parsed) {
+      return
+    }
+
+    const result = parsed.result ?? {}
+
+    if (eventType === 'token') {
+      const text = result.text ?? ''
+      if (text) {
+        onToken?.(text, parsed)
+      }
+      return
+    }
+
+    if (eventType === 'status') {
+      const status = result.status ?? ''
+      if (status) {
+        onStatus?.(status, parsed)
+      }
+      return
+    }
+
+    if (eventType === 'final') {
+      onFinal?.(parsed, data)
+      const status = parsed?.result?.status ?? parsed?.status
+      if (status) {
+        onStatus?.(status, parsed)
+      }
     }
   }
 
-  source.addEventListener('final', (event) => {
-    const parsed = parseChatbotStreamEvent(event?.data)
-    onFinal?.(parsed, event?.data)
+  const parseEventBlock = (block) => {
+    const lines = block.split('\n')
+    let eventType = 'message'
+    const dataLines = []
 
-    const status = parsed?.result?.status ?? parsed?.status
-    if (status) {
-      onStatus?.(status)
+    lines.forEach((line) => {
+      if (line.startsWith('event:')) {
+        eventType = line.replace('event:', '').trim()
+        return
+      }
+      if (line.startsWith('data:')) {
+        dataLines.push(line.replace('data:', '').trim())
+      }
+    })
+
+    const data = dataLines.join('\n')
+    if (!data) {
+      return
     }
-  })
-
-  source.onerror = (error) => {
-    onError?.(error)
+    handleParsedEvent(eventType, data)
   }
 
-  return source
+  const startStream = async () => {
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        credentials: 'include',
+        signal: controller.signal,
+      })
+
+      if (!response.ok) {
+        onError?.(new Error(`Stream error: ${response.status}`))
+        return
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        onError?.(new Error('Stream not supported'))
+        return
+      }
+
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) {
+          break
+        }
+        buffer += decoder.decode(value, { stream: true })
+        const parts = buffer.split('\n\n')
+        buffer = parts.pop() ?? ''
+        parts.forEach((part) => {
+          if (part.trim()) {
+            parseEventBlock(part)
+          }
+        })
+      }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        return
+      }
+      onError?.(error)
+    }
+  }
+
+  startStream()
+
+  return {
+    close: () => controller.abort(),
+  }
 }

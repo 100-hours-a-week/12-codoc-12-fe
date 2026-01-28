@@ -167,13 +167,13 @@ export default function Chatbot() {
       if (['ACCEPTED', 'PROCESSING'].includes(response.status) && response.conversationId) {
         handleCloseStream()
         streamRef.current = createChatbotStream(response.conversationId, {
-          onMessage: (chunk) => {
+          onToken: (chunk) => {
             if (chunk) {
               handleAppendAssistant(chunk)
             }
           },
           onFinal: (eventData) => {
-            const finalMessage = eventData?.result?.aiMessage
+            const finalMessage = eventData?.result?.ai_message ?? eventData?.result?.aiMessage
             if (finalMessage) {
               handleReplaceAssistant(finalMessage)
             }
