@@ -1,6 +1,6 @@
 import { BookOpen, Brain, Clover, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 
 import { Badge } from '@/components/ui/badge'
@@ -20,6 +20,7 @@ const ACTIVE_TAB_ID = 'problem'
 
 export default function ProblemDetail() {
   const { problemId } = useParams()
+  const navigate = useNavigate()
   const [problem, setProblem] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -82,6 +83,12 @@ export default function ProblemDetail() {
     setProblem((prev) => (prev ? { ...prev, status } : prev))
   }
 
+  const handleQuizStart = () => {
+    if (problemId) {
+      navigate(`/problems/${problemId}/quiz`)
+    }
+  }
+
   const summaryCards = useMemo(() => problem?.summaryCards ?? [], [problem])
   const hasSummaryCards = summaryCards.length > 0
 
@@ -94,22 +101,41 @@ export default function ProblemDetail() {
       {!isSummaryOpen ? (
         <div className="rounded-2xl bg-muted/70 px-2">
           <div className="grid grid-cols-3">
-            {TAB_ITEMS.map((tab) => (
-              <div
-                key={tab.id}
-                className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                  tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-muted-foreground'
-                }`}
-              >
-                <tab.Icon className="h-5 w-5" />
-                {tab.label}
-                <span
-                  className={`mt-1 h-[2px] w-12 rounded-full ${
-                    tab.id === ACTIVE_TAB_ID ? 'bg-foreground' : 'bg-transparent'
-                  }`}
-                />
-              </div>
-            ))}
+            {TAB_ITEMS.map((tab) => {
+              const isQuizTab = tab.id === 'quiz'
+              const isQuizEnabled =
+                !isQuizTab || ['summary_card_passed', 'solved'].includes(problem?.status ?? '')
+
+              return (
+                <button
+                  key={tab.id}
+                  className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
+                    tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-muted-foreground'
+                  } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  disabled={!isQuizEnabled}
+                  onClick={() => {
+                    if (!problemId) {
+                      return
+                    }
+                    if (tab.id === 'quiz') {
+                      navigate(`/problems/${problemId}/quiz`)
+                    }
+                    if (tab.id === 'problem') {
+                      navigate(`/problems/${problemId}`)
+                    }
+                  }}
+                  type="button"
+                >
+                  <tab.Icon className="h-5 w-5" />
+                  {tab.label}
+                  <span
+                    className={`mt-1 h-[2px] w-12 rounded-full ${
+                      tab.id === ACTIVE_TAB_ID ? 'bg-foreground' : 'bg-transparent'
+                    }`}
+                  />
+                </button>
+              )
+            })}
           </div>
         </div>
       ) : null}
@@ -253,6 +279,7 @@ export default function ProblemDetail() {
                   summaryCards={summaryCards}
                   onClose={() => setIsSummaryOpen(false)}
                   onStatusChange={handleStatusChange}
+                  onQuizStart={handleQuizStart}
                 />
               </div>
             </div>
