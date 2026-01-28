@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 let accessToken = null
+let refreshPromise = null
 
 export const getAccessToken = () => accessToken
 
@@ -48,15 +49,24 @@ const refreshClient = axios.create({
 })
 
 export const refreshAccessToken = async () => {
-  const { data } = await refreshClient.post('/api/auth/refresh')
-  const token = data?.data?.accessToken
-
-  if (!token) {
-    throw new Error('Missing access token in refresh response')
+  if (refreshPromise) {
+    return refreshPromise
   }
+  refreshPromise = refreshClient
+    .post('/api/auth/refresh')
+    .then(({ data }) => {
+      const token = data?.data?.accessToken
+      if (!token) {
+        throw new Error('Missing access token in refresh response')
+      }
+      setAccessToken(token)
+      return token
+    })
+    .finally(() => {
+      refreshPromise = null
+    })
 
-  setAccessToken(token)
-  return token
+  return refreshPromise
 }
 
 export const logout = async () => {

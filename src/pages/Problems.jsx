@@ -2,6 +2,7 @@ import { ArrowUp, Filter, RefreshCw, Search } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
+import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -249,7 +250,7 @@ export default function Problems() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted-foreground">적용된 필터가 없습니다.</p>
+              <StatusMessage>적용된 필터가 없습니다.</StatusMessage>
             )}
           </CardContent>
         </Card>
@@ -257,11 +258,11 @@ export default function Problems() {
         <section className="space-y-4">
           {isLoading ? (
             <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-              <p className="text-sm text-muted-foreground">문제를 불러오는 중입니다.</p>
+              <StatusMessage>문제를 불러오는 중입니다.</StatusMessage>
             </Card>
           ) : loadError ? (
             <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-              <p className="text-sm text-red-500">{loadError}</p>
+              <StatusMessage tone="error">{loadError}</StatusMessage>
             </Card>
           ) : (
             <>
@@ -307,14 +308,12 @@ export default function Problems() {
               })}
               {visibleProblems.length === 0 ? (
                 <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    조건에 맞는 문제가 없습니다. 필터를 조정해보세요.
-                  </p>
+                  <StatusMessage>조건에 맞는 문제가 없습니다. 필터를 조정해보세요.</StatusMessage>
                 </Card>
               ) : null}
               {loadMoreError ? (
                 <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-4 text-center">
-                  <p className="text-xs text-red-500">{loadMoreError}</p>
+                  <StatusMessage tone="error">{loadMoreError}</StatusMessage>
                 </Card>
               ) : null}
               {hasNextPage ? (

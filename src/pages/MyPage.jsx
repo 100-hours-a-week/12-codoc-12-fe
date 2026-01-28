@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import StatusMessage from '@/components/StatusMessage'
 import { api } from '@/lib/api'
 import { clearAccessToken, logout } from '@/lib/auth'
 
@@ -53,8 +54,12 @@ const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
 
 const getContributionRange = (year) => {
   const startOfYear = new Date(year, 0, 1)
-  const endOfYear = new Date(year, 11, 31)
-  return { fromDate: startOfYear, toDate: endOfYear }
+  const today = new Date()
+  const isCurrentYear = year === today.getFullYear()
+  const endDate = isCurrentYear
+    ? new Date(today.getFullYear(), today.getMonth(), today.getDate())
+    : new Date(year, 11, 31)
+  return { fromDate: startOfYear, toDate: endDate }
 }
 
 const buildMonthMarkers = (range) => {
@@ -79,7 +84,7 @@ const buildMonthMarkers = (range) => {
   return markers
 }
 
-const buildHeatmapCells = (dailySolveCount, range) => {
+const buildHeatmapCells = (dailySolveCount, range, cutoffDate = null) => {
   const countByDate = new Map(
     (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
   )
@@ -93,6 +98,9 @@ const buildHeatmapCells = (dailySolveCount, range) => {
       return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
     }
     const date = addDays(range.fromDate, idx)
+    if (cutoffDate && date > cutoffDate) {
+      return { id: `future-${idx}`, level: 0, date: null, solveCount: 0 }
+    }
     const key = formatDate(date)
     const solveCount = countByDate.get(key) ?? 0
     const level = Math.min(5, Math.max(0, solveCount))
@@ -162,7 +170,7 @@ function Heatmap({ model, monthMarkers, scrollRef, onSelectCell, selectedCell })
       ref={rootRef}
       className="relative rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]"
     >
-      <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1">
+      <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1 pr-2">
         <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
           <div
             className="grid gap-1"
@@ -178,9 +186,9 @@ function Heatmap({ model, monthMarkers, scrollRef, onSelectCell, selectedCell })
                   return (
                     <div
                       key={`${colIdx}-${rowIdx}`}
-                      className={`h-4 w-4 rounded-[2px] ${levelClasses[cell.level]} ${
-                        cell.date && selectedCell?.date === cell.date ? 'ring-2 ring-black/70' : ''
-                      }`}
+                      className={`h-4 w-4 rounded-[2px] ${
+                        cell.date ? levelClasses[cell.level] : 'bg-transparent'
+                      } ${cell.date && selectedCell?.date === cell.date ? 'ring-2 ring-black/70' : ''}`}
                       role={cell.date ? 'button' : undefined}
                       tabIndex={cell.date ? 0 : undefined}
                       onClick={() => {
@@ -269,10 +277,12 @@ export default function MyPage() {
   const contributionRange = useMemo(() => getContributionRange(year), [year])
   const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
 
-  const heatmapModel = useMemo(
-    () => buildHeatmapCells(dailySolveCount, contributionRange),
-    [contributionRange, dailySolveCount],
-  )
+  const heatmapModel = useMemo(() => {
+    const today = new Date()
+    const isCurrentYear = year === today.getFullYear()
+    const cutoffDate = isCurrentYear ? today : null
+    return buildHeatmapCells(dailySolveCount, contributionRange, cutoffDate)
+  }, [contributionRange, dailySolveCount, year])
 
   useEffect(() => {
     const container = heatmapScrollRef.current
@@ -625,8 +635,12 @@ export default function MyPage() {
           </div>
         ) : null}
 
-        {isAnyLoading ? <p className="mt-3 text-xs text-muted-foreground">불러오는 중...</p> : null}
-        {loadError ? <p className="mt-2 text-xs font-semibold text-red-500">{loadError}</p> : null}
+        {isAnyLoading ? <StatusMessage className="mt-3">불러오는 중...</StatusMessage> : null}
+        {loadError ? (
+          <StatusMessage className="mt-2" tone="error">
+            {loadError}
+          </StatusMessage>
+        ) : null}
       </section>
 
       <section className="grid grid-cols-3 gap-3">

@@ -16,8 +16,8 @@ export default function MainLayout() {
     <div className="h-screen overflow-hidden bg-muted/40 text-foreground">
       <div className="mx-auto flex h-full w-full max-w-[430px] flex-col bg-background shadow-sm">
         <header className="border-b bg-background">
-          <div className="flex items-center justify-center px-4 py-5 sm:px-6 sm:py-6">
-            <h1 className="text-xl tracking-tight sm:text-2xl font-[var(--font-display)]">
+          <div className="flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
               <span aria-hidden>Codo</span>
               <span aria-hidden className="inline-block -translate-y-[1px] scale-x-[-1]">
                 C

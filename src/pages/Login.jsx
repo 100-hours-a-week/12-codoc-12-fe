@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import StatusMessage from '@/components/StatusMessage'
 import { getAccessToken, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
 
 const fallbackMessage = '서비스 코독에 오신걸 환영 합니다'
@@ -85,7 +86,7 @@ export default function Login() {
           카카오톡으로 시작하기
         </a>
         {errorCode ? (
-          <p className="text-xs text-red-500">로그인에 실패했습니다. ({errorCode})</p>
+          <StatusMessage tone="error">로그인에 실패했습니다. ({errorCode})</StatusMessage>
         ) : null}
       </div>
     </div>
