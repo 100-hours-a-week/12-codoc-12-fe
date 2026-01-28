@@ -387,7 +387,13 @@ export default function Chatbot() {
           {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
 
           <div className="sticky bottom-0 -mx-4 bg-background/95 px-4 pb-2 pt-2 backdrop-blur sm:-mx-6 sm:px-6">
-            <div className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm">
+            <form
+              className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
+              onSubmit={(event) => {
+                event.preventDefault()
+                handleSend()
+              }}
+            >
               <Input
                 className="h-10 flex-1 border-none px-2 text-sm focus-visible:ring-0"
                 disabled={isStreaming}
@@ -398,15 +404,14 @@ export default function Chatbot() {
               <Button
                 className="h-10 rounded-xl"
                 disabled={isStreaming || inputValue.trim().length === 0}
-                onClick={handleSend}
                 size="sm"
-                type="button"
+                type="submit"
                 variant="secondary"
               >
                 <Send className="h-4 w-4" />
                 전송
               </Button>
-            </div>
+            </form>
           </div>
         </div>
       )}
