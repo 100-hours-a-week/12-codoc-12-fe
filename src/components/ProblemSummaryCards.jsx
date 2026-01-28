@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { submitSummaryCards } from '@/services/summaryCards/summaryCardsService'
+import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
 const SUMMARY_CARD_LABELS = {
   BACKGROUND: '문제 배경',
@@ -25,18 +26,24 @@ export default function ProblemSummaryCards({
   onStatusChange,
   onQuizStart,
 }) {
-  const [selectedChoices, setSelectedChoices] = useState({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [gradingResults, setGradingResults] = useState([])
+  const { sessions, updateSession, resetSession } = useSummaryCardStore()
+  const session = problemId ? sessions[String(problemId)] : null
+  const selectedChoices = useMemo(() => session?.selectedChoices ?? {}, [session?.selectedChoices])
+  const gradingResults = useMemo(() => session?.gradingResults ?? [], [session?.gradingResults])
 
   const handleSelectChoice = (cardKey, choiceIndex) => {
-    setSelectedChoices((prev) => {
-      if (prev[cardKey] === choiceIndex) {
-        const next = { ...prev }
-        delete next[cardKey]
-        return next
-      }
-      return { ...prev, [cardKey]: choiceIndex }
+    if (!problemId) {
+      return
+    }
+    if (selectedChoices[cardKey] === choiceIndex) {
+      const next = { ...selectedChoices }
+      delete next[cardKey]
+      updateSession(problemId, { selectedChoices: next })
+      return
+    }
+    updateSession(problemId, {
+      selectedChoices: { ...selectedChoices, [cardKey]: choiceIndex },
     })
   }
 
@@ -63,7 +70,7 @@ export default function ProblemSummaryCards({
     setIsSubmitting(true)
     try {
       const response = await submitSummaryCards({ problemId, choiceIds })
-      setGradingResults(response.results ?? [])
+      updateSession(problemId, { gradingResults: response.results ?? [] })
       if (response.status && onStatusChange) {
         onStatusChange(response.status)
       }
@@ -77,8 +84,7 @@ export default function ProblemSummaryCards({
     isGraded && gradingResults.length === summaryCards.length && gradingResults.every(Boolean)
 
   const handleReset = () => {
-    setSelectedChoices({})
-    setGradingResults([])
+    resetSession(problemId)
   }
 
   return (

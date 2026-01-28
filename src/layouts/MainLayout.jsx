@@ -4,6 +4,8 @@ import { useEffect } from 'react'
 
 import { cn } from '@/lib/utils'
 import { useChatbotStore } from '@/stores/useChatbotStore'
+import { useQuizStore } from '@/stores/useQuizStore'
+import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
 const navItems = [
   { to: '/', label: '홈', Icon: Home, end: true },
@@ -14,14 +16,18 @@ const navItems = [
 export default function MainLayout() {
   const location = useLocation()
   const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
+  const clearQuizSessions = useQuizStore((state) => state.clearSessions)
+  const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
 
   useEffect(() => {
     const path = location.pathname
     const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz))?$/.test(path)
     if (!isProblemFlow) {
       clearChatbotSessions()
+      clearQuizSessions()
+      clearSummarySessions()
     }
-  }, [clearChatbotSessions, location.pathname])
+  }, [clearChatbotSessions, clearQuizSessions, clearSummarySessions, location.pathname])
 
   const content = <Outlet />
 
