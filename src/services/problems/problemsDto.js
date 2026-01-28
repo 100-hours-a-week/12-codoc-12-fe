@@ -83,3 +83,7 @@ export const toProblemDetailResponse = (apiResponse) => {
   const data = apiResponse?.data ?? {}
   return toProblemDetail(data)
 }
+
+export const toProblemBookmarkResponse = (_apiResponse, bookmarked) => ({
+  bookmarked: Boolean(bookmarked),
+})
