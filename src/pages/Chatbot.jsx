@@ -1,5 +1,5 @@
 import { BookOpen, Brain, Clover, Send } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { getProblemDetail } from '@/services/problems/problemsService'
 import { createChatbotStream, sendChatbotMessage } from '@/services/chatbot/chatbotService'
+import { useChatbotStore } from '@/stores/useChatbotStore'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -29,16 +30,66 @@ export default function Chatbot() {
   const { problemId } = useParams()
   const navigate = useNavigate()
   const [problemStatus, setProblemStatus] = useState(null)
-  const [messages, setMessages] = useState([INITIAL_MESSAGE])
-  const [inputValue, setInputValue] = useState('')
-  const [isStreaming, setIsStreaming] = useState(false)
-  const [sendError, setSendError] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+
+  const { sessions, initSession, updateSession } = useChatbotStore()
+  const session = problemId ? sessions[String(problemId)] : null
+  const messages = useMemo(() => session?.messages ?? [INITIAL_MESSAGE], [session?.messages])
+  const inputValue = session?.inputValue ?? ''
+  const conversationId = session?.conversationId ?? null
+  const assistantMessageId = session?.assistantMessageId ?? null
+  const isStreaming = session?.isStreaming ?? false
+  const sendError = session?.sendError ?? null
 
   const streamRef = useRef(null)
   const assistantMessageIdRef = useRef(null)
   const bottomRef = useRef(null)
+
+  const handleCloseStream = useCallback(() => {
+    if (streamRef.current) {
+      streamRef.current.close()
+      streamRef.current = null
+    }
+  }, [])
+
+  const handleAppendAssistant = useCallback(
+    (text) => {
+      const targetId = assistantMessageIdRef.current
+      if (!targetId) {
+        return
+      }
+
+      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
+
+      updateSession(problemId, {
+        messages: currentMessages.map((message) =>
+          message.id === targetId
+            ? { ...message, content: `${message.content ?? ''}${text}` }
+            : message,
+        ),
+      })
+    },
+    [problemId, updateSession],
+  )
+
+  const handleReplaceAssistant = useCallback(
+    (text) => {
+      const targetId = assistantMessageIdRef.current
+      if (!targetId) {
+        return
+      }
+
+      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
+
+      updateSession(problemId, {
+        messages: currentMessages.map((message) =>
+          message.id === targetId ? { ...message, content: text ?? '' } : message,
+        ),
+      })
+    },
+    [problemId, updateSession],
+  )
 
   useEffect(() => {
     let isActive = true
@@ -60,6 +111,7 @@ export default function Chatbot() {
         const data = await getProblemDetail(problemId)
         if (isActive) {
           setProblemStatus(data.status)
+          initSession(problemId, [INITIAL_MESSAGE])
         }
       } catch {
         if (isActive) {
@@ -78,11 +130,54 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [problemId])
+  }, [initSession, problemId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isStreaming])
+
+  useEffect(() => {
+    assistantMessageIdRef.current = assistantMessageId
+  }, [assistantMessageId])
+
+  useEffect(() => {
+    if (isStreaming && conversationId && !streamRef.current) {
+      streamRef.current = createChatbotStream(conversationId, {
+        onToken: (chunk) => {
+          if (chunk) {
+            handleAppendAssistant(chunk)
+          }
+        },
+        onFinal: (eventData) => {
+          const finalMessage = eventData?.result?.ai_message ?? eventData?.result?.aiMessage
+          if (finalMessage) {
+            handleReplaceAssistant(finalMessage)
+          }
+        },
+        onStatus: (status) => {
+          if (status === 'COMPLETED') {
+            updateSession(problemId, { isStreaming: false })
+            handleCloseStream()
+          }
+        },
+        onError: () => {
+          updateSession(problemId, {
+            sendError: '챗봇 응답을 받지 못했습니다. 다시 시도해주세요.',
+            isStreaming: false,
+          })
+          handleCloseStream()
+        },
+      })
+    }
+  }, [
+    conversationId,
+    handleCloseStream,
+    handleAppendAssistant,
+    handleReplaceAssistant,
+    isStreaming,
+    problemId,
+    updateSession,
+  ])
 
   useEffect(() => {
     return () => {
@@ -93,49 +188,13 @@ export default function Chatbot() {
     }
   }, [])
 
-  const handleAppendAssistant = (text) => {
-    const targetId = assistantMessageIdRef.current
-    if (!targetId) {
-      return
-    }
-
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === targetId
-          ? { ...message, content: `${message.content ?? ''}${text}` }
-          : message,
-      ),
-    )
-  }
-
-  const handleReplaceAssistant = (text) => {
-    const targetId = assistantMessageIdRef.current
-    if (!targetId) {
-      return
-    }
-
-    setMessages((prev) =>
-      prev.map((message) =>
-        message.id === targetId ? { ...message, content: text ?? '' } : message,
-      ),
-    )
-  }
-
-  const handleCloseStream = () => {
-    if (streamRef.current) {
-      streamRef.current.close()
-      streamRef.current = null
-    }
-  }
-
   const handleSend = async () => {
     const trimmed = inputValue.trim()
     if (!trimmed || !problemId || isStreaming) {
       return
     }
 
-    setSendError(null)
-    setInputValue('')
+    updateSession(problemId, { sendError: null, inputValue: '' })
 
     const userMessage = {
       id: buildMessageId(),
@@ -145,13 +204,11 @@ export default function Chatbot() {
     const assistantId = buildMessageId()
     assistantMessageIdRef.current = assistantId
 
-    setMessages((prev) => [
-      ...prev,
-      userMessage,
-      { id: assistantId, role: 'assistant', content: '' },
-    ])
-
-    setIsStreaming(true)
+    updateSession(problemId, {
+      assistantMessageId: assistantId,
+      messages: [...messages, userMessage, { id: assistantId, role: 'assistant', content: '' }],
+      isStreaming: true,
+    })
 
     try {
       const response = await sendChatbotMessage({
@@ -159,47 +216,26 @@ export default function Chatbot() {
         message: trimmed,
       })
 
-      if (response.status === 'COMPLETED') {
-        setIsStreaming(false)
-        return
-      }
+      updateSession(problemId, {
+        conversationId: response.conversationId,
+      })
 
-      if (['ACCEPTED', 'PROCESSING'].includes(response.status) && response.conversationId) {
-        handleCloseStream()
-        streamRef.current = createChatbotStream(response.conversationId, {
-          onToken: (chunk) => {
-            if (chunk) {
-              handleAppendAssistant(chunk)
-            }
-          },
-          onFinal: (eventData) => {
-            const finalMessage = eventData?.result?.ai_message ?? eventData?.result?.aiMessage
-            if (finalMessage) {
-              handleReplaceAssistant(finalMessage)
-            }
-          },
-          onStatus: (status) => {
-            if (status === 'COMPLETED') {
-              setIsStreaming(false)
-              handleCloseStream()
-            }
-          },
-          onError: () => {
-            setSendError('챗봇 응답을 받지 못했습니다. 다시 시도해주세요.')
-            setIsStreaming(false)
-            handleCloseStream()
-          },
-        })
+      if (response.status === 'COMPLETED') {
+        updateSession(problemId, { isStreaming: false })
         return
       }
 
       if (response.status === 'FAILED') {
-        setIsStreaming(false)
-        setSendError('챗봇 응답을 받지 못했습니다. 다시 시도해주세요.')
+        updateSession(problemId, {
+          isStreaming: false,
+          sendError: '챗봇 응답을 받지 못했습니다. 다시 시도해주세요.',
+        })
       }
     } catch {
-      setSendError('메시지를 전송하지 못했습니다. 잠시 후 다시 시도해주세요.')
-      setIsStreaming(false)
+      updateSession(problemId, {
+        sendError: '메시지를 전송하지 못했습니다. 잠시 후 다시 시도해주세요.',
+        isStreaming: false,
+      })
     }
   }
 
@@ -263,45 +299,41 @@ export default function Chatbot() {
       ) : (
         <div className="flex flex-1 flex-col gap-4">
           <div className="flex-1 space-y-3 pb-16">
-            {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-              >
+            {messages.map((message) => {
+              const isAssistant = message.role === 'assistant'
+              const isPending = isAssistant && isStreaming && !message.content
+              return (
                 <div
-                  className={`flex max-w-[78%] gap-2 ${
-                    message.role === 'user' ? 'flex-row-reverse' : 'items-start'
-                  }`}
+                  key={message.id}
+                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
-                  {message.role === 'assistant' ? (
-                    <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
-                      코독
-                    </div>
-                  ) : null}
                   <div
-                    className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
-                      message.role === 'user'
-                        ? 'border-muted-foreground/20 bg-background text-foreground'
-                        : 'border-muted-foreground/20 bg-muted/40 text-foreground'
+                    className={`flex max-w-[78%] gap-2 ${
+                      message.role === 'user' ? 'flex-row-reverse' : 'items-start'
                     }`}
                   >
-                    <p className="whitespace-pre-line">{message.content}</p>
+                    {message.role === 'assistant' ? (
+                      <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
+                        코독
+                      </div>
+                    ) : null}
+                    <div
+                      className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
+                        message.role === 'user'
+                          ? 'border-muted-foreground/20 bg-background text-foreground'
+                          : 'border-muted-foreground/20 bg-muted/40 text-foreground'
+                      }`}
+                    >
+                      {isPending ? (
+                        <p className="text-muted-foreground">...</p>
+                      ) : (
+                        <p className="whitespace-pre-line">{message.content}</p>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            {isStreaming ? (
-              <div className="flex justify-start">
-                <div className="flex max-w-[78%] items-center gap-2">
-                  <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
-                    코독
-                  </div>
-                  <div className="rounded-2xl border border-muted-foreground/20 bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-                    ...
-                  </div>
-                </div>
-              </div>
-            ) : null}
+              )
+            })}
             <div ref={bottomRef} />
           </div>
 
@@ -312,7 +344,7 @@ export default function Chatbot() {
               <Input
                 className="h-10 flex-1 border-none px-2 text-sm focus-visible:ring-0"
                 disabled={isStreaming}
-                onChange={(event) => setInputValue(event.target.value)}
+                onChange={(event) => updateSession(problemId, { inputValue: event.target.value })}
                 placeholder="메시지를 입력하세요"
                 value={inputValue}
               />

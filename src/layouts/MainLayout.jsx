@@ -1,7 +1,9 @@
 import { BookOpen, Home, User } from 'lucide-react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { useEffect } from 'react'
 
 import { cn } from '@/lib/utils'
+import { useChatbotStore } from '@/stores/useChatbotStore'
 
 const navItems = [
   { to: '/', label: '홈', Icon: Home, end: true },
@@ -10,6 +12,17 @@ const navItems = [
 ]
 
 export default function MainLayout() {
+  const location = useLocation()
+  const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
+
+  useEffect(() => {
+    const path = location.pathname
+    const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz))?$/.test(path)
+    if (!isProblemFlow) {
+      clearChatbotSessions()
+    }
+  }, [clearChatbotSessions, location.pathname])
+
   const content = <Outlet />
 
   return (
