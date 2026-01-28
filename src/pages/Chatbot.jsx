@@ -91,6 +91,29 @@ export default function Chatbot() {
     [problemId, updateSession],
   )
 
+  const handleMarkSummaryReady = useCallback(
+    (targetId) => {
+      if (!problemId || !targetId) {
+        return
+      }
+      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
+      updateSession(problemId, {
+        messages: currentMessages.map((message) =>
+          message.id === targetId
+            ? {
+                ...message,
+                meta: {
+                  ...(message.meta ?? {}),
+                  showSummaryCta: true,
+                },
+              }
+            : message,
+        ),
+      })
+    },
+    [problemId, updateSession],
+  )
+
   useEffect(() => {
     let isActive = true
 
@@ -153,6 +176,11 @@ export default function Chatbot() {
           if (finalMessage) {
             handleReplaceAssistant(finalMessage)
           }
+          const isCorrect = eventData?.result?.is_correct ?? eventData?.result?.isCorrect
+          const currentNode = eventData?.result?.current_node ?? eventData?.result?.currentNode
+          if (isCorrect === true && currentNode === 'RULE') {
+            handleMarkSummaryReady(assistantMessageIdRef.current)
+          }
         },
         onStatus: (status) => {
           if (status === 'COMPLETED') {
@@ -174,6 +202,7 @@ export default function Chatbot() {
     handleCloseStream,
     handleAppendAssistant,
     handleReplaceAssistant,
+    handleMarkSummaryReady,
     isStreaming,
     problemId,
     updateSession,
@@ -317,18 +346,36 @@ export default function Chatbot() {
                         코독
                       </div>
                     ) : null}
-                    <div
-                      className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
-                        message.role === 'user'
-                          ? 'border-muted-foreground/20 bg-background text-foreground'
-                          : 'border-muted-foreground/20 bg-muted/40 text-foreground'
-                      }`}
-                    >
-                      {isPending ? (
-                        <p className="text-muted-foreground">...</p>
-                      ) : (
-                        <p className="whitespace-pre-line">{message.content}</p>
-                      )}
+                    <div className="space-y-2">
+                      <div
+                        className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
+                          message.role === 'user'
+                            ? 'border-muted-foreground/20 bg-background text-foreground'
+                            : 'border-muted-foreground/20 bg-muted/40 text-foreground'
+                        }`}
+                      >
+                        {isPending ? (
+                          <p className="text-muted-foreground">...</p>
+                        ) : (
+                          <p className="whitespace-pre-line">{message.content}</p>
+                        )}
+                      </div>
+                      {message.role === 'assistant' && message.meta?.showSummaryCta ? (
+                        <Button
+                          className="w-fit rounded-xl bg-muted text-foreground hover:bg-muted/80"
+                          onClick={() => {
+                            if (problemId) {
+                              navigate(`/problems/${problemId}`, {
+                                state: { openSummary: true },
+                              })
+                            }
+                          }}
+                          type="button"
+                          variant="secondary"
+                        >
+                          문제 요약 카드 풀러 가기
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

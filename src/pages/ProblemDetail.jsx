@@ -1,6 +1,6 @@
 import { BookOpen, Brain, Clover, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 
 import StatusMessage from '@/components/StatusMessage'
@@ -22,6 +22,7 @@ const ACTIVE_TAB_ID = 'problem'
 export default function ProblemDetail() {
   const { problemId } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [problem, setProblem] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -67,6 +68,12 @@ export default function ProblemDetail() {
       isActive = false
     }
   }, [problemId, reloadKey])
+
+  useEffect(() => {
+    if (location.state?.openSummary) {
+      setIsSummaryOpen(true)
+    }
+  }, [location.state])
 
   useEffect(() => {
     setIsSummaryOpen(false)
