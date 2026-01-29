@@ -15,6 +15,7 @@ const TAB_ITEMS = [
 ]
 
 const ACTIVE_TAB_ID = 'quiz'
+const QUIZ_ALLOWED_STATUSES = ['summary_card_passed', 'solved']
 
 const buildIdempotencyKey = (quizId) =>
   `${quizId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -27,6 +28,7 @@ export default function Quiz() {
   const [problem, setProblem] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+  const [isBlocked, setIsBlocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionError, setActionError] = useState(null)
 
@@ -61,13 +63,18 @@ export default function Quiz() {
       try {
         const data = await getProblemDetail(problemId)
         if (isActive) {
+          const canAccessQuiz = QUIZ_ALLOWED_STATUSES.includes(data.status ?? '')
           setProblem(data)
-          initSession(problemId)
+          setIsBlocked(!canAccessQuiz)
+          if (canAccessQuiz) {
+            initSession(problemId)
+          }
         }
       } catch {
         if (isActive) {
           setLoadError('퀴즈 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
           setProblem(null)
+          setIsBlocked(false)
         }
       } finally {
         if (isActive) {
@@ -224,6 +231,26 @@ export default function Quiz() {
           <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
             다시 시도
           </Button>
+        </Card>
+      ) : isBlocked ? (
+        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            요약 카드를 완료한 문제만 퀴즈를 풀 수 있어요.
+          </p>
+          <div className="mt-4 flex flex-col gap-2">
+            <Button
+              className="w-full rounded-xl"
+              onClick={() => {
+                if (problemId) {
+                  navigate(`/problems/${problemId}`, { state: { openSummary: true } })
+                }
+              }}
+              type="button"
+              variant="secondary"
+            >
+              요약 카드 풀러 가기
+            </Button>
+          </div>
         </Card>
       ) : totalQuestions === 0 ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
