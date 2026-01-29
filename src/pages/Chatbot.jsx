@@ -327,7 +327,7 @@ export default function Chatbot() {
         </Card>
       ) : (
         <div className="flex flex-1 flex-col gap-4">
-          <div className="flex-1 space-y-3 pb-16">
+          <div className="flex-1 space-y-3 pb-32">
             {messages.map((message) => {
               const isAssistant = message.role === 'assistant'
               const isPending = isAssistant && isStreaming && !message.content
@@ -386,7 +386,7 @@ export default function Chatbot() {
 
           {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
 
-          <div className="sticky bottom-0 -mx-4 bg-background/95 px-4 pb-2 pt-2 backdrop-blur sm:-mx-6 sm:px-6">
+          <div className="fixed bottom-[72px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
             <form
               className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
               onSubmit={(event) => {
