@@ -5,7 +5,7 @@ const STATUS_PARAM_MAP = {
   solved: 'SOLVED',
 }
 
-const LEVEL_PARAM_MAP = {
+const DIFFICULTY_PARAM_MAP = {
   1: 'ONE',
   2: 'TWO',
   3: 'THREE',
@@ -15,15 +15,16 @@ const LEVEL_PARAM_MAP = {
 
 const normalizeStatusParam = (status) => STATUS_PARAM_MAP[status] ?? status
 
-const normalizeLevelParam = (level) => {
-  if (typeof level === 'number') {
-    return LEVEL_PARAM_MAP[level] ?? level
+const normalizeDifficultyParam = (difficulty) => {
+  if (typeof difficulty === 'number') {
+    return DIFFICULTY_PARAM_MAP[difficulty] ?? difficulty
   }
-  return level
+  return difficulty
 }
 
 export const toProblemListParams = (params = {}) => {
   const nextParams = {}
+  const difficulties = params.difficulties
 
   if (params.cursor !== undefined && params.cursor !== null) {
     nextParams.cursor = params.cursor
@@ -34,8 +35,8 @@ export const toProblemListParams = (params = {}) => {
   if (params.query) {
     nextParams.query = params.query
   }
-  if (Array.isArray(params.levels) && params.levels.length > 0) {
-    nextParams.levels = params.levels.map(normalizeLevelParam)
+  if (Array.isArray(difficulties) && difficulties.length > 0) {
+    nextParams.difficulties = difficulties.map(normalizeDifficultyParam)
   }
   if (Array.isArray(params.statuses) && params.statuses.length > 0) {
     nextParams.statuses = params.statuses.map(normalizeStatusParam)

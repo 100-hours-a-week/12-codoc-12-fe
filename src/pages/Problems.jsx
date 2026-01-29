@@ -16,14 +16,15 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet'
+import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 import { getProblemList } from '@/services/problems/problemsService'
 
-const LEVEL_OPTIONS = [1, 2, 3, 4, 5]
+const DIFFICULTY_OPTIONS = [1, 2, 3, 4, 5]
 
 const EMPTY_FILTERS = {
   status: [],
-  levels: [],
+  difficulties: [],
   bookmarks: [],
 }
 
@@ -68,7 +69,7 @@ export default function Problems() {
         } = await getProblemList({
           limit: PAGE_SIZE,
           query: debouncedQuery || undefined,
-          levels: appliedFilters.levels,
+          difficulties: appliedFilters.difficulties,
           statuses: appliedFilters.status,
           bookmarked: appliedFilters.bookmarks.includes(BOOKMARK_VALUE),
         })
@@ -115,7 +116,7 @@ export default function Problems() {
         limit: PAGE_SIZE,
         cursor: nextCursor,
         query: debouncedQuery || undefined,
-        levels: appliedFilters.levels,
+        difficulties: appliedFilters.difficulties,
         statuses: appliedFilters.status,
         bookmarked: appliedFilters.bookmarks.includes(BOOKMARK_VALUE),
       })
@@ -133,10 +134,12 @@ export default function Problems() {
     const statusTags = appliedFilters.status.map(
       (value) => `# ${STATUS_OPTIONS.find((option) => option.value === value)?.label ?? value}`,
     )
-    const levelTags = appliedFilters.levels.map((value) => `# 레벨 ${value}`)
+    const difficultyTags = appliedFilters.difficulties.map(
+      (value) => `# ${formatDifficultyLabel(value)}`,
+    )
     const bookmarkTags = appliedFilters.bookmarks.includes(BOOKMARK_VALUE) ? ['# 북마크 ⭐'] : []
 
-    return [...statusTags, ...levelTags, ...bookmarkTags]
+    return [...statusTags, ...difficultyTags, ...bookmarkTags]
   }, [appliedFilters])
 
   const visibleProblems = useMemo(() => problems, [problems])
@@ -289,7 +292,7 @@ export default function Problems() {
                         </div>
                         <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
                           <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
-                            Lv {problem.level}
+                            {formatDifficultyLabel(problem.difficulty)}
                           </Badge>
                           {problem.status !== 'not_attempted' ? (
                             <Badge
@@ -361,20 +364,20 @@ export default function Problems() {
           <div>
             <SheetTitle className="text-lg">난이도</SheetTitle>
             <div className="mt-3 grid grid-cols-3 gap-2">
-              {LEVEL_OPTIONS.map((level) => {
-                const id = `level-${level}`
+              {DIFFICULTY_OPTIONS.map((difficulty) => {
+                const id = `difficulty-${difficulty}`
                 return (
                   <div
-                    key={level}
+                    key={difficulty}
                     className="flex items-center justify-between rounded-lg border border-muted bg-muted/30 px-3 py-2 text-sm"
                   >
                     <label className="text-sm" htmlFor={id}>
-                      레벨 {level}
+                      Lv. {difficulty}
                     </label>
                     <Checkbox
-                      checked={pendingFilters.levels.includes(level)}
+                      checked={pendingFilters.difficulties.includes(difficulty)}
                       id={id}
-                      onCheckedChange={() => togglePendingFilter('levels', level)}
+                      onCheckedChange={() => togglePendingFilter('difficulties', difficulty)}
                     />
                   </div>
                 )

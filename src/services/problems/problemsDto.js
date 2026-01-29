@@ -12,7 +12,7 @@ const STATUS_MAP = {
   성공: 'solved',
 }
 
-const LEVEL_MAP = {
+const DIFFICULTY_MAP = {
   ONE: 1,
   TWO: 2,
   THREE: 3,
@@ -24,25 +24,29 @@ const DEFAULT_STATUS = 'not_attempted'
 
 const normalizeStatus = (status) => STATUS_MAP[status ?? ''] ?? DEFAULT_STATUS
 
-const normalizeLevel = (level) => {
-  if (typeof level === 'number') {
-    return level
+const normalizeDifficulty = (difficulty) => {
+  if (typeof difficulty === 'number') {
+    return difficulty
   }
-  return LEVEL_MAP[level] ?? level
+  return DIFFICULTY_MAP[difficulty] ?? difficulty
 }
 
-export const toProblemListItem = (item) => ({
-  id: item.problemId,
-  title: item.title,
-  level: normalizeLevel(item.level),
-  status: normalizeStatus(item.status),
-  bookmarked: Boolean(item.bookmarked),
-})
+export const toProblemListItem = (item = {}) => {
+  const safeItem = item ?? {}
+
+  return {
+    id: safeItem.problemId ?? safeItem.id ?? null,
+    title: safeItem.title ?? '',
+    difficulty: normalizeDifficulty(safeItem.difficulty ?? safeItem.level),
+    status: normalizeStatus(safeItem.status),
+    bookmarked: Boolean(safeItem.bookmarked),
+  }
+}
 
 export const toProblemDetail = (item = {}) => ({
   id: item.problemId ?? item.id ?? null,
   title: item.title ?? '',
-  level: normalizeLevel(item.level),
+  difficulty: normalizeDifficulty(item.difficulty ?? item.level),
   status: normalizeStatus(item.status),
   bookmarked: Boolean(item.bookmarked),
   content: item.content ?? '',
