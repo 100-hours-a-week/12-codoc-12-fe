@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Clover, Star } from 'lucide-react'
+import { ArrowUp, BookOpen, Brain, Clover, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -128,6 +128,10 @@ export default function ProblemDetail() {
 
   const handleRetry = () => {
     setReloadKey((prev) => prev + 1)
+  }
+
+  const handleScrollTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   return (
@@ -331,6 +335,17 @@ export default function ProblemDetail() {
           </div>
         </>
       ) : null}
+
+      <Button
+        aria-label="맨 위로 이동"
+        className="fixed bottom-24 right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+        onClick={handleScrollTop}
+        size="icon"
+        type="button"
+        variant="outline"
+      >
+        <ArrowUp className="h-4 w-4" />
+      </Button>
     </div>
   )
 }
