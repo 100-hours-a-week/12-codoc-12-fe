@@ -27,6 +27,14 @@ export const requestProblemList = async (params = {}) => {
   return response.data
 }
 
+export const requestProblemSearch = async (params = {}) => {
+  const response = await api.get('/api/problems/search', {
+    params,
+    paramsSerializer: { serialize: serializeParams },
+  })
+  return response.data
+}
+
 export const requestProblemDetail = async (problemId) => {
   const response = await api.get(`/api/problems/${problemId}`)
   return response.data

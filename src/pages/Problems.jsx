@@ -43,15 +43,7 @@ export default function Problems() {
   const [loadMoreError, setLoadMoreError] = useState(null)
   const [nextCursor, setNextCursor] = useState(null)
   const [hasNextPage, setHasNextPage] = useState(false)
-  const [debouncedQuery, setDebouncedQuery] = useState('')
-
-  useEffect(() => {
-    const handle = setTimeout(() => {
-      setDebouncedQuery(searchValue.trim())
-    }, 300)
-
-    return () => clearTimeout(handle)
-  }, [searchValue])
+  const [committedQuery, setCommittedQuery] = useState('')
 
   useEffect(() => {
     let isActive = true
@@ -68,7 +60,7 @@ export default function Problems() {
           hasNextPage: nextPage,
         } = await getProblemList({
           limit: PAGE_SIZE,
-          query: debouncedQuery || undefined,
+          query: committedQuery || undefined,
           difficulties: appliedFilters.difficulties,
           statuses: appliedFilters.status,
           bookmarked: appliedFilters.bookmarks.includes(BOOKMARK_VALUE),
@@ -97,7 +89,7 @@ export default function Problems() {
     return () => {
       isActive = false
     }
-  }, [appliedFilters, debouncedQuery])
+  }, [appliedFilters, committedQuery])
 
   const handleLoadMore = async () => {
     if (!hasNextPage || isLoadingMore) {
@@ -115,7 +107,7 @@ export default function Problems() {
       } = await getProblemList({
         limit: PAGE_SIZE,
         cursor: nextCursor,
-        query: debouncedQuery || undefined,
+        query: committedQuery || undefined,
         difficulties: appliedFilters.difficulties,
         statuses: appliedFilters.status,
         bookmarked: appliedFilters.bookmarks.includes(BOOKMARK_VALUE),
@@ -183,6 +175,10 @@ export default function Problems() {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  const handleSearchSubmit = () => {
+    setCommittedQuery(searchValue.trim())
+  }
+
   return (
     <Sheet open={isFilterOpen} onOpenChange={handleFilterOpenChange}>
       <div className="space-y-5">
@@ -197,6 +193,11 @@ export default function Problems() {
               <Input
                 className="rounded-full pl-9 shadow-sm"
                 onChange={(event) => setSearchValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    handleSearchSubmit()
+                  }
+                }}
                 placeholder="찾으시는 문제 제목을 적어주세요"
                 type="text"
                 value={searchValue}

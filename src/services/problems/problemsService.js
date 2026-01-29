@@ -3,6 +3,7 @@ import {
   requestProblemBookmarkRemoval,
   requestProblemDetail,
   requestProblemList,
+  requestProblemSearch,
 } from './problemsApi'
 import {
   toProblemBookmarkResponse,
@@ -12,7 +13,10 @@ import {
 import { toProblemListParams } from './problemsRequestDto'
 
 export const getProblemList = async (params = {}) => {
-  const response = await requestProblemList(toProblemListParams(params))
+  const normalizedParams = toProblemListParams(params)
+  const response = normalizedParams.query
+    ? await requestProblemSearch(normalizedParams)
+    : await requestProblemList(normalizedParams)
   return toProblemListResponse(response)
 }
 
