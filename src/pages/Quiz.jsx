@@ -331,7 +331,7 @@ export default function Quiz() {
               })}
             </div>
 
-            {hasAnsweredCurrent && currentExplanation ? (
+            {hasAnsweredCurrent && currentResult && currentExplanation ? (
               <Card className="bg-muted/40">
                 <CardContent className="space-y-2 p-4">
                   <p className="text-sm font-semibold text-foreground">해설</p>
