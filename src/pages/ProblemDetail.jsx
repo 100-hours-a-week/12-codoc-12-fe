@@ -14,6 +14,7 @@ import {
   registerProblemBookmark,
   removeProblemBookmark,
 } from '@/services/problems/problemsService'
+import remarkGfm from 'remark-gfm'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -244,6 +245,7 @@ export default function ProblemDetail() {
                 <section className="space-y-3">
                   {problem.content ? (
                     <ReactMarkdown
+                      remarkPlugins={[remarkGfm]}
                       components={{
                         h1: ({ node: _node, ...props }) => (
                           <h3 className="text-base font-semibold text-foreground" {...props} />
