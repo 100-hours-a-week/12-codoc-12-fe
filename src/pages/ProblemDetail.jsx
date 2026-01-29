@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ProblemSummaryCards from '@/components/ProblemSummaryCards'
+import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 import {
   getProblemDetail,
@@ -199,7 +200,7 @@ export default function ProblemDetail() {
                 <div className="space-y-3">
                   <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
                     <Badge className="rounded-full bg-muted px-3 py-1 text-foreground/80">
-                      Lv. {problem.level}
+                      {formatDifficultyLabel(problem.difficulty)}
                     </Badge>
                     {problem.status !== 'not_attempted' ? (
                       <Badge
