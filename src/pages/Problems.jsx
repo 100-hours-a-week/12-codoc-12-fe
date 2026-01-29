@@ -44,6 +44,7 @@ export default function Problems() {
   const [nextCursor, setNextCursor] = useState(null)
   const [hasNextPage, setHasNextPage] = useState(false)
   const [committedQuery, setCommittedQuery] = useState('')
+  const [isAtTop, setIsAtTop] = useState(true)
 
   useEffect(() => {
     let isActive = true
@@ -174,6 +175,19 @@ export default function Problems() {
   const handleScrollTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsAtTop(window.scrollY <= 24)
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    handleScroll()
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
 
   const handleSearchSubmit = () => {
     setCommittedQuery(searchValue.trim())
@@ -396,16 +410,18 @@ export default function Problems() {
           </SheetFooter>
         </SheetContent>
 
-        <Button
-          aria-label="맨 위로 이동"
-          className="fixed bottom-24 right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
-          onClick={handleScrollTop}
-          size="icon"
-          type="button"
-          variant="outline"
-        >
-          <ArrowUp className="h-4 w-4" />
-        </Button>
+        {!isAtTop ? (
+          <Button
+            aria-label="맨 위로 이동"
+            className="fixed bottom-24 right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+            onClick={handleScrollTop}
+            size="icon"
+            type="button"
+            variant="outline"
+          >
+            <ArrowUp className="h-4 w-4" />
+          </Button>
+        ) : null}
       </div>
     </Sheet>
   )
