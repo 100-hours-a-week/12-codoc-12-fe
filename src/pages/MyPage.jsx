@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
 import StatusMessage from '@/components/StatusMessage'
 import { api } from '@/lib/api'
@@ -268,6 +269,9 @@ export default function MyPage() {
   const [selectedAvatarId, setSelectedAvatarId] = useState(null)
   const [avatarUrl, setAvatarUrl] = useState('')
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false)
+  const [isGoalModalOpen, setIsGoalModalOpen] = useState(false)
+  const [selectedDailyGoal, setSelectedDailyGoal] = useState('ONE')
+  const [isSavingGoal, setIsSavingGoal] = useState(false)
   const [stats, setStats] = useState({ solvedCount: 0, solvingCount: 0, totalXp: 0 })
   const [dailySolveCount, setDailySolveCount] = useState([])
   const heatmapScrollRef = useRef(null)
@@ -309,6 +313,12 @@ export default function MyPage() {
     }, 1600)
   }
 
+  const goalOptions = [
+    { value: 'ONE', label: '하루 1문제' },
+    { value: 'THREE', label: '하루 3문제' },
+    { value: 'FIVE', label: '하루 5문제' },
+  ]
+
   useEffect(() => {
     let mounted = true
 
@@ -324,6 +334,7 @@ export default function MyPage() {
         const nextNickname = profile?.nickname ?? '코딩 마스터'
         setNickname(nextNickname)
         setDraftNickname(nextNickname)
+        setSelectedDailyGoal(profile?.dailyGoal ?? 'ONE')
         setSelectedAvatarId(profile?.avatarId ?? null)
         setAvatarUrl(profile?.avatarImageUrl ?? '')
       } catch {
@@ -407,6 +418,23 @@ export default function MyPage() {
       mounted = false
     }
   }, [contributionRange])
+
+  const handleSaveDailyGoal = async () => {
+    if (isSavingGoal) {
+      return
+    }
+    setIsSavingGoal(true)
+    setLoadError('')
+    try {
+      await api.patch('/api/user/daily-goal', { dailyGoal: selectedDailyGoal })
+      setIsGoalModalOpen(false)
+      showToast('저장이 완료되었습니다.')
+    } catch {
+      setLoadError('일일 목표 저장에 실패했습니다.')
+    } finally {
+      setIsSavingGoal(false)
+    }
+  }
 
   const handleStartEdit = async () => {
     setDraftNickname(nickname)
@@ -653,7 +681,14 @@ export default function MyPage() {
       </section>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-between">
+          <button
+            className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+            type="button"
+            onClick={() => setIsGoalModalOpen(true)}
+          >
+            일일 목표 설정
+          </button>
           <div className="relative">
             <button
               className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
@@ -711,6 +746,55 @@ export default function MyPage() {
           {toastMessage}
         </div>
       ) : null}
+      {isGoalModalOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+              <div className="w-full max-w-[360px] rounded-2xl border border-black/10 bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+                <div className="flex items-center justify-center">
+                  <p className="text-xl font-bold">일일 목표 설정</p>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {goalOptions.map((option) => {
+                    const selected = option.value === selectedDailyGoal
+                    return (
+                      <button
+                        key={option.value}
+                        className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm font-semibold ${
+                          selected
+                            ? 'border-black bg-black text-white'
+                            : 'border-black/20 bg-white text-foreground'
+                        }`}
+                        type="button"
+                        onClick={() => setSelectedDailyGoal(option.value)}
+                      >
+                        <span>{option.label}</span>
+                        {selected ? <span className="text-base">✓</span> : null}
+                      </button>
+                    )
+                  })}
+                </div>
+                <div className="mt-5 flex items-center justify-center gap-3">
+                  <button
+                    className="min-w-[96px] rounded-md border border-black/40 px-4 py-2 text-sm font-semibold"
+                    type="button"
+                    onClick={() => setIsGoalModalOpen(false)}
+                  >
+                    취소
+                  </button>
+                  <button
+                    className="min-w-[96px] rounded-md border border-black/60 px-4 py-2 text-sm font-semibold"
+                    type="button"
+                    onClick={handleSaveDailyGoal}
+                    disabled={isSavingGoal}
+                  >
+                    {isSavingGoal ? '저장 중...' : '저장'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   )
 }
