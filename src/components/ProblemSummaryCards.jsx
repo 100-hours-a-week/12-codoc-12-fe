@@ -7,9 +7,9 @@ import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
 const SUMMARY_CARD_LABELS = {
   BACKGROUND: '문제 배경',
-  GOAL: '목표',
-  RULE: '규칙',
-  CONSTRAINT: '제약사항',
+  GOAL: '문제 목표',
+  RULE: '핵심 규칙',
+  CONSTRAINT: '제약 사항',
 }
 
 const SUMMARY_CARD_PROMPTS = {
