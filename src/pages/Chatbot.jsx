@@ -45,6 +45,7 @@ export default function Chatbot() {
   const streamRef = useRef(null)
   const assistantMessageIdRef = useRef(null)
   const bottomRef = useRef(null)
+  const inputRef = useRef(null)
 
   const handleCloseStream = useCallback(() => {
     if (streamRef.current) {
@@ -162,6 +163,12 @@ export default function Chatbot() {
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
   }, [assistantMessageId])
+
+  useEffect(() => {
+    if (!isStreaming) {
+      inputRef.current?.focus()
+    }
+  }, [isStreaming])
 
   useEffect(() => {
     if (isStreaming && conversationId && !streamRef.current) {
@@ -399,6 +406,7 @@ export default function Chatbot() {
                 disabled={isStreaming}
                 onChange={(event) => updateSession(problemId, { inputValue: event.target.value })}
                 placeholder="메시지를 입력하세요"
+                ref={inputRef}
                 value={inputValue}
               />
               <Button
