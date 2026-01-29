@@ -1,3 +1,4 @@
+import { RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { api } from '@/lib/api'
@@ -315,6 +316,7 @@ export default function Home() {
   const [dailySolveCount, setDailySolveCount] = useState([])
   const [streak, setStreak] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
@@ -329,8 +331,11 @@ export default function Home() {
   useEffect(() => {
     let mounted = true
 
-    const fetchHome = async () => {
-      setIsLoading(true)
+    const fetchHome = async (options = {}) => {
+      const { showLoading = true } = options
+      if (showLoading) {
+        setIsLoading(true)
+      }
       setLoadError('')
 
       const fromDate = formatDate(contributionRange.fromDate)
@@ -365,14 +370,13 @@ export default function Home() {
         setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
         setStreak(streakRes.data?.data?.streak ?? 0)
         setSelectedCell(null)
-        setQuestPage(0)
       } catch {
         if (!mounted) {
           return
         }
         setLoadError('홈 데이터를 불러오지 못했습니다.')
       } finally {
-        if (mounted) {
+        if (mounted && showLoading) {
           setIsLoading(false)
         }
       }
@@ -384,6 +388,45 @@ export default function Home() {
       mounted = false
     }
   }, [contributionRange.fromDate, contributionRange.toDate])
+
+  const handleQuestRefresh = async () => {
+    if (isRefreshing) {
+      return
+    }
+    setIsRefreshing(true)
+    setLoadError('')
+    try {
+      await api.post('/api/user/quests/refresh', {})
+      const fromDate = formatDate(contributionRange.fromDate)
+      const toDate = formatDate(contributionRange.toDate)
+      const [questRes, contributionRes, streakRes] = await Promise.all([
+        api.get('/api/user/quests'),
+        api.get('/api/user/contribution', {
+          params: { from_date: fromDate, to_date: toDate },
+        }),
+        api.get('/api/user/streak'),
+      ])
+      const questItems = questRes.data?.data?.quests ?? []
+      const mappedQuests = questItems.map((item) => {
+        const statusMeta = statusCopy[item.status] ?? statusCopy.IN_PROGRESS
+        return {
+          userQuestId: item.userQuestId,
+          title: item.title,
+          action: statusMeta.action,
+          variant: statusMeta.variant,
+          disabled: statusMeta.disabled,
+        }
+      })
+      setQuests(mappedQuests)
+      setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
+      setStreak(streakRes.data?.data?.streak ?? 0)
+      setSelectedCell(null)
+    } catch {
+      setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
 
   const heatmapModel = useMemo(
     () => buildHeatmapModel(dailySolveCount, contributionRange),
@@ -476,9 +519,20 @@ export default function Home() {
                 </button>
               ) : null}
             </div>
-            <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-              {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
-            </span>
+            <div className="flex items-center gap-2">
+              <button
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-black/10 text-xs text-muted-foreground disabled:opacity-40"
+                type="button"
+                onClick={handleQuestRefresh}
+                disabled={isRefreshing}
+                aria-label="퀘스트 새로고침"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              </button>
+              <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
+                {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
+              </span>
+            </div>
           </div>
           {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
           <div className="relative">
