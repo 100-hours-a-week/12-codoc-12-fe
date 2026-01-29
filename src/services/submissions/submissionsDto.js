@@ -14,6 +14,7 @@ export const toQuizSubmissionResponse = (apiResponse) => {
   return {
     result: Boolean(data.result),
     attemptId: data.attemptId ?? null,
+    explanation: data.explanation ?? '',
   }
 }
 

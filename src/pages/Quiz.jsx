@@ -35,6 +35,7 @@ export default function Quiz() {
   const currentIndex = session?.currentIndex ?? 0
   const selectedChoices = useMemo(() => session?.selectedChoices ?? {}, [session?.selectedChoices])
   const results = useMemo(() => session?.results ?? {}, [session?.results])
+  const explanations = useMemo(() => session?.explanations ?? {}, [session?.explanations])
   const attemptId = session?.attemptId ?? null
   const isResultView = session?.isResultView ?? false
   const submissionResult = session?.submissionResult ?? null
@@ -102,6 +103,7 @@ export default function Quiz() {
 
   const currentResult = currentQuiz ? results[currentQuiz.id] : null
   const selectedChoiceIndex = currentQuiz ? selectedChoices[currentQuiz.id] : null
+  const currentExplanation = currentQuiz ? explanations[currentQuiz.id] : ''
 
   const handleSelectChoice = (choiceIndex) => {
     if (!currentQuiz || isSubmitting || hasAnsweredCurrent) {
@@ -133,8 +135,10 @@ export default function Quiz() {
         attemptId,
       })
       const nextResults = { ...results, [currentQuiz.id]: response.result }
+      const nextExplanations = { ...explanations, [currentQuiz.id]: response.explanation ?? '' }
       updateSession(problemId, {
         results: nextResults,
+        explanations: nextExplanations,
         attemptId: response.attemptId ?? attemptId,
       })
     } catch {
@@ -311,6 +315,17 @@ export default function Quiz() {
                   {currentResult ? '✓' : '✕'}
                 </span>
                 {currentResult ? '정답입니다!' : '오답입니다.'}
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {hasAnsweredCurrent && currentExplanation ? (
+            <Card className="bg-muted/40">
+              <CardContent className="space-y-2 p-4">
+                <p className="text-sm font-semibold text-foreground">해설</p>
+                <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+                  {currentExplanation}
+                </p>
               </CardContent>
             </Card>
           ) : null}

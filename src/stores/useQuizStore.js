@@ -4,6 +4,7 @@ const createInitialSession = () => ({
   currentIndex: 0,
   selectedChoices: {},
   results: {},
+  explanations: {},
   attemptId: null,
   isResultView: false,
   submissionResult: null,
