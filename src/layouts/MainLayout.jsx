@@ -32,8 +32,8 @@ export default function MainLayout() {
   const content = <Outlet />
 
   return (
-    <div className="h-screen overflow-hidden bg-muted/40 text-foreground">
-      <div className="mx-auto flex h-full w-full max-w-[430px] flex-col bg-background shadow-sm">
+    <div className="min-h-screen bg-muted/40 text-foreground">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm">
         <header className="border-b bg-background">
           <div className="flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
@@ -45,8 +45,8 @@ export default function MainLayout() {
             </h1>
           </div>
         </header>
-        <main className="flex-1 overflow-y-auto px-4 py-5">{content}</main>
-        <footer className="shrink-0 border-t bg-background/95 backdrop-blur">
+        <main className="flex-1 px-4 py-5 pb-24 sm:pb-28">{content}</main>
+        <footer className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t bg-background/95 backdrop-blur">
           <nav className="grid grid-cols-3 px-6 pb-3 pt-2">
             {navItems.map(({ to, label, Icon, end }) => (
               <NavLink
