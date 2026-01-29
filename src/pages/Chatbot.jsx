@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Clover, Send } from 'lucide-react'
+import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -32,6 +32,7 @@ export default function Chatbot() {
   const [problemStatus, setProblemStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+  const [isAtBottom, setIsAtBottom] = useState(true)
 
   const { sessions, initSession, updateSession } = useChatbotStore()
   const session = problemId ? sessions[String(problemId)] : null
@@ -73,6 +74,13 @@ export default function Chatbot() {
     },
     [problemId, updateSession],
   )
+
+  const checkIsAtBottom = useCallback(() => {
+    const threshold = 160
+    const scrollBottom = window.innerHeight + window.scrollY
+    const pageHeight = document.documentElement.scrollHeight
+    setIsAtBottom(scrollBottom >= pageHeight - threshold)
+  }, [])
 
   const handleReplaceAssistant = useCallback(
     (text) => {
@@ -159,6 +167,25 @@ export default function Chatbot() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, isStreaming])
+
+  useEffect(() => {
+    checkIsAtBottom()
+  }, [checkIsAtBottom, messages, isStreaming])
+
+  useEffect(() => {
+    const handleScroll = () => {
+      checkIsAtBottom()
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleScroll)
+    handleScroll()
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleScroll)
+    }
+  }, [checkIsAtBottom])
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -273,6 +300,10 @@ export default function Chatbot() {
         isStreaming: false,
       })
     }
+  }
+
+  const handleScrollBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   const isQuizEnabled = useMemo(
@@ -423,6 +454,19 @@ export default function Chatbot() {
           </div>
         </div>
       )}
+
+      {!isAtBottom ? (
+        <Button
+          aria-label="맨 아래로 이동"
+          className="fixed right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md bottom-[calc(var(--chatbot-input-bottom)+88px)]"
+          onClick={handleScrollBottom}
+          size="icon"
+          type="button"
+          variant="outline"
+        >
+          <ArrowDown className="h-4 w-4" />
+        </Button>
+      ) : null}
     </div>
   )
 }
