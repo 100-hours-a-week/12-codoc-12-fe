@@ -37,10 +37,7 @@ const levelClasses = [
   'bg-[#2ea043]',
 ]
 
-const formatDate = (date) => {
-  const kst = new Date(date.getTime() + 9 * 60 * 60 * 1000)
-  return kst.toISOString().slice(0, 10)
-}
+const formatDate = (date) => date.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
 
 const addDays = (date, days) => {
   const next = new Date(date)
@@ -52,7 +49,8 @@ const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
 
 const getKstToday = () => {
   const now = new Date()
-  return new Date(now.getTime() + 9 * 60 * 60 * 1000)
+  const kstDate = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
+  return new Date(`${kstDate}T00:00:00+09:00`)
 }
 
 const getContributionRange = (year) => {
