@@ -63,7 +63,10 @@ export default function MainLayout() {
 
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm">
+      <div
+        className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm"
+        style={{ '--chatbot-input-bottom': isChromeHidden ? '16px' : '72px' }}
+      >
         <header
           className={`sticky top-0 z-30 border-b bg-background/95 backdrop-blur transition-transform duration-200 ${
             isChromeHidden ? '-translate-y-full' : 'translate-y-0'

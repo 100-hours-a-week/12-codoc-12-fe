@@ -393,7 +393,7 @@ export default function Chatbot() {
 
           {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
 
-          <div className="fixed bottom-[72px] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
+          <div className="fixed bottom-[var(--chatbot-input-bottom)] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
             <form
               className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
               onSubmit={(event) => {
