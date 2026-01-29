@@ -578,43 +578,45 @@ export default function MyPage() {
 
         {isEditing && isAvatarPickerOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
-            <div className="w-full max-w-[360px] rounded-2xl border border-black/10 bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+            <div className="flex w-full max-w-[360px] max-h-[420px] flex-col rounded-2xl border border-black/10 bg-white p-4 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
               <div className="flex items-center justify-center">
                 <p className="text-xl font-bold">프로필 이미지 변경</p>
               </div>
               {avatarError ? (
                 <p className="mt-2 text-[11px] font-semibold text-red-500">{avatarError}</p>
               ) : null}
-              <div className="mt-4 grid grid-cols-3 justify-items-center gap-4">
-                {avatars.map((avatar) => {
-                  const selected = avatar.avatarId === selectedAvatarId
-                  return (
-                    <button
-                      key={avatar.avatarId}
-                      className={`relative h-20 w-20 overflow-hidden rounded-full border ${
-                        selected ? 'border-black' : 'border-black/20'
-                      }`}
-                      type="button"
-                      onClick={() => {
-                        setSelectedAvatarId(avatar.avatarId)
-                        setAvatarUrl(avatar.url)
-                      }}
-                    >
-                      <img
-                        alt="avatar option"
-                        className="h-full w-full object-cover"
-                        src={avatar.url}
-                      />
-                      {selected ? (
-                        <span className="absolute inset-0 flex items-center justify-center bg-white/70">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base font-semibold text-foreground shadow-sm">
-                            ✓
+              <div className="mt-4 max-h-[220px] overflow-y-auto">
+                <div className="grid grid-cols-3 justify-items-center gap-4">
+                  {avatars.map((avatar) => {
+                    const selected = avatar.avatarId === selectedAvatarId
+                    return (
+                      <button
+                        key={avatar.avatarId}
+                        className={`relative h-20 w-20 overflow-hidden rounded-full border ${
+                          selected ? 'border-black' : 'border-black/20'
+                        }`}
+                        type="button"
+                        onClick={() => {
+                          setSelectedAvatarId(avatar.avatarId)
+                          setAvatarUrl(avatar.url)
+                        }}
+                      >
+                        <img
+                          alt="avatar option"
+                          className="h-full w-full object-cover"
+                          src={avatar.url}
+                        />
+                        {selected ? (
+                          <span className="absolute inset-0 flex items-center justify-center bg-white/70">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-base font-semibold text-foreground shadow-sm">
+                              ✓
+                            </span>
                           </span>
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
               <div className="mt-5 flex items-center justify-center gap-3">
                 <button
