@@ -1,6 +1,6 @@
 import { BookOpen, Home, User } from 'lucide-react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 import { useChatbotStore } from '@/stores/useChatbotStore'
@@ -18,6 +18,7 @@ export default function MainLayout() {
   const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
+  const [isChromeHidden, setIsChromeHidden] = useState(false)
 
   useEffect(() => {
     const path = location.pathname
@@ -29,12 +30,45 @@ export default function MainLayout() {
     }
   }, [clearChatbotSessions, clearQuizSessions, clearSummarySessions, location.pathname])
 
+  useEffect(() => {
+    let lastScrollY = window.scrollY
+    let ticking = false
+
+    const handleScroll = () => {
+      const current = window.scrollY
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const delta = current - lastScrollY
+          if (Math.abs(delta) > 6) {
+            if (delta > 0 && current > 24) {
+              setIsChromeHidden(true)
+            } else {
+              setIsChromeHidden(false)
+            }
+          }
+          lastScrollY = current
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
   const content = <Outlet />
 
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm">
-        <header className="border-b bg-background">
+        <header
+          className={`sticky top-0 z-30 border-b bg-background/95 backdrop-blur transition-transform duration-200 ${
+            isChromeHidden ? '-translate-y-full' : 'translate-y-0'
+          }`}
+        >
           <div className="flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
             <h1 className="text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
               <span aria-hidden>Codo</span>
@@ -46,7 +80,11 @@ export default function MainLayout() {
           </div>
         </header>
         <main className="flex-1 px-4 py-5 pb-24 sm:pb-28">{content}</main>
-        <footer className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t bg-background/95 backdrop-blur">
+        <footer
+          className={`fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t bg-background/95 backdrop-blur transition-transform duration-200 ${
+            isChromeHidden ? 'translate-y-full' : 'translate-y-0'
+          }`}
+        >
           <nav className="grid grid-cols-3 px-6 pb-3 pt-2">
             {navItems.map(({ to, label, Icon, end }) => (
               <NavLink
