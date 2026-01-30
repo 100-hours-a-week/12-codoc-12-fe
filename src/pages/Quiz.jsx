@@ -320,12 +320,12 @@ export default function Quiz() {
                       showResultStyle
                         ? isAnsweredSelected
                           ? isCorrectAnswer
-                            ? 'border-success-soft-foreground bg-background text-foreground'
+                            ? 'border-info-soft-foreground bg-background text-foreground'
                             : 'border-danger-soft-foreground bg-background text-foreground'
                           : 'border-muted-foreground/20 bg-background text-muted-foreground'
                         : isSelected
-                          ? 'border-success-soft-foreground bg-background text-foreground'
-                          : 'border-muted-foreground/20 bg-background text-foreground hover:border-success-muted'
+                          ? 'border-info-soft-foreground bg-background text-foreground'
+                          : 'border-muted-foreground/20 bg-background text-foreground hover:border-info-muted'
                     } ${isDimmedOption ? 'opacity-50' : ''} ${
                       isSubmitting && !showResultStyle ? 'opacity-60' : ''
                     } disabled:cursor-not-allowed`}
@@ -338,11 +338,11 @@ export default function Quiz() {
                         showResultStyle
                           ? isAnsweredSelected
                             ? isCorrectAnswer
-                              ? 'border-success-soft-foreground bg-success-soft-foreground text-success-foreground'
+                              ? 'border-info-soft-foreground bg-info-soft-foreground text-info-foreground'
                               : 'border-danger-soft-foreground bg-danger-soft-foreground text-danger-foreground'
                             : 'border-muted-foreground/10 bg-muted/50 text-muted-foreground'
                           : isSelected
-                            ? 'border-success-soft-foreground bg-success-soft-foreground text-success-foreground'
+                            ? 'border-info-soft-foreground bg-info-soft-foreground text-info-foreground'
                             : 'border-muted-foreground/20 bg-muted/40 text-muted-foreground'
                       }`}
                     >
@@ -375,7 +375,7 @@ export default function Quiz() {
               <Card
                 className={
                   currentResult
-                    ? 'border-success-muted bg-success-soft/80'
+                    ? 'border-info-muted bg-info-soft/80'
                     : 'border-danger-muted bg-danger-soft/80'
                 }
               >
@@ -383,7 +383,7 @@ export default function Quiz() {
                   <span
                     className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${
                       currentResult
-                        ? 'border-success-muted bg-success-muted text-success-soft-foreground'
+                        ? 'border-info-muted bg-info-muted text-info-soft-foreground'
                         : 'border-danger-muted bg-danger-muted text-danger-soft-foreground'
                     }`}
                   >
@@ -391,7 +391,7 @@ export default function Quiz() {
                   </span>
                   <span
                     className={
-                      currentResult ? 'text-success-soft-foreground' : 'text-danger-soft-foreground'
+                      currentResult ? 'text-info-soft-foreground' : 'text-danger-soft-foreground'
                     }
                   >
                     {currentResult ? '정답입니다!' : '오답입니다.'}
@@ -409,10 +409,10 @@ export default function Quiz() {
                 className={`w-full rounded-xl ${
                   hasAnsweredCurrent
                     ? currentResult
-                      ? 'bg-success text-success-foreground hover:bg-success/90'
+                      ? 'bg-info text-info-foreground hover:bg-info/90'
                       : 'bg-danger text-danger-foreground hover:bg-danger/90'
                     : selectedChoiceIndex !== null && selectedChoiceIndex !== undefined
-                      ? 'bg-success text-success-foreground hover:bg-success/90'
+                      ? 'bg-info text-info-foreground hover:bg-info/90'
                       : ''
                 }`}
                 disabled={

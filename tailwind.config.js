@@ -32,6 +32,13 @@ export default {
           muted: 'hsl(var(--success-muted))',
           'soft-foreground': 'hsl(var(--success-soft-foreground))',
         },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+          soft: 'hsl(var(--info-soft))',
+          muted: 'hsl(var(--info-muted))',
+          'soft-foreground': 'hsl(var(--info-soft-foreground))',
+        },
         danger: {
           DEFAULT: 'hsl(var(--danger))',
           foreground: 'hsl(var(--danger-foreground))',

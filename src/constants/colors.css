@@ -20,6 +20,11 @@
   --success-soft: 152 81% 95.9%;
   --success-soft-foreground: 163 93.5% 24.3%;
   --success-muted: 149 80.4% 90%;
+  --info: 217 91.2% 59.8%;
+  --info-foreground: 0 0% 100%;
+  --info-soft: 214 100% 96%;
+  --info-soft-foreground: 221 83% 33%;
+  --info-muted: 213 94% 90%;
   --danger: 350 89.2% 60.2%;
   --danger-foreground: 0 0% 100%;
   --danger-soft: 356 100% 97.3%;
@@ -83,6 +88,11 @@
   --success-soft: 152 81% 95.9%;
   --success-soft-foreground: 163 93.5% 24.3%;
   --success-muted: 149 80.4% 90%;
+  --info: 217 91.2% 59.8%;
+  --info-foreground: 0 0% 100%;
+  --info-soft: 214 100% 96%;
+  --info-soft-foreground: 221 83% 33%;
+  --info-muted: 213 94% 90%;
   --danger: 350 89.2% 60.2%;
   --danger-foreground: 0 0% 100%;
   --danger-soft: 356 100% 97.3%;
