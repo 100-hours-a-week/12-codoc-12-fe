@@ -1,17 +1,12 @@
 import { RefreshCw } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import Heatmap, { HEATMAP_COL_WIDTH_PX, HEATMAP_ROWS } from '@/components/Heatmap'
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
 
-const heatmapRows = 7
-const heatmapCellPx = 16
-const heatmapGapPx = 4
-const colWidthPx = heatmapCellPx + heatmapGapPx
-const rootPaddingPx = 12
-const heatmapPaddingPx = 8
-const tooltipOffsetPx = 6
-const tooltipHeightPx = 36
+const heatmapRows = HEATMAP_ROWS
+const colWidthPx = HEATMAP_COL_WIDTH_PX
 
 const monthNames = [
   'Jan',
@@ -157,157 +152,6 @@ function QuestCard({ quest, onClaim }) {
         {quest.action}
       </button>
     </article>
-  )
-}
-
-function Heatmap({ model, monthMarkers, scrollRef, selectedCell, onSelectCell, streak }) {
-  const [tooltipLeft, setTooltipLeft] = useState(rootPaddingPx)
-  const [tooltipTop, setTooltipTop] = useState(heatmapPaddingPx)
-  const rootRef = useRef(null)
-
-  useEffect(() => {
-    const container = scrollRef.current
-    const root = rootRef.current
-    if (!container || !root || !selectedCell?.date) {
-      return
-    }
-    const cellEl = root.querySelector(`[data-date="${selectedCell.date}"]`)
-    const rootRect = root.getBoundingClientRect()
-    const cellRect = cellEl?.getBoundingClientRect()
-
-    const minLeft = rootPaddingPx
-    const maxLeft = Math.max(minLeft, root.clientWidth - 180 - rootPaddingPx)
-
-    if (cellRect) {
-      const cellCenterLeft = cellRect.left - rootRect.left + heatmapCellPx / 2
-      const rawLeft = cellCenterLeft - 90
-      const nextLeft = Math.min(maxLeft, Math.max(minLeft, rawLeft))
-      setTooltipLeft(nextLeft)
-
-      const rawTop = cellRect.top - rootRect.top + heatmapCellPx + tooltipOffsetPx
-      const maxTop = Math.max(heatmapPaddingPx, root.clientHeight - tooltipHeightPx - rootPaddingPx)
-      setTooltipTop(Math.min(maxTop, Math.max(heatmapPaddingPx, rawTop)))
-      return
-    }
-
-    const fallbackLeft = selectedCell.colIdx * colWidthPx - container.scrollLeft
-    const nextLeft = Math.min(maxLeft, Math.max(minLeft, rootPaddingPx + fallbackLeft))
-    setTooltipLeft(nextLeft)
-
-    const rowTop = selectedCell.rowIdx * (heatmapCellPx + heatmapGapPx)
-    const nextTop = heatmapPaddingPx + rowTop + heatmapCellPx + tooltipOffsetPx
-    const maxTop = Math.max(heatmapPaddingPx, root.clientHeight - tooltipHeightPx - rootPaddingPx)
-    setTooltipTop(Math.min(maxTop, nextTop))
-  }, [scrollRef, selectedCell])
-
-  useEffect(() => {
-    if (!selectedCell?.date) {
-      return
-    }
-    const container = scrollRef.current
-    const root = rootRef.current
-    if (!container || !root) {
-      return
-    }
-    const handleScroll = () => onSelectCell(null)
-    const handlePointerDown = (event) => {
-      if (!root.contains(event.target)) {
-        onSelectCell(null)
-      }
-    }
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('pointerdown', handlePointerDown)
-    return () => {
-      container.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('pointerdown', handlePointerDown)
-    }
-  }, [onSelectCell, scrollRef, selectedCell])
-
-  return (
-    <div ref={rootRef} className="relative">
-      <div className="flex items-center">
-        <h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>
-      </div>
-
-      <div className="mt-1 rounded-2xl border border-black/15 bg-white p-3 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
-        <div ref={scrollRef} className="heatmap-scroll overflow-x-scroll pb-1 pr-2">
-          <div className="relative" style={{ minWidth: `${model.minWidthPx}px` }}>
-            <div
-              className="grid gap-1"
-              style={{
-                gridTemplateColumns: `repeat(${model.weeks}, ${heatmapCellPx}px)`,
-              }}
-            >
-              {Array.from({ length: model.weeks }).map((_, colIdx) => (
-                <div key={colIdx} className="grid grid-rows-7 gap-1">
-                  {Array.from({ length: heatmapRows }).map((_, rowIdx) => {
-                    const index = colIdx * heatmapRows + rowIdx
-                    const cell = model.cells[index]
-                    return (
-                      <div
-                        key={`${colIdx}-${rowIdx}`}
-                        className={`h-4 w-4 rounded-[2px] ${
-                          cell.date ? levelClasses[cell.level] : 'bg-transparent'
-                        } ${cell.date && selectedCell?.date === cell.date ? 'ring-2 ring-black/70' : ''}`}
-                        data-date={cell.date ?? undefined}
-                        role={cell.date ? 'button' : undefined}
-                        tabIndex={cell.date ? 0 : undefined}
-                        onClick={() => {
-                          if (!cell.date) {
-                            return
-                          }
-                          if (selectedCell?.date === cell.date) {
-                            onSelectCell(null)
-                            return
-                          }
-                          onSelectCell({ ...cell, colIdx, rowIdx })
-                        }}
-                        onKeyDown={(event) => {
-                          if (cell.date && (event.key === 'Enter' || event.key === ' ')) {
-                            event.preventDefault()
-                            onSelectCell({ ...cell, colIdx, rowIdx })
-                          }
-                        }}
-                      />
-                    )
-                  })}
-                </div>
-              ))}
-            </div>
-          </div>
-          <div className="relative mt-2 h-6" style={{ minWidth: `${model.minWidthPx}px` }}>
-            {monthMarkers.map((marker) => (
-              <div
-                key={marker.key}
-                className="absolute top-0 text-[10px] font-semibold text-muted-foreground"
-                style={{ left: `${marker.leftPx}px` }}
-              >
-                <div className="h-2 border-l border-black/20" />
-                <div className="mt-1 -translate-x-1">{marker.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-        {selectedCell?.date ? (
-          <div
-            className="pointer-events-none absolute z-20 rounded-lg bg-black px-3 py-2 text-xs font-semibold text-white shadow-lg"
-            style={{ left: `${tooltipLeft}px`, top: `${tooltipTop}px` }}
-          >
-            {selectedCell.date} : {selectedCell.solveCount}문제 해결
-          </div>
-        ) : null}
-
-        <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
-          <span>Less</span>
-          <div className="flex items-center gap-1">
-            {levelClasses.map((cls) => (
-              <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
-            ))}
-          </div>
-          <span>More</span>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -620,7 +464,9 @@ export default function Home() {
         scrollRef={heatmapScrollRef}
         selectedCell={selectedCell}
         onSelectCell={setSelectedCell}
-        streak={streak}
+        levelClasses={levelClasses}
+        header={<h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>}
+        cardClassName="mt-1"
       />
     </div>
   )
