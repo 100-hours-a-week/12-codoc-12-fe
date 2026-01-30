@@ -386,10 +386,10 @@ export default function Chatbot() {
                     ) : null}
                     <div className="space-y-2">
                       <div
-                        className={`rounded-2xl border px-4 py-3 text-sm leading-relaxed ${
+                        className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
                           message.role === 'user'
-                            ? 'border-muted-foreground/20 bg-background text-foreground'
-                            : 'border-muted-foreground/20 bg-muted/40 text-foreground'
+                            ? 'bg-info-soft text-foreground'
+                            : 'bg-muted/60 text-foreground'
                         }`}
                       >
                         {isPending ? (
