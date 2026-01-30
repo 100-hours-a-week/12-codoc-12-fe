@@ -19,6 +19,8 @@ const SUMMARY_CARD_PROMPTS = {
   CONSTRAINT: '을 만족하는',
 }
 
+const getCardKey = (card, index) => String(card.paragraphType ?? card.id ?? `summary-${index}`)
+
 export default function ProblemSummaryCards({
   summaryCards,
   problemId,
@@ -52,7 +54,7 @@ export default function ProblemSummaryCards({
       return false
     }
     return summaryCards.every((card, index) => {
-      const cardKey = card.id ?? `summary-${index}`
+      const cardKey = getCardKey(card, index)
       return selectedChoices[cardKey] !== undefined
     })
   }, [problemId, selectedChoices, summaryCards])
@@ -63,7 +65,7 @@ export default function ProblemSummaryCards({
     }
 
     const choiceIds = summaryCards.map((card, index) => {
-      const cardKey = card.id ?? `summary-${index}`
+      const cardKey = getCardKey(card, index)
       return selectedChoices[cardKey]
     })
 
@@ -105,12 +107,10 @@ export default function ProblemSummaryCards({
         <CardContent className="space-y-4 p-4">
           <div className="space-y-4">
             {summaryCards.map((card, index) => {
-              const cardKey = card.id ?? `summary-${index}`
+              const cardKey = getCardKey(card, index)
               const selectedChoiceIndex = selectedChoices[cardKey]
               const placeholder = SUMMARY_CARD_LABELS[card.paragraphType] ?? '빈칸'
               const prompt = SUMMARY_CARD_PROMPTS[card.paragraphType] ?? '이 문제는'
-              const selectedChoice =
-                selectedChoiceIndex !== undefined ? card.choices[selectedChoiceIndex] : null
               const isCorrect = gradingResults[index]
 
               return (
@@ -120,31 +120,30 @@ export default function ProblemSummaryCards({
 
                   {/* 빈칸 */}
                   <div
-                    className={`inline-flex min-w-[4rem] items-center justify-center rounded-md border px-3 py-2 text-sm font-normal ${
-                      selectedChoice
-                        ? isGraded
-                          ? isCorrect
-                            ? 'border-emerald-200 bg-emerald-100 text-emerald-900'
-                            : 'border-rose-200 bg-rose-100 text-rose-900'
-                          : 'border-transparent bg-foreground text-background'
-                        : 'border-dashed border-border bg-background text-foreground/80'
-                    }`}
+                    className={`inline-flex min-w-[4rem] items-center justify-center rounded-md border-2 px-3 py-2 text-sm font-semibold ${'border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground'}`}
                   >
-                    {selectedChoice ?? placeholder}
+                    {placeholder}
                   </div>
 
                   {/* 선택지 */}
                   {card.choices.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-col gap-2">
                       {card.choices.map((choice, choiceIndex) => {
                         const isSelected = selectedChoiceIndex === choiceIndex
+                        const isSelectedCorrect = isGraded && isSelected && isCorrect
+                        const isSelectedWrong = isGraded && isSelected && !isCorrect
+                        const isSelectedPending = !isGraded && isSelected
                         return (
                           <button
                             key={`${cardKey}-choice-${choiceIndex}`}
-                            className={`rounded-md border px-3 py-2 text-sm font-semibold transition ${
-                              isSelected
-                                ? 'border-foreground/60 bg-background text-foreground'
-                                : 'border-muted-foreground/30 bg-background text-foreground/80'
+                            className={`w-full rounded-md border-2 px-3 py-2 text-left text-sm font-semibold transition ${
+                              isSelectedCorrect
+                                ? 'border-info-soft-foreground bg-background text-foreground'
+                                : isSelectedWrong
+                                  ? 'border-danger-soft-foreground bg-background text-foreground'
+                                  : isSelectedPending
+                                    ? 'border-info-soft-foreground bg-background text-foreground'
+                                    : 'border-muted-foreground/40 bg-background text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground'
                             }`}
                             disabled={isGraded}
                             onClick={() => handleSelectChoice(cardKey, choiceIndex)}
@@ -174,9 +173,19 @@ export default function ProblemSummaryCards({
       </Card>
 
       {isGraded ? (
-        <Card className="rounded-xl bg-muted/70">
+        <Card
+          className={`rounded-xl ${
+            allCorrect
+              ? 'border-2 border-info-muted bg-info-soft/80'
+              : 'border-2 border-danger-muted bg-danger-soft/80'
+          }`}
+        >
           <CardContent className="space-y-4 p-4">
-            <div className="text-center text-base">
+            <div
+              className={`text-center text-base ${
+                allCorrect ? 'text-info-soft-foreground' : 'text-danger-soft-foreground'
+              }`}
+            >
               {allCorrect ? '완벽합니다! 문제를 정확히 이해하셨네요!' : '다시 도전해보세요!'}
             </div>
           </CardContent>
@@ -185,7 +194,13 @@ export default function ProblemSummaryCards({
 
       <Button
         className={`w-full rounded-xl ${
-          isSubmitEnabled && !isGraded ? 'bg-foreground text-background hover:bg-foreground/90' : ''
+          isGraded
+            ? allCorrect
+              ? 'bg-info text-info-foreground hover:bg-info/90'
+              : 'bg-danger text-danger-foreground hover:bg-danger/90'
+            : isSubmitEnabled
+              ? 'bg-info text-info-foreground hover:bg-info/90'
+              : ''
         }`}
         disabled={isSubmitting || (!isSubmitEnabled && !isGraded)}
         onClick={() => {
