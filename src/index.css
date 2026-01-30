@@ -35,8 +35,8 @@ body {
 
 .quiz-progress {
   background-color: hsl(var(--neutral-100));
-  color: hsl(var(--success));
-  accent-color: hsl(var(--success));
+  color: hsl(var(--info));
+  accent-color: hsl(var(--info));
 }
 
 .quiz-progress::-webkit-progress-bar {
@@ -45,6 +45,6 @@ body {
 }
 
 .quiz-progress::-webkit-progress-value {
-  background-color: hsl(var(--success));
+  background-color: hsl(var(--info));
   border-radius: 999px;
 }
