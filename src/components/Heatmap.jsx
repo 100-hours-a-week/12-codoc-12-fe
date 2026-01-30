@@ -136,14 +136,16 @@ export default function Heatmap({
             </div>
           </div>
           <div className="relative mt-2 h-6" style={{ minWidth: `${model.minWidthPx}px` }}>
-            {monthMarkers.map((marker) => (
+            {monthMarkers.map((marker, index) => (
               <div
                 key={marker.key}
                 className="absolute top-0 text-[10px] font-semibold text-muted-foreground"
                 style={{ left: `${marker.leftPx}px` }}
               >
                 <div className="h-2 border-l border-black/20" />
-                <div className="mt-1 -translate-x-1">{marker.label}</div>
+                <div className={`mt-1 ${index === 0 ? '' : '-translate-x-1'}`.trim()}>
+                  {marker.label}
+                </div>
               </div>
             ))}
           </div>
@@ -158,13 +160,14 @@ export default function Heatmap({
         ) : null}
 
         <div className="mt-3 flex items-center justify-end gap-2 text-[10px] font-semibold text-muted-foreground">
-          <span>Less</span>
-          <div className="flex items-center gap-1">
-            {levelClasses.map((cls) => (
-              <span key={cls} className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
+          <div className="flex items-center gap-3">
+            {levelClasses.map((cls, index) => (
+              <span key={cls} className="flex items-center gap-0.5">
+                <span className={`h-2.5 w-2.5 rounded-[2px] ${cls}`} />
+                <span>{index}</span>
+              </span>
             ))}
           </div>
-          <span>More</span>
         </div>
       </div>
     </div>
