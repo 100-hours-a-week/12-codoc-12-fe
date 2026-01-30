@@ -242,7 +242,7 @@ export default function Quiz() {
               className="w-full rounded-xl"
               onClick={() => {
                 if (problemId) {
-                  navigate(`/problems/${problemId}`, { state: { openSummary: true } })
+                  navigate(`/problems/${problemId}/summary`)
                 }
               }}
               type="button"
