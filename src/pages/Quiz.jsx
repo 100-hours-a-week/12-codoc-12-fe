@@ -382,7 +382,7 @@ export default function Quiz() {
             {actionError ? <p className="text-xs text-danger">{actionError}</p> : null}
           </div>
 
-          <div className="fixed bottom-20 left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 px-4">
+          <div className="fixed bottom-[var(--chatbot-input-bottom)] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
             <div className="rounded-2xl bg-background/95 pb-2 pt-2 backdrop-blur">
               <Button
                 className={`w-full rounded-xl ${
