@@ -429,30 +429,37 @@ export default function ProblemDetail() {
                         h1: ({ node: _node, ...props }) => (
                           <h3 className="text-base font-semibold text-foreground" {...props} />
                         ),
-                        h2: ({ node: _node, ...props }) => (
-                          <h3 className="text-base font-semibold text-foreground" {...props} />
+                        h2: ({ ...props }) => (
+                          <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />
                         ),
-                        h3: ({ node: _node, ...props }) => (
-                          <h4 className="text-sm font-semibold text-foreground" {...props} />
+
+                        h3: ({ ...props }) => (
+                          <h3
+                            className="mt-4 mb-1 text-base font-semibold text-foreground"
+                            {...props}
+                          />
                         ),
                         h4: ({ node: _node, ...props }) => (
                           <h4 className="text-sm font-semibold text-foreground" {...props} />
                         ),
 
-                        p: ({ node: _node, ...props }) => (
-                          <p className="text-sm leading-relaxed text-foreground/90" {...props} />
-                        ),
-
-                        ul: ({ node: _node, ...props }) => (
-                          <ul
-                            className="list-disc space-y-1 pl-5 text-sm text-muted-foreground"
+                        p: ({ ...props }) => (
+                          <p
+                            className="mb-2 text-sm leading-relaxed text-foreground/90"
                             {...props}
                           />
                         ),
 
-                        li: ({ node: _node, ...props }) => (
-                          <li className="text-muted-foreground" {...props} />
+                        hr: () => <hr className="my-6 border-muted" />,
+
+                        ul: ({ ...props }) => (
+                          <ul
+                            className="mb-2 list-disc space-y-1 pl-5 text-sm text-foreground/80"
+                            {...props}
+                          />
                         ),
+
+                        li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
 
                         blockquote: ({ node: _node, ...props }) => (
                           <blockquote
@@ -461,9 +468,9 @@ export default function ProblemDetail() {
                           />
                         ),
 
-                        pre: ({ node: _node, ...props }) => (
+                        pre: ({ ...props }) => (
                           <pre
-                            className="whitespace-pre-wrap rounded-xl bg-muted px-4 py-3 text-sm text-foreground/90"
+                            className="my-3 overflow-x-auto rounded-xl bg-muted px-4 py-3 text-sm"
                             {...props}
                           />
                         ),
