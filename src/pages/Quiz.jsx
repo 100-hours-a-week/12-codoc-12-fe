@@ -257,8 +257,8 @@ export default function Quiz() {
           <p className="text-sm text-muted-foreground">등록된 퀴즈가 없습니다.</p>
         </Card>
       ) : isResultView ? (
-        <Card className="bg-muted/40">
-          <CardContent className="space-y-6 p-6 text-center">
+        <div className="flex min-h-[70vh] flex-col items-center justify-center">
+          <div className="w-full space-y-6 text-center">
             <div className="flex flex-col items-center gap-3">
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background shadow-sm">
                 <Trophy className="h-10 w-10" />
@@ -271,15 +271,23 @@ export default function Quiz() {
               </div>
             </div>
             <div className="space-y-2">
-              <Button className="w-full rounded-xl" onClick={handleRestart} variant="secondary">
+              <Button
+                className="w-full rounded-xl border-2 border-border"
+                onClick={handleRestart}
+                variant="secondary"
+              >
                 다시 풀어보기
               </Button>
-              <Button className="w-full rounded-xl" onClick={handleGoHome} variant="outline">
+              <Button
+                className="w-full rounded-xl border-2"
+                onClick={handleGoHome}
+                variant="outline"
+              >
                 홈으로 돌아가기
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="flex min-h-full flex-col">
           <div className="flex-1 space-y-4 pb-24">
@@ -370,35 +378,6 @@ export default function Quiz() {
             ) : null}
 
             {actionError ? <p className="text-xs text-red-500">{actionError}</p> : null}
-
-            {hasAnsweredCurrent ? (
-              <Card
-                className={
-                  currentResult
-                    ? 'border-info-muted bg-info-soft/80'
-                    : 'border-danger-muted bg-danger-soft/80'
-                }
-              >
-                <CardContent className="flex items-center gap-2 p-4 text-sm font-semibold">
-                  <span
-                    className={`flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${
-                      currentResult
-                        ? 'border-info-muted bg-info-muted text-info-soft-foreground'
-                        : 'border-danger-muted bg-danger-muted text-danger-soft-foreground'
-                    }`}
-                  >
-                    {currentResult ? '✓' : '✕'}
-                  </span>
-                  <span
-                    className={
-                      currentResult ? 'text-info-soft-foreground' : 'text-danger-soft-foreground'
-                    }
-                  >
-                    {currentResult ? '정답입니다!' : '오답입니다.'}
-                  </span>
-                </CardContent>
-              </Card>
-            ) : null}
 
             {actionError ? <p className="text-xs text-danger">{actionError}</p> : null}
           </div>
