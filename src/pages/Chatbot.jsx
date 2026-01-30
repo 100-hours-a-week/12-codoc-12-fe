@@ -433,7 +433,7 @@ export default function Chatbot() {
               }}
             >
               <Input
-                className="h-10 flex-1 border-none px-2 text-sm focus-visible:ring-0"
+                className="h-10 flex-1 border-0 px-2 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isStreaming}
                 onChange={(event) => updateSession(problemId, { inputValue: event.target.value })}
                 placeholder="메시지를 입력하세요"

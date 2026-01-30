@@ -136,14 +136,14 @@ export default function ProblemSummaryCards({
                         return (
                           <button
                             key={`${cardKey}-choice-${choiceIndex}`}
-                            className={`w-full rounded-md border-2 px-3 py-2 text-left text-sm font-semibold transition ${
+                            className={`w-full min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
                               isSelectedCorrect
                                 ? 'border-info-soft-foreground bg-background text-foreground'
                                 : isSelectedWrong
                                   ? 'border-danger-soft-foreground bg-background text-foreground'
                                   : isSelectedPending
                                     ? 'border-info-soft-foreground bg-background text-foreground'
-                                    : 'border-muted-foreground/40 bg-background text-muted-foreground hover:border-muted-foreground/60 hover:text-foreground'
+                                    : 'border-muted-foreground/25 bg-background text-muted-foreground hover:border-muted-foreground/35 hover:text-foreground'
                             }`}
                             disabled={isGraded}
                             onClick={() => handleSelectChoice(cardKey, choiceIndex)}
