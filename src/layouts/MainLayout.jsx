@@ -73,9 +73,9 @@ export default function MainLayout() {
           }`}
         >
           <div className="flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
-            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
+            <h1 className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
               <span aria-hidden>Codo</span>
-              <span aria-hidden className="inline-block -translate-y-[1px] scale-x-[-1]">
+              <span aria-hidden className="inline-block scale-x-[-1]">
                 C
               </span>
               <span className="sr-only">Codoc</span>
