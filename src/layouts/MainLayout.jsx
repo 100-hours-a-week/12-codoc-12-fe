@@ -22,7 +22,7 @@ export default function MainLayout() {
 
   useEffect(() => {
     const path = location.pathname
-    const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz))?$/.test(path)
+    const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(path)
     if (!isProblemFlow) {
       clearChatbotSessions()
       clearQuizSessions()

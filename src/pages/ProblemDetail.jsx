@@ -11,14 +11,13 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import ProblemSummaryCards from '@/components/ProblemSummaryCards'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 import {
@@ -58,14 +57,13 @@ const HELP_STEPS = [
 export default function ProblemDetail() {
   const { problemId } = useParams()
   const navigate = useNavigate()
-  const location = useLocation()
   const [problem, setProblem] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
-  const [isSummaryOpen, setIsSummaryOpen] = useState(false)
   const [isBookmarking, setIsBookmarking] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)
+  const [isTabHidden, setIsTabHidden] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [helpStepIndex, setHelpStepIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
@@ -115,16 +113,6 @@ export default function ProblemDetail() {
     }
   }, [problemId, reloadKey])
 
-  useEffect(() => {
-    if (location.state?.openSummary) {
-      setIsSummaryOpen(true)
-    }
-  }, [location.state])
-
-  useEffect(() => {
-    setIsSummaryOpen(false)
-  }, [problemId])
-
   const statusOption = useMemo(() => {
     if (!problem) {
       return null
@@ -132,16 +120,6 @@ export default function ProblemDetail() {
 
     return STATUS_OPTIONS.find((option) => option.value === problem.status) ?? null
   }, [problem])
-
-  const handleStatusChange = (status) => {
-    setProblem((prev) => (prev ? { ...prev, status } : prev))
-  }
-
-  const handleQuizStart = () => {
-    if (problemId) {
-      navigate(`/problems/${problemId}/quiz`)
-    }
-  }
 
   const handleBookmarkToggle = async () => {
     if (!problem?.id || isBookmarking) {
@@ -181,6 +159,33 @@ export default function ProblemDetail() {
     window.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
 
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+    }
+  }, [])
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY
+    let ticking = false
+
+    const handleScroll = () => {
+      const current = window.scrollY
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const delta = current - lastScrollY
+          if (delta > 0 && current > 24) {
+            setIsTabHidden(true)
+          } else if (delta < 0 || current <= 24) {
+            setIsTabHidden(false)
+          }
+          lastScrollY = current
+          ticking = false
+        })
+        ticking = true
+      }
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
       window.removeEventListener('scroll', handleScroll)
     }
@@ -278,7 +283,6 @@ export default function ProblemDetail() {
   }, [isHelpOpen])
 
   const handleOpenHelp = () => {
-    setIsSummaryOpen(false)
     setHelpStepIndex(0)
     setIsHelpOpen(true)
   }
@@ -297,55 +301,57 @@ export default function ProblemDetail() {
 
   return (
     <div className="space-y-5">
-      {!isSummaryOpen ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl bg-muted/70 px-2">
-            <div className="grid grid-cols-3">
-              {TAB_ITEMS.map((tab) => {
-                const isQuizTab = tab.id === 'quiz'
-                const isQuizEnabled =
-                  !isQuizTab || ['summary_card_passed', 'solved'].includes(problem?.status ?? '')
-                const tabRef =
-                  tab.id === 'chatbot' ? chatbotTabRef : tab.id === 'quiz' ? quizTabRef : null
+      <div className="relative">
+        <div
+          className={`rounded-2xl bg-muted/70 px-2 transition-all duration-200 ${
+            isTabHidden ? '-translate-y-6 opacity-0 pointer-events-none' : 'opacity-100'
+          }`}
+        >
+          <div className="grid grid-cols-3">
+            {TAB_ITEMS.map((tab) => {
+              const isQuizTab = tab.id === 'quiz'
+              const isQuizEnabled =
+                !isQuizTab || ['summary_card_passed', 'solved'].includes(problem?.status ?? '')
+              const tabRef =
+                tab.id === 'chatbot' ? chatbotTabRef : tab.id === 'quiz' ? quizTabRef : null
 
-                return (
-                  <button
-                    key={tab.id}
-                    ref={tabRef}
-                    className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                      tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
-                    } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                    disabled={!isQuizEnabled}
-                    onClick={() => {
-                      if (!problemId) {
-                        return
-                      }
-                      if (tab.id === 'quiz') {
-                        navigate(`/problems/${problemId}/quiz`)
-                      }
-                      if (tab.id === 'problem') {
-                        navigate(`/problems/${problemId}`)
-                      }
-                      if (tab.id === 'chatbot') {
-                        navigate(`/problems/${problemId}/chatbot`)
-                      }
-                    }}
-                    type="button"
-                  >
-                    <tab.Icon className="h-5 w-5" />
-                    {tab.label}
-                    <span
-                      className={`mt-1 h-[2px] w-12 rounded-full ${
-                        tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
-                      }`}
-                    />
-                  </button>
-                )
-              })}
-            </div>
+              return (
+                <button
+                  key={tab.id}
+                  ref={tabRef}
+                  className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
+                    tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
+                  } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  disabled={!isQuizEnabled}
+                  onClick={() => {
+                    if (!problemId) {
+                      return
+                    }
+                    if (tab.id === 'quiz') {
+                      navigate(`/problems/${problemId}/quiz`)
+                    }
+                    if (tab.id === 'problem') {
+                      navigate(`/problems/${problemId}`)
+                    }
+                    if (tab.id === 'chatbot') {
+                      navigate(`/problems/${problemId}/chatbot`)
+                    }
+                  }}
+                  type="button"
+                >
+                  <tab.Icon className="h-5 w-5" />
+                  {tab.label}
+                  <span
+                    className={`mt-1 h-[2px] w-12 rounded-full ${
+                      tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
+                    }`}
+                  />
+                </button>
+              )
+            })}
           </div>
         </div>
-      ) : null}
+      </div>
 
       {isLoading ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
@@ -359,162 +365,140 @@ export default function ProblemDetail() {
           </Button>
         </Card>
       ) : problem ? (
-        <>
-          <div className="relative [perspective:1200px]">
-            <div
-              className={`relative transition-transform duration-500 [transform-style:preserve-3d] ${
-                isSummaryOpen ? '[transform:rotateY(180deg)]' : ''
-              }`}
-            >
-              <div className="space-y-5 [backface-visibility:hidden]">
-                <div className="space-y-3">
-                  <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-                    <Badge className="rounded-full bg-muted px-3 py-1 text-foreground/80">
-                      {formatDifficultyLabel(problem.difficulty)}
-                    </Badge>
-                    {problem.status !== 'not_attempted' ? (
-                      <Badge
-                        className={`rounded-full px-3 py-1 ${
-                          statusOption?.pillClass ?? 'bg-background text-foreground/80'
-                        }`}
-                      >
-                        {statusOption?.label ?? '상태 미정'}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <button
-                      aria-label={problem.bookmarked ? '북마크 해제' : '북마크 추가'}
-                      className="rounded-full transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
-                      disabled={isBookmarking}
-                      onClick={handleBookmarkToggle}
-                      type="button"
-                    >
-                      <Star
-                        className={`h-5 w-5 ${
-                          problem.bookmarked ? 'fill-warning text-warning' : 'text-foreground'
-                        }`}
-                      />
-                    </button>
-                    <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
-                    <button
-                      aria-label="도움말 열기"
-                      className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted-foreground transition hover:text-foreground"
-                      onClick={handleOpenHelp}
-                      type="button"
-                    >
-                      <Info className="h-6 w-6" />
-                    </button>
-                  </div>
-                  <div className="h-px bg-border" />
-                </div>
-
-                <Button
-                  className="w-full gap-2 rounded-xl py-6"
-                  disabled={!hasSummaryCards}
-                  onClick={() => setIsSummaryOpen(true)}
-                  ref={summaryButtonRef}
-                  type="button"
-                  variant="secondary"
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Badge className="rounded-full bg-muted px-3 py-1 text-foreground/80">
+                {formatDifficultyLabel(problem.difficulty)}
+              </Badge>
+              {problem.status !== 'not_attempted' ? (
+                <Badge
+                  className={`rounded-full px-3 py-1 ${
+                    statusOption?.pillClass ?? 'bg-background text-foreground/80'
+                  }`}
                 >
-                  {hasSummaryCards ? <Sparkles className="h-5 w-5" /> : null}
-                  {hasSummaryCards ? '문제 요약 카드 만들기' : '요약 카드가 없습니다'}
-                </Button>
-
-                <section className="space-y-3">
-                  {problem.content ? (
-                    <ReactMarkdown
-                      remarkPlugins={[remarkGfm]}
-                      components={{
-                        h1: ({ node: _node, ...props }) => (
-                          <h3 className="text-base font-semibold text-foreground" {...props} />
-                        ),
-                        h2: ({ ...props }) => (
-                          <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />
-                        ),
-
-                        h3: ({ ...props }) => (
-                          <h3
-                            className="mt-4 mb-1 text-base font-semibold text-foreground"
-                            {...props}
-                          />
-                        ),
-                        h4: ({ node: _node, ...props }) => (
-                          <h4 className="text-sm font-semibold text-foreground" {...props} />
-                        ),
-
-                        p: ({ ...props }) => (
-                          <p
-                            className="mb-2 text-sm leading-relaxed text-foreground/90"
-                            {...props}
-                          />
-                        ),
-
-                        hr: () => <hr className="my-6 border-muted" />,
-
-                        ul: ({ ...props }) => (
-                          <ul
-                            className="mb-2 list-disc space-y-1 pl-5 text-sm text-foreground/80"
-                            {...props}
-                          />
-                        ),
-
-                        li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
-
-                        blockquote: ({ node: _node, ...props }) => (
-                          <blockquote
-                            className="rounded-xl bg-muted px-4 py-3 text-sm text-foreground/90"
-                            {...props}
-                          />
-                        ),
-
-                        pre: ({ ...props }) => (
-                          <pre
-                            className="my-3 overflow-x-auto rounded-xl bg-muted px-4 py-3 text-sm"
-                            {...props}
-                          />
-                        ),
-
-                        code: ({ node: _node, inline, className, children, ...props }) => {
-                          if (inline) {
-                            return (
-                              <code
-                                className="rounded bg-muted/60 px-1 py-0.5 text-[0.85em] text-foreground/90"
-                                {...props}
-                              >
-                                {children}
-                              </code>
-                            )
-                          }
-
-                          return (
-                            <code className={className} {...props}>
-                              {children}
-                            </code>
-                          )
-                        },
-                      }}
-                    >
-                      {problem.content}
-                    </ReactMarkdown>
-                  ) : (
-                    <StatusMessage>문제 설명이 없습니다.</StatusMessage>
-                  )}
-                </section>
-              </div>
-
-              <div className="absolute inset-0 space-y-5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
-                <ProblemSummaryCards
-                  problemId={problem.id}
-                  summaryCards={summaryCards}
-                  onClose={() => setIsSummaryOpen(false)}
-                  onStatusChange={handleStatusChange}
-                  onQuizStart={handleQuizStart}
-                />
-              </div>
+                  {statusOption?.label ?? '상태 미정'}
+                </Badge>
+              ) : null}
             </div>
+            <div className="flex items-center gap-3">
+              <button
+                aria-label={problem.bookmarked ? '북마크 해제' : '북마크 추가'}
+                className="rounded-full transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isBookmarking}
+                onClick={handleBookmarkToggle}
+                type="button"
+              >
+                <Star
+                  className={`h-5 w-5 ${
+                    problem.bookmarked ? 'fill-warning text-warning' : 'text-foreground'
+                  }`}
+                />
+              </button>
+              <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
+              <button
+                aria-label="도움말 열기"
+                className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted-foreground transition hover:text-foreground"
+                onClick={handleOpenHelp}
+                type="button"
+              >
+                <Info className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="h-px bg-border" />
           </div>
-        </>
+
+          <Button
+            className="w-full gap-2 rounded-xl py-6"
+            disabled={!hasSummaryCards}
+            onClick={() => {
+              if (problemId) {
+                navigate(`/problems/${problemId}/summary`)
+              }
+            }}
+            ref={summaryButtonRef}
+            type="button"
+            variant="secondary"
+          >
+            {hasSummaryCards ? <Sparkles className="h-5 w-5" /> : null}
+            {hasSummaryCards ? '문제 요약 카드 만들기' : '요약 카드가 없습니다'}
+          </Button>
+
+          <section className="space-y-3">
+            {problem.content ? (
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                components={{
+                  h1: ({ node: _node, ...props }) => (
+                    <h3 className="text-base font-semibold text-foreground" {...props} />
+                  ),
+                  h2: ({ ...props }) => (
+                    <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />
+                  ),
+
+                  h3: ({ ...props }) => (
+                    <h3 className="mt-4 mb-1 text-base font-semibold text-foreground" {...props} />
+                  ),
+                  h4: ({ node: _node, ...props }) => (
+                    <h4 className="text-sm font-semibold text-foreground" {...props} />
+                  ),
+
+                  p: ({ ...props }) => (
+                    <p className="mb-2 text-sm leading-relaxed text-foreground/90" {...props} />
+                  ),
+
+                  hr: () => <hr className="my-6 border-muted" />,
+
+                  ul: ({ ...props }) => (
+                    <ul
+                      className="mb-2 list-disc space-y-1 pl-5 text-sm text-foreground/80"
+                      {...props}
+                    />
+                  ),
+
+                  li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
+
+                  blockquote: ({ node: _node, ...props }) => (
+                    <blockquote
+                      className="rounded-xl bg-muted px-4 py-3 text-sm text-foreground/90"
+                      {...props}
+                    />
+                  ),
+
+                  pre: ({ ...props }) => (
+                    <pre
+                      className="my-3 overflow-x-auto rounded-xl bg-muted px-4 py-3 text-sm"
+                      {...props}
+                    />
+                  ),
+
+                  code: ({ node: _node, inline, className, children, ...props }) => {
+                    if (inline) {
+                      return (
+                        <code
+                          className="rounded bg-muted/60 px-1 py-0.5 text-[0.85em] text-foreground/90"
+                          {...props}
+                        >
+                          {children}
+                        </code>
+                      )
+                    }
+
+                    return (
+                      <code className={className} {...props}>
+                        {children}
+                      </code>
+                    )
+                  },
+                }}
+              >
+                {problem.content}
+              </ReactMarkdown>
+            ) : (
+              <StatusMessage>문제 설명이 없습니다.</StatusMessage>
+            )}
+          </section>
+        </div>
       ) : null}
 
       {!isAtTop ? (

@@ -434,9 +434,7 @@ export default function Chatbot() {
                           className="w-fit rounded-xl bg-muted text-foreground hover:bg-muted/80"
                           onClick={() => {
                             if (problemId) {
-                              navigate(`/problems/${problemId}`, {
-                                state: { openSummary: true },
-                              })
+                              navigate(`/problems/${problemId}/summary`)
                             }
                           }}
                           type="button"

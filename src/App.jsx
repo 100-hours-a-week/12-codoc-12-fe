@@ -10,6 +10,7 @@ import Chatbot from '@/pages/Chatbot'
 import Quiz from '@/pages/Quiz'
 import ProblemDetail from '@/pages/ProblemDetail'
 import Problems from '@/pages/Problems'
+import SummaryCards from '@/pages/SummaryCards'
 
 function App() {
   return (
@@ -33,6 +34,7 @@ function App() {
         <Route element={<Home />} index />
         <Route element={<Problems />} path="problems" />
         <Route element={<ProblemDetail />} path="problems/:problemId" />
+        <Route element={<SummaryCards />} path="problems/:problemId/summary" />
         <Route element={<Chatbot />} path="problems/:problemId/chatbot" />
         <Route element={<Quiz />} path="problems/:problemId/quiz" />
         <Route element={<MyPage />} path="my" />
