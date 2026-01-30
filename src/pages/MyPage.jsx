@@ -264,6 +264,7 @@ export default function MyPage() {
   const [loadError, setLoadError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [avatars, setAvatars] = useState([])
   const [avatarError, setAvatarError] = useState('')
   const [selectedAvatarId, setSelectedAvatarId] = useState(null)
@@ -334,7 +335,6 @@ export default function MyPage() {
         const nextNickname = profile?.nickname ?? '코딩 마스터'
         setNickname(nextNickname)
         setDraftNickname(nextNickname)
-        setSelectedDailyGoal(profile?.dailyGoal ?? 'ONE')
         setSelectedAvatarId(profile?.avatarId ?? null)
         setAvatarUrl(profile?.avatarImageUrl ?? '')
       } catch {
@@ -374,8 +374,24 @@ export default function MyPage() {
       }
     }
 
+    const fetchDailyGoal = async () => {
+      try {
+        const { data } = await api.get('/api/user/daily-goal')
+        if (!mounted) {
+          return
+        }
+        setSelectedDailyGoal(data?.data?.dailyGoal ?? 'ONE')
+      } catch {
+        if (!mounted) {
+          return
+        }
+        setLoadError('일일 목표 정보를 불러오지 못했습니다.')
+      }
+    }
+
     fetchProfile()
     fetchStats()
+    fetchDailyGoal()
 
     return () => {
       mounted = false
@@ -735,7 +751,7 @@ export default function MyPage() {
           className="text-sm font-semibold text-foreground/70 disabled:opacity-60"
           disabled={isDeleting}
           type="button"
-          onClick={handleDeleteAccount}
+          onClick={() => setIsDeleteModalOpen(true)}
         >
           {isDeleting ? '탈퇴 처리 중...' : '회원 탈퇴'}
         </button>
@@ -746,6 +762,43 @@ export default function MyPage() {
           {toastMessage}
         </div>
       ) : null}
+      {isDeleteModalOpen
+        ? createPortal(
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
+              <div className="w-full max-w-[360px] rounded-2xl border border-black/10 bg-white p-5 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+                <div className="flex items-center justify-center">
+                  <p className="text-xl font-bold">회원 탈퇴</p>
+                </div>
+                <p className="mt-3 text-center text-sm text-muted-foreground">
+                  탈퇴 시 데이터가 복구되지 않을 수 있습니다.
+                  <br />
+                  계속 진행하시겠어요?
+                </p>
+                <div className="mt-5 flex items-center justify-center gap-3">
+                  <button
+                    className="min-w-[96px] rounded-md bg-foreground px-4 py-2 text-sm font-semibold text-background"
+                    type="button"
+                    onClick={() => setIsDeleteModalOpen(false)}
+                  >
+                    취소
+                  </button>
+                  <button
+                    className="min-w-[96px] rounded-md border border-black/60 px-4 py-2 text-sm font-semibold text-foreground disabled:opacity-60"
+                    type="button"
+                    onClick={async () => {
+                      setIsDeleteModalOpen(false)
+                      await handleDeleteAccount()
+                    }}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? '탈퇴 중...' : '탈퇴'}
+                  </button>
+                </div>
+              </div>
+            </div>,
+            document.body,
+          )
+        : null}
       {isGoalModalOpen
         ? createPortal(
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
