@@ -312,7 +312,7 @@ export default function ProblemDetail() {
                     key={tab.id}
                     ref={tabRef}
                     className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                      tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-muted-foreground'
+                      tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-neutral-500'
                     } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                     disabled={!isQuizEnabled}
                     onClick={() => {
@@ -391,9 +391,7 @@ export default function ProblemDetail() {
                     >
                       <Star
                         className={`h-5 w-5 ${
-                          problem.bookmarked
-                            ? 'fill-foreground text-foreground'
-                            : 'text-muted-foreground'
+                          problem.bookmarked ? 'fill-warning text-warning' : 'text-foreground'
                         }`}
                       />
                     </button>

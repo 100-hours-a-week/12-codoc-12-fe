@@ -682,8 +682,8 @@ export default function MyPage() {
                         key={option.value}
                         className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm font-semibold ${
                           selected
-                            ? 'border-black bg-black text-white'
-                            : 'border-black/20 bg-white text-foreground'
+                            ? 'border-info text-info bg-transparent'
+                            : 'border-info/30 bg-white text-foreground'
                         }`}
                         type="button"
                         onClick={() => setSelectedDailyGoal(option.value)}
@@ -696,14 +696,14 @@ export default function MyPage() {
                 </div>
                 <div className="mt-5 flex items-center justify-center gap-3">
                   <button
-                    className="min-w-[96px] rounded-md border border-black/40 px-4 py-2 text-sm font-semibold"
+                    className="min-w-[96px] rounded-md px-4 py-2 text-sm font-semibold text-foreground"
                     type="button"
                     onClick={() => setIsGoalModalOpen(false)}
                   >
                     취소
                   </button>
                   <button
-                    className="min-w-[96px] rounded-md border border-black/60 px-4 py-2 text-sm font-semibold"
+                    className="min-w-[96px] rounded-md border border-info bg-info px-4 py-2 text-sm font-semibold text-white hover:bg-info/90"
                     type="button"
                     onClick={handleSaveDailyGoal}
                     disabled={isSavingGoal}
