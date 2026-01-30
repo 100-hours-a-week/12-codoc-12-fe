@@ -1,4 +1,4 @@
-import { ArrowUp, Filter, RefreshCw, Search } from 'lucide-react'
+import { ArrowUp, Filter, RefreshCw, Search, Star } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -130,7 +130,7 @@ export default function Problems() {
     const difficultyTags = appliedFilters.difficulties.map(
       (value) => `# ${formatDifficultyLabel(value)}`,
     )
-    const bookmarkTags = appliedFilters.bookmarks.includes(BOOKMARK_VALUE) ? ['# 북마크 ⭐'] : []
+    const bookmarkTags = appliedFilters.bookmarks.includes(BOOKMARK_VALUE) ? ['# 북마크'] : []
 
     return [...statusTags, ...difficultyTags, ...bookmarkTags]
   }, [appliedFilters])
@@ -232,16 +232,14 @@ export default function Problems() {
                 <Button
                   className={`gap-2 rounded-full px-4 ${
                     appliedFilters.bookmarks.includes(BOOKMARK_VALUE)
-                      ? 'bg-foreground text-background hover:bg-foreground/90'
+                      ? 'border-info bg-transparent hover:bg-info/10'
                       : 'border-foreground/20'
                   }`}
                   onClick={handleToggleBookmarkFilter}
                   type="button"
-                  variant={
-                    appliedFilters.bookmarks.includes(BOOKMARK_VALUE) ? 'default' : 'outline'
-                  }
+                  variant="outline"
                 >
-                  북마크 ⭐
+                  북마크
                 </Button>
               </div>
               <Button
@@ -301,7 +299,12 @@ export default function Problems() {
                         <div className="flex items-start justify-between gap-3">
                           <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
                             {problem.title}
-                            {problem.bookmarked ? <span aria-label="북마크">⭐</span> : null}
+                            {problem.bookmarked ? (
+                              <Star
+                                aria-label="북마크"
+                                className="h-4 w-4 fill-warning text-warning"
+                              />
+                            ) : null}
                           </h3>
                           <span className="text-lg text-muted-foreground">{'›'}</span>
                         </div>

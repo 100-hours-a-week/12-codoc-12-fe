@@ -323,7 +323,7 @@ export default function Chatbot() {
               <button
                 key={tab.id}
                 className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                  tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-muted-foreground'
+                  tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-neutral-500'
                 } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                 disabled={!isEnabled}
                 onClick={() => {
@@ -441,7 +441,11 @@ export default function Chatbot() {
                 value={inputValue}
               />
               <Button
-                className="h-10 rounded-xl"
+                className={`h-10 rounded-xl ${
+                  inputValue.trim().length > 0 && !isStreaming
+                    ? 'bg-info text-white hover:bg-info/90'
+                    : ''
+                }`}
                 disabled={isStreaming || inputValue.trim().length === 0}
                 size="sm"
                 type="submit"

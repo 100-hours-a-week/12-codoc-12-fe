@@ -95,7 +95,7 @@ export default function MainLayout() {
                 className={({ isActive }) =>
                   cn(
                     'flex flex-col items-center gap-1 text-[11px] font-medium',
-                    isActive ? 'text-foreground' : 'text-muted-foreground',
+                    isActive ? 'text-foreground' : 'text-neutral-500',
                   )
                 }
                 end={end}
