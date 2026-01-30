@@ -359,19 +359,18 @@ export default function Problems() {
             {STATUS_OPTIONS.map((option) => {
               const id = `status-${option.value}`
               return (
-                <div
+                <label
                   key={option.value}
-                  className="flex items-center justify-between rounded-lg border border-muted bg-muted/30 px-3 py-2 text-sm"
+                  className="flex cursor-pointer items-center justify-between rounded-lg border border-muted bg-muted/30 px-3 py-2 text-sm select-none"
+                  htmlFor={id}
                 >
-                  <label className="text-sm" htmlFor={id}>
-                    {option.label}
-                  </label>
+                  <span className="text-sm">{option.label}</span>
                   <Checkbox
                     checked={pendingFilters.status.includes(option.value)}
                     id={id}
                     onCheckedChange={() => togglePendingFilter('status', option.value)}
                   />
-                </div>
+                </label>
               )
             })}
           </div>
@@ -382,19 +381,18 @@ export default function Problems() {
               {DIFFICULTY_OPTIONS.map((difficulty) => {
                 const id = `difficulty-${difficulty}`
                 return (
-                  <div
+                  <label
                     key={difficulty}
-                    className="flex items-center justify-between rounded-lg border border-muted bg-muted/30 px-3 py-2 text-sm"
+                    className="flex cursor-pointer items-center justify-between rounded-lg border border-muted bg-muted/30 px-3 py-2 text-sm select-none"
+                    htmlFor={id}
                   >
-                    <label className="text-sm" htmlFor={id}>
-                      Lv. {difficulty}
-                    </label>
+                    <span className="text-sm">Lv. {difficulty}</span>
                     <Checkbox
                       checked={pendingFilters.difficulties.includes(difficulty)}
                       id={id}
                       onCheckedChange={() => togglePendingFilter('difficulties', difficulty)}
                     />
-                  </div>
+                  </label>
                 )
               })}
             </div>
