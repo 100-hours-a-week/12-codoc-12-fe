@@ -62,8 +62,8 @@
   --overlay: 0 0% 0%;
   --shadow-ink: 222 47.4% 11.2%;
   --radius: 0.5rem;
-  --font-body: 'Space Grotesk', sans-serif;
-  --font-display: 'Playfair Display', serif;
+  --font-body: 'Pretendard', sans-serif;
+  --font-display: 'Pretendard', sans-serif;
 }
 
 .dark {
