@@ -1,5 +1,15 @@
-import { ArrowUp, BookOpen, Brain, Clover, Star } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  ArrowUp,
+  BookOpen,
+  Brain,
+  Clover,
+  Info,
+  Star,
+  X,
+} from 'lucide-react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 
@@ -24,6 +34,25 @@ const TAB_ITEMS = [
 ]
 
 const ACTIVE_TAB_ID = 'problem'
+const HELP_STEPS = [
+  {
+    id: 'summary',
+    title: '문제 요약 카드',
+    description: '문제 내용을 요약하는 퀴즈입니다.\n요약 카드를 해결해야 퀴즈를 풀 수 있어요.',
+  },
+  {
+    id: 'chatbot',
+    title: 'AI 챗봇',
+    description:
+      '문제에 대해 궁금한 점을 물어볼 수 있어요.\n단계가 있으며 현재 단계에 맞는 질문만 받을 수 있습니다.\nAI가 이해했다고 판단하면 다음 단계로 넘어갑니다.',
+  },
+  {
+    id: 'quiz',
+    title: '퀴즈',
+    description:
+      '알고리즘, 자료구조, 시간복잡도 관련 문제를 풉니다.\n모든 문제를 맞춰야 경험치를 얻을 수 있어요.',
+  },
+]
 
 export default function ProblemDetail() {
   const { problemId } = useParams()
@@ -36,6 +65,14 @@ export default function ProblemDetail() {
   const [isSummaryOpen, setIsSummaryOpen] = useState(false)
   const [isBookmarking, setIsBookmarking] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [helpStepIndex, setHelpStepIndex] = useState(0)
+  const [spotlightRect, setSpotlightRect] = useState(null)
+  const [helpModalStyle, setHelpModalStyle] = useState({ top: 0, left: 0 })
+  const summaryButtonRef = useRef(null)
+  const chatbotTabRef = useRef(null)
+  const quizTabRef = useRef(null)
+  const helpModalRef = useRef(null)
 
   useEffect(() => {
     let isActive = true
@@ -148,49 +185,163 @@ export default function ProblemDetail() {
     }
   }, [])
 
+  const currentHelpStep = HELP_STEPS[helpStepIndex]
+
+  const getHelpTarget = useCallback((stepId) => {
+    if (stepId === 'summary') {
+      return summaryButtonRef.current
+    }
+    if (stepId === 'chatbot') {
+      return chatbotTabRef.current
+    }
+    if (stepId === 'quiz') {
+      return quizTabRef.current
+    }
+    return null
+  }, [])
+
+  const syncHelpPosition = useCallback(() => {
+    if (!isHelpOpen || !currentHelpStep) {
+      return
+    }
+    const target = getHelpTarget(currentHelpStep.id)
+    if (!target) {
+      return
+    }
+
+    const adjustedRect = target.getBoundingClientRect()
+    const padding = 6
+    const computedRadius = Number.parseFloat(window.getComputedStyle(target).borderRadius || '0')
+    const maxRadius = (adjustedRect.height + padding * 2) / 2
+    const safeRadius = Number.isNaN(computedRadius) ? 12 : computedRadius + padding / 2
+    const offsetY = -20
+    setSpotlightRect({
+      top: Math.max(0, Math.round(adjustedRect.top - padding + offsetY)),
+      left: Math.max(0, Math.round(adjustedRect.left - padding)),
+      width: Math.round(adjustedRect.width + padding * 2),
+      height: Math.round(adjustedRect.height + padding * 2),
+      radius: Math.round(Math.min(maxRadius, Math.max(8, safeRadius))),
+    })
+
+    const modalEl = helpModalRef.current
+    const modalRect = modalEl?.getBoundingClientRect()
+    const modalWidth = modalRect?.width ?? 300
+    const modalHeight = modalRect?.height ?? 160
+    const spacing = 12
+    let top = adjustedRect.bottom + spacing
+    if (top + modalHeight > window.innerHeight - 12) {
+      top = adjustedRect.top - spacing - modalHeight
+    }
+    let left = adjustedRect.left + adjustedRect.width / 2 - modalWidth / 2
+    left = Math.max(12, Math.min(left, window.innerWidth - modalWidth - 12))
+    top = Math.max(12, Math.min(top, window.innerHeight - modalHeight - 12))
+    setHelpModalStyle({ top, left })
+  }, [currentHelpStep, getHelpTarget, isHelpOpen])
+
+  useLayoutEffect(() => {
+    if (!isHelpOpen) {
+      return
+    }
+    const target = getHelpTarget(currentHelpStep?.id)
+    target?.scrollIntoView({ behavior: 'auto', block: 'center' })
+    const raf = window.requestAnimationFrame(() => {
+      syncHelpPosition()
+      window.requestAnimationFrame(syncHelpPosition)
+    })
+    return () => window.cancelAnimationFrame(raf)
+  }, [isHelpOpen, helpStepIndex, syncHelpPosition])
+
+  useEffect(() => {
+    if (!isHelpOpen) {
+      return
+    }
+    const handleScroll = () => syncHelpPosition()
+    const handleResize = () => syncHelpPosition()
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [isHelpOpen, syncHelpPosition])
+
+  useEffect(() => {
+    if (!isHelpOpen) {
+      return
+    }
+    const previous = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previous
+    }
+  }, [isHelpOpen])
+
+  const handleOpenHelp = () => {
+    setIsSummaryOpen(false)
+    setHelpStepIndex(0)
+    setIsHelpOpen(true)
+  }
+
+  const handleCloseHelp = () => {
+    setIsHelpOpen(false)
+  }
+
+  const handlePrevHelp = () => {
+    setHelpStepIndex((prev) => Math.max(0, prev - 1))
+  }
+
+  const handleNextHelp = () => {
+    setHelpStepIndex((prev) => Math.min(HELP_STEPS.length - 1, prev + 1))
+  }
+
   return (
     <div className="space-y-5">
       {!isSummaryOpen ? (
-        <div className="rounded-2xl bg-muted/70 px-2">
-          <div className="grid grid-cols-3">
-            {TAB_ITEMS.map((tab) => {
-              const isQuizTab = tab.id === 'quiz'
-              const isQuizEnabled =
-                !isQuizTab || ['summary_card_passed', 'solved'].includes(problem?.status ?? '')
+        <div className="space-y-3">
+          <div className="rounded-2xl bg-muted/70 px-2">
+            <div className="grid grid-cols-3">
+              {TAB_ITEMS.map((tab) => {
+                const isQuizTab = tab.id === 'quiz'
+                const isQuizEnabled =
+                  !isQuizTab || ['summary_card_passed', 'solved'].includes(problem?.status ?? '')
+                const tabRef =
+                  tab.id === 'chatbot' ? chatbotTabRef : tab.id === 'quiz' ? quizTabRef : null
 
-              return (
-                <button
-                  key={tab.id}
-                  className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                    tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-muted-foreground'
-                  } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                  disabled={!isQuizEnabled}
-                  onClick={() => {
-                    if (!problemId) {
-                      return
-                    }
-                    if (tab.id === 'quiz') {
-                      navigate(`/problems/${problemId}/quiz`)
-                    }
-                    if (tab.id === 'problem') {
-                      navigate(`/problems/${problemId}`)
-                    }
-                    if (tab.id === 'chatbot') {
-                      navigate(`/problems/${problemId}/chatbot`)
-                    }
-                  }}
-                  type="button"
-                >
-                  <tab.Icon className="h-5 w-5" />
-                  {tab.label}
-                  <span
-                    className={`mt-1 h-[2px] w-12 rounded-full ${
-                      tab.id === ACTIVE_TAB_ID ? 'bg-foreground' : 'bg-transparent'
-                    }`}
-                  />
-                </button>
-              )
-            })}
+                return (
+                  <button
+                    key={tab.id}
+                    ref={tabRef}
+                    className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
+                      tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-muted-foreground'
+                    } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                    disabled={!isQuizEnabled}
+                    onClick={() => {
+                      if (!problemId) {
+                        return
+                      }
+                      if (tab.id === 'quiz') {
+                        navigate(`/problems/${problemId}/quiz`)
+                      }
+                      if (tab.id === 'problem') {
+                        navigate(`/problems/${problemId}`)
+                      }
+                      if (tab.id === 'chatbot') {
+                        navigate(`/problems/${problemId}/chatbot`)
+                      }
+                    }}
+                    type="button"
+                  >
+                    <tab.Icon className="h-5 w-5" />
+                    {tab.label}
+                    <span
+                      className={`mt-1 h-[2px] w-12 rounded-full ${
+                        tab.id === ACTIVE_TAB_ID ? 'bg-foreground' : 'bg-transparent'
+                      }`}
+                    />
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
       ) : null}
@@ -230,11 +381,10 @@ export default function ProblemDetail() {
                       </Badge>
                     ) : null}
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
+                  <div className="flex items-center gap-3">
                     <button
                       aria-label={problem.bookmarked ? '북마크 해제' : '북마크 추가'}
-                      className="rounded-full p-1 transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-full transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={isBookmarking}
                       onClick={handleBookmarkToggle}
                       type="button"
@@ -247,6 +397,15 @@ export default function ProblemDetail() {
                         }`}
                       />
                     </button>
+                    <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
+                    <button
+                      aria-label="도움말 열기"
+                      className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted-foreground transition hover:text-foreground"
+                      onClick={handleOpenHelp}
+                      type="button"
+                    >
+                      <Info className="h-6 w-6" />
+                    </button>
                   </div>
                   <div className="h-px bg-border" />
                 </div>
@@ -255,6 +414,7 @@ export default function ProblemDetail() {
                   className="w-full rounded-xl"
                   disabled={!hasSummaryCards}
                   onClick={() => setIsSummaryOpen(true)}
+                  ref={summaryButtonRef}
                   type="button"
                   variant="secondary"
                 >
@@ -361,6 +521,82 @@ export default function ProblemDetail() {
         >
           <ArrowUp className="h-4 w-4" />
         </Button>
+      ) : null}
+
+      {isHelpOpen ? (
+        <div className="fixed inset-0 z-50">
+          <div
+            className="absolute inset-0"
+            aria-hidden
+            onClick={(event) => event.preventDefault()}
+          />
+          {spotlightRect ? (
+            <div
+              className="absolute border-2 border-white/80"
+              style={{
+                top: spotlightRect.top,
+                left: spotlightRect.left,
+                width: spotlightRect.width,
+                height: spotlightRect.height,
+                borderRadius: spotlightRect.radius,
+                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.6)',
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-black/60" />
+          )}
+
+          <div
+            ref={helpModalRef}
+            role="dialog"
+            aria-modal="true"
+            className="absolute w-[min(90vw,320px)] rounded-2xl bg-background p-4 shadow-xl"
+            style={{ top: helpModalStyle.top, left: helpModalStyle.left }}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              aria-label="도움말 닫기"
+              className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted-foreground transition hover:text-foreground"
+              onClick={handleCloseHelp}
+              type="button"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <div className="space-y-3">
+              <h3 className="text-base font-semibold text-foreground">{currentHelpStep?.title}</h3>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                {currentHelpStep?.description}
+              </p>
+            </div>
+            <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+              <span>
+                {helpStepIndex + 1}/{HELP_STEPS.length}
+              </span>
+              <div className="flex items-center gap-2">
+                <Button
+                  className="h-8 rounded-lg px-3 text-xs"
+                  disabled={helpStepIndex === 0}
+                  onClick={handlePrevHelp}
+                  type="button"
+                  variant="secondary"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  이전
+                </Button>
+                <Button
+                  className="h-8 rounded-lg px-3 text-xs"
+                  onClick={
+                    helpStepIndex === HELP_STEPS.length - 1 ? handleCloseHelp : handleNextHelp
+                  }
+                  type="button"
+                >
+                  {helpStepIndex === HELP_STEPS.length - 1 ? '완료' : '다음'}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )
