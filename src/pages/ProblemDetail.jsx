@@ -249,7 +249,7 @@ export default function ProblemDetail() {
       window.requestAnimationFrame(syncHelpPosition)
     })
     return () => window.cancelAnimationFrame(raf)
-  }, [isHelpOpen, helpStepIndex, syncHelpPosition])
+  }, [currentHelpStep?.id, getHelpTarget, helpStepIndex, isHelpOpen, syncHelpPosition])
 
   useEffect(() => {
     if (!isHelpOpen) {
