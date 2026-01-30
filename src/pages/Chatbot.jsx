@@ -33,6 +33,7 @@ export default function Chatbot() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
 
   const { sessions, initSession, updateSession } = useChatbotStore()
   const session = problemId ? sessions[String(problemId)] : null
@@ -186,6 +187,36 @@ export default function Chatbot() {
       window.removeEventListener('resize', handleScroll)
     }
   }, [checkIsAtBottom])
+
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) {
+      return
+    }
+    let raf = null
+
+    const syncKeyboardOffset = () => {
+      if (raf) {
+        cancelAnimationFrame(raf)
+      }
+      raf = requestAnimationFrame(() => {
+        const offset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        setKeyboardOffset(offset)
+      })
+    }
+
+    viewport.addEventListener('resize', syncKeyboardOffset)
+    viewport.addEventListener('scroll', syncKeyboardOffset)
+    syncKeyboardOffset()
+
+    return () => {
+      viewport.removeEventListener('resize', syncKeyboardOffset)
+      viewport.removeEventListener('scroll', syncKeyboardOffset)
+      if (raf) {
+        cancelAnimationFrame(raf)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -424,7 +455,10 @@ export default function Chatbot() {
 
           {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
 
-          <div className="fixed bottom-[var(--chatbot-input-bottom)] left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur">
+          <div
+            className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
+            style={{ bottom: `calc(var(--chatbot-input-bottom) + ${keyboardOffset}px)` }}
+          >
             <form
               className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
               onSubmit={(event) => {
@@ -462,7 +496,10 @@ export default function Chatbot() {
       {!isAtBottom ? (
         <Button
           aria-label="맨 아래로 이동"
-          className="fixed right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md bottom-[calc(var(--chatbot-input-bottom)+88px)]"
+          className="fixed right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+          style={{
+            bottom: `calc(var(--chatbot-input-bottom) + ${keyboardOffset}px + 88px)`,
+          }}
           onClick={handleScrollBottom}
           size="icon"
           type="button"
