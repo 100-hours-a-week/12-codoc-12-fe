@@ -313,7 +313,7 @@ export default function ProblemDetail() {
                     key={tab.id}
                     ref={tabRef}
                     className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                      tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-neutral-500'
+                      tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
                     } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                     disabled={!isQuizEnabled}
                     onClick={() => {
@@ -336,7 +336,7 @@ export default function ProblemDetail() {
                     {tab.label}
                     <span
                       className={`mt-1 h-[2px] w-12 rounded-full ${
-                        tab.id === ACTIVE_TAB_ID ? 'bg-foreground' : 'bg-transparent'
+                        tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
                       }`}
                     />
                   </button>

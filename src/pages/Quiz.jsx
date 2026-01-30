@@ -194,7 +194,7 @@ export default function Quiz() {
             <button
               key={tab.id}
               className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                tab.id === ACTIVE_TAB_ID ? 'text-foreground' : 'text-neutral-500'
+                tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
               }`}
               onClick={() => {
                 if (!problemId) {
@@ -213,7 +213,7 @@ export default function Quiz() {
               {tab.label}
               <span
                 className={`mt-1 h-[2px] w-12 rounded-full ${
-                  tab.id === ACTIVE_TAB_ID ? 'bg-foreground' : 'bg-transparent'
+                  tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
                 }`}
               />
             </button>
