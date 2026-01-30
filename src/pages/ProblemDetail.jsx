@@ -6,6 +6,7 @@ import {
   Brain,
   Clover,
   Info,
+  Sparkles,
   Star,
   X,
 } from 'lucide-react'
@@ -409,14 +410,15 @@ export default function ProblemDetail() {
                 </div>
 
                 <Button
-                  className="w-full rounded-xl"
+                  className="w-full gap-2 rounded-xl py-6"
                   disabled={!hasSummaryCards}
                   onClick={() => setIsSummaryOpen(true)}
                   ref={summaryButtonRef}
                   type="button"
                   variant="secondary"
                 >
-                  {hasSummaryCards ? '문제 요약 카드' : '요약 카드가 없습니다'}
+                  {hasSummaryCards ? <Sparkles className="h-5 w-5" /> : null}
+                  {hasSummaryCards ? '문제 요약 카드 만들기' : '요약 카드가 없습니다'}
                 </Button>
 
                 <section className="space-y-3">
