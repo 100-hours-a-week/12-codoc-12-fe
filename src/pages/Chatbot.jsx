@@ -383,6 +383,10 @@ export default function Chatbot() {
         </div>
       </div>
 
+      <p className="text-sm text-neutral-500">
+        ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
+      </p>
+
       {isLoading ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
           <p className="text-sm text-muted-foreground">챗봇을 준비하는 중입니다.</p>
