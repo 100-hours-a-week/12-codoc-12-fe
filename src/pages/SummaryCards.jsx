@@ -1,4 +1,5 @@
 import { BookOpen, Brain, Clover } from 'lucide-react'
+import { motion } from 'framer-motion'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
@@ -21,6 +22,7 @@ export default function SummaryCards() {
   const [problem, setProblem] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
+  const [isExiting, setIsExiting] = useState(false)
 
   useEffect(() => {
     let isActive = true
@@ -72,9 +74,10 @@ export default function SummaryCards() {
   }
 
   const handleClose = () => {
-    if (problemId) {
-      navigate(`/problems/${problemId}`)
+    if (isExiting) {
+      return
     }
+    setIsExiting(true)
   }
 
   const handleStatusChange = (status) => {
@@ -82,7 +85,7 @@ export default function SummaryCards() {
   }
 
   return (
-    <div className="animate-in fade-in-0 slide-in-from-right-2 duration-300 space-y-5">
+    <div className="space-y-5">
       <div className="rounded-2xl bg-muted/70 px-2">
         <div className="grid grid-cols-3">
           {TAB_ITEMS.map((tab) => {
@@ -126,26 +129,71 @@ export default function SummaryCards() {
         </div>
       </div>
 
-      {isLoading ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-muted-foreground">요약 카드를 불러오는 중입니다.</p>
-        </Card>
-      ) : loadError ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-danger">{loadError}</p>
-          <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
-            다시 시도
-          </Button>
-        </Card>
-      ) : (
-        <ProblemSummaryCards
-          problemId={problem?.id ?? problemId}
-          summaryCards={summaryCards}
-          onClose={handleClose}
-          onQuizStart={handleQuizStart}
-          onStatusChange={handleStatusChange}
-        />
-      )}
+      <motion.div
+        style={{
+          transformStyle: 'preserve-3d',
+          transformPerspective: 1200,
+          backfaceVisibility: 'hidden',
+        }}
+        initial="enter"
+        animate={isExiting ? 'exit' : 'center'}
+        variants={{
+          enter: {
+            opacity: 0,
+            rotateY: -180,
+            x: 12,
+            y: 6,
+            scale: 0.96,
+          },
+          center: {
+            opacity: 1,
+            rotateY: 0,
+            x: 0,
+            y: 0,
+            scale: 1,
+            transition: { type: 'spring', stiffness: 240, damping: 28, mass: 0.9 },
+          },
+          exit: {
+            opacity: 0,
+            rotateY: 180,
+            x: -12,
+            y: 4,
+            scale: 0.96,
+            transition: { duration: 0.3, ease: 'easeInOut' },
+          },
+        }}
+        onAnimationComplete={() => {
+          if (!isExiting) {
+            return
+          }
+          if (problemId) {
+            navigate(`/problems/${problemId}`)
+          } else {
+            navigate('/problems')
+          }
+        }}
+      >
+        {isLoading ? (
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-muted-foreground">요약 카드를 불러오는 중입니다.</p>
+          </Card>
+        ) : loadError ? (
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-danger">{loadError}</p>
+            <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
+              다시 시도
+            </Button>
+          </Card>
+        ) : (
+          <ProblemSummaryCards
+            problemId={problem?.id ?? problemId}
+            summaryCards={summaryCards}
+            onClose={handleClose}
+            onQuizStart={handleQuizStart}
+            onStatusChange={handleStatusChange}
+          />
+        )}
+      </motion.div>
     </div>
   )
 }
