@@ -68,12 +68,12 @@ export default function MainLayout() {
         style={{ '--chatbot-input-bottom': isChromeHidden ? '16px' : '72px' }}
       >
         <header
-          className={`sticky top-0 z-30 border-b bg-background/95 backdrop-blur transition-transform duration-200 ${
+          className={`sticky top-0 z-30  bg-background/95 backdrop-blur transition-transform duration-200 ${
             isChromeHidden ? '-translate-y-full' : 'translate-y-0'
           }`}
         >
           <div className="flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
-            <h1 className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl font-[var(--font-display)]">
+            <h1 className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl">
               <span aria-hidden>Codo</span>
               <span aria-hidden className="inline-block scale-x-[-1]">
                 C
