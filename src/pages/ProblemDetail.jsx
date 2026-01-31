@@ -552,6 +552,7 @@ export default function ProblemDetail() {
               <StatusMessage>문제 설명이 없습니다.</StatusMessage>
             )}
           </section>
+          <p className="!mt-10 text-sm text-neutral-500">※ 본 문제는 AI로 생성한 콘텐츠입니다.</p>
         </div>
       ) : null}
 
