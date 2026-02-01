@@ -77,10 +77,6 @@ export default function MainLayout() {
   const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
 
   const handleBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1)
-      return
-    }
     navigate('/problems')
   }
 
