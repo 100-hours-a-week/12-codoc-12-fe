@@ -1,5 +1,5 @@
-import { BookOpen, Home, User } from 'lucide-react'
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { ArrowLeft, BookOpen, Home, User } from 'lucide-react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 
 import { cn } from '@/lib/utils'
@@ -15,6 +15,7 @@ const navItems = [
 
 export default function MainLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
   const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
@@ -60,6 +61,15 @@ export default function MainLayout() {
   }, [])
 
   const content = <Outlet />
+  const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      navigate(-1)
+      return
+    }
+    navigate('/problems')
+  }
 
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
@@ -72,7 +82,17 @@ export default function MainLayout() {
             isChromeHidden ? '-translate-y-full' : 'translate-y-0'
           }`}
         >
-          <div className="flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
+          <div className="relative flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
+            {showBackButton ? (
+              <button
+                aria-label="뒤로 가기"
+                className="absolute left-4 flex h-9 w-9 items-center justify-center rounded-full bg-transparent text-foreground transition hover:bg-muted/60"
+                onClick={handleBack}
+                type="button"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </button>
+            ) : null}
             <h1 className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl">
               <span aria-hidden>Codo</span>
               <span aria-hidden className="inline-block scale-x-[-1]">
