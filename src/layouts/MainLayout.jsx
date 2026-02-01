@@ -78,6 +78,7 @@ export default function MainLayout() {
 
   const content = <Outlet />
   const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
+  const isNavHidden = /^\/problems\/[^/]+\/(chatbot|quiz|summary)$/.test(location.pathname)
 
   const handleBack = () => {
     navigate('/problems')
@@ -87,7 +88,9 @@ export default function MainLayout() {
     <div className="min-h-screen bg-muted/40 text-foreground">
       <div
         className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm"
-        style={{ '--chatbot-input-bottom': isChromeHidden ? '16px' : '72px' }}
+        style={{
+          '--chatbot-input-bottom': isNavHidden ? '16px' : isChromeHidden ? '16px' : '72px',
+        }}
       >
         <header
           className={`sticky top-0 z-30  bg-background/95 backdrop-blur transition-transform duration-200 ${
@@ -118,42 +121,50 @@ export default function MainLayout() {
             </button>
           </div>
         </header>
-        <main className="flex-1 px-4 py-5 pb-24 sm:pb-28">{content}</main>
-        <footer
-          className={`fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 transition-transform duration-200 ${
-            isChromeHidden ? 'translate-y-[120%]' : 'translate-y-0'
+        <main
+          className={`flex-1 px-4 py-5 transition-[padding] duration-200 ${
+            isNavHidden ? 'pb-6' : isChromeHidden ? 'pb-6' : 'pb-24 sm:pb-28'
           }`}
         >
-          <div className="pb-[env(safe-area-inset-bottom)]">
-            <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
-              {navItems.map(({ to, label, Icon, end }) => (
-                <NavLink
-                  key={to}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex flex-col items-center gap-1 text-[12px] font-medium transition',
-                      isActive ? 'text-info' : 'text-neutral-500',
-                    )
-                  }
-                  end={end}
-                  to={to}
-                >
-                  {({ isActive: _isActive }) => (
-                    <>
-                      <Icon className="h-6 w-6" />
-                      <span>{label}</span>
-                      <span
-                        className={`h-[3px] w-6 rounded-full ${
-                          _isActive ? 'bg-info' : 'bg-transparent'
-                        }`}
-                      />
-                    </>
-                  )}
-                </NavLink>
-              ))}
-            </nav>
-          </div>
-        </footer>
+          {content}
+        </main>
+        {!isNavHidden ? (
+          <footer
+            className={`fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 transition-transform duration-200 ${
+              isChromeHidden ? 'translate-y-[120%]' : 'translate-y-0'
+            }`}
+          >
+            <div className="pb-[env(safe-area-inset-bottom)]">
+              <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
+                {navItems.map(({ to, label, Icon, end }) => (
+                  <NavLink
+                    key={to}
+                    className={({ isActive }) =>
+                      cn(
+                        'flex flex-col items-center gap-1 text-[12px] font-medium transition',
+                        isActive ? 'text-info' : 'text-neutral-500',
+                      )
+                    }
+                    end={end}
+                    to={to}
+                  >
+                    {({ isActive: _isActive }) => (
+                      <>
+                        <Icon className="h-6 w-6" />
+                        <span>{label}</span>
+                        <span
+                          className={`h-[3px] w-6 rounded-full ${
+                            _isActive ? 'bg-info' : 'bg-transparent'
+                          }`}
+                        />
+                      </>
+                    )}
+                  </NavLink>
+                ))}
+              </nav>
+            </div>
+          </footer>
+        ) : null}
       </div>
     </div>
   )
