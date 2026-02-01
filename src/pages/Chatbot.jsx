@@ -475,6 +475,9 @@ export default function Chatbot() {
             className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
             style={{ bottom: `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px)` }}
           >
+            <p className="m-2 text-right text-[12px] text-neutral-500">
+              {inputValue.length} / {MAX_INPUT_LENGTH}
+            </p>
             <form
               className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
               onSubmit={(event) => {
@@ -509,9 +512,6 @@ export default function Chatbot() {
                 전송
               </Button>
             </form>
-            <p className="m-2 text-right text-[12px] text-neutral-500">
-              {inputValue.length} / {MAX_INPUT_LENGTH}
-            </p>
           </div>
         </div>
       )}
