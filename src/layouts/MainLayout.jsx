@@ -35,10 +35,13 @@ export default function MainLayout() {
   useEffect(() => {
     const path = location.pathname
     const isProblemDetail = /^\/problems\/[^/]+$/.test(path)
-    if (isProblemDetail && previousPathRef.current !== path) {
+    const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(path)
+    if (isProblemFlow && previousPathRef.current !== path) {
       requestAnimationFrame(() => {
         setIsChromeHidden(false)
-        window.scrollTo({ top: 0, behavior: 'auto' })
+        if (isProblemDetail) {
+          window.scrollTo({ top: 0, behavior: 'auto' })
+        }
       })
     }
     previousPathRef.current = path

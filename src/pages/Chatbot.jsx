@@ -31,6 +31,7 @@ const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).sli
 export default function Chatbot() {
   const { problemId } = useParams()
   const navigate = useNavigate()
+  const isIOS = useMemo(() => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream, [])
   const [problemStatus, setProblemStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -200,7 +201,8 @@ export default function Chatbot() {
 
   useEffect(() => {
     const viewport = window.visualViewport
-    if (!viewport) {
+    if (!viewport || isIOS) {
+      setKeyboardOffset(0)
       return
     }
     let raf = null
@@ -226,7 +228,9 @@ export default function Chatbot() {
         cancelAnimationFrame(raf)
       }
     }
-  }, [])
+  }, [isIOS])
+
+  const effectiveKeyboardOffset = isIOS ? 0 : keyboardOffset
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -469,7 +473,7 @@ export default function Chatbot() {
 
           <div
             className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
-            style={{ bottom: `calc(var(--chatbot-input-bottom) + ${keyboardOffset}px)` }}
+            style={{ bottom: `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px)` }}
           >
             <form
               className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
@@ -517,7 +521,7 @@ export default function Chatbot() {
           aria-label="맨 아래로 이동"
           className="fixed right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
           style={{
-            bottom: `calc(var(--chatbot-input-bottom) + ${keyboardOffset}px + 88px)`,
+            bottom: `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px + 88px)`,
           }}
           onClick={handleScrollBottom}
           size="icon"
