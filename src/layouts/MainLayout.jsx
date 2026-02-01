@@ -102,13 +102,17 @@ export default function MainLayout() {
                 <ArrowLeft className="h-5 w-5" />
               </button>
             ) : null}
-            <h1 className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl">
+            <button
+              className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl"
+              onClick={() => navigate('/')}
+              type="button"
+            >
               <span aria-hidden>Codo</span>
               <span aria-hidden className="inline-block scale-x-[-1]">
                 C
               </span>
               <span className="sr-only">Codoc</span>
-            </h1>
+            </button>
           </div>
         </header>
         <main className="flex-1 px-4 py-5 pb-24 sm:pb-28">{content}</main>
