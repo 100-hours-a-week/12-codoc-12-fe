@@ -1,5 +1,5 @@
 import { ArrowUp, Filter, RefreshCw, Search, Star } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
@@ -30,8 +30,12 @@ const EMPTY_FILTERS = {
 
 const BOOKMARK_VALUE = 'bookmarked'
 const PAGE_SIZE = 20
+const SCROLL_Y_KEY = 'problems:scrollY'
+const RESTORE_KEY = 'problems:restore'
+const LIST_STATE_KEY = 'problems:listState'
 
 export default function Problems() {
+  const shouldRestore = typeof window !== 'undefined' && sessionStorage.getItem(RESTORE_KEY) === '1'
   const [searchValue, setSearchValue] = useState('')
   const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [pendingFilters, setPendingFilters] = useState(EMPTY_FILTERS)
@@ -45,8 +49,60 @@ export default function Problems() {
   const [hasNextPage, setHasNextPage] = useState(false)
   const [committedQuery, setCommittedQuery] = useState('')
   const [isAtTop, setIsAtTop] = useState(true)
+  const listRestoredRef = useRef(false)
+  const scrollRestoredRef = useRef(false)
+  const [isRestored, setIsRestored] = useState(shouldRestore)
 
   useEffect(() => {
+    if (!shouldRestore || listRestoredRef.current) {
+      return
+    }
+
+    try {
+      const raw = sessionStorage.getItem(LIST_STATE_KEY)
+      if (!raw) {
+        setIsRestored(false)
+        return
+      }
+      const stored = JSON.parse(raw)
+      if (stored?.problems) {
+        setProblems(stored.problems)
+      }
+      if (stored?.nextCursor !== undefined) {
+        setNextCursor(stored.nextCursor)
+      }
+      if (stored?.hasNextPage !== undefined) {
+        setHasNextPage(Boolean(stored.hasNextPage))
+      }
+      if (stored?.appliedFilters) {
+        setAppliedFilters(stored.appliedFilters)
+      }
+      if (stored?.pendingFilters) {
+        setPendingFilters(stored.pendingFilters)
+      } else if (stored?.appliedFilters) {
+        setPendingFilters(stored.appliedFilters)
+      }
+      if (stored?.committedQuery !== undefined) {
+        setCommittedQuery(stored.committedQuery)
+      }
+      if (stored?.searchValue !== undefined) {
+        setSearchValue(stored.searchValue)
+      }
+      setLoadError(null)
+      setLoadMoreError(null)
+      setIsLoading(false)
+      listRestoredRef.current = true
+      sessionStorage.removeItem(LIST_STATE_KEY)
+    } catch {
+      listRestoredRef.current = true
+      setIsRestored(false)
+    }
+  }, [shouldRestore])
+
+  useEffect(() => {
+    if (isRestored) {
+      return
+    }
     let isActive = true
 
     const fetchProblems = async () => {
@@ -90,7 +146,7 @@ export default function Problems() {
     return () => {
       isActive = false
     }
-  }, [appliedFilters, committedQuery])
+  }, [appliedFilters, committedQuery, isRestored])
 
   const handleLoadMore = async () => {
     if (!hasNextPage || isLoadingMore) {
@@ -147,6 +203,7 @@ export default function Problems() {
   }
 
   const handleApplyFilters = () => {
+    setIsRestored(false)
     setAppliedFilters(pendingFilters)
     setIsFilterOpen(false)
   }
@@ -157,11 +214,13 @@ export default function Problems() {
   }
 
   const handleResetFilters = () => {
+    setIsRestored(false)
     setPendingFilters(EMPTY_FILTERS)
     setAppliedFilters(EMPTY_FILTERS)
   }
 
   const handleToggleBookmarkFilter = () => {
+    setIsRestored(false)
     const nextBookmarks = appliedFilters.bookmarks.includes(BOOKMARK_VALUE) ? [] : [BOOKMARK_VALUE]
     setAppliedFilters((prev) => ({ ...prev, bookmarks: nextBookmarks }))
     setPendingFilters((prev) => ({ ...prev, bookmarks: nextBookmarks }))
@@ -189,8 +248,41 @@ export default function Problems() {
     }
   }, [])
 
+  useEffect(() => {
+    if (scrollRestoredRef.current || isLoading) {
+      return
+    }
+    const shouldRestore = sessionStorage.getItem(RESTORE_KEY) === '1'
+    if (!shouldRestore) {
+      return
+    }
+    const savedY = Number(sessionStorage.getItem(SCROLL_Y_KEY) ?? 0)
+    scrollRestoredRef.current = true
+    sessionStorage.removeItem(RESTORE_KEY)
+    sessionStorage.removeItem(SCROLL_Y_KEY)
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: Number.isFinite(savedY) ? savedY : 0, behavior: 'auto' })
+    })
+  }, [isLoading, loadError, problems.length])
+
   const handleSearchSubmit = () => {
+    setIsRestored(false)
     setCommittedQuery(searchValue.trim())
+  }
+
+  const handleOpenProblem = () => {
+    sessionStorage.setItem(SCROLL_Y_KEY, String(window.scrollY))
+    sessionStorage.setItem(RESTORE_KEY, '1')
+    const listState = {
+      problems,
+      nextCursor,
+      hasNextPage,
+      appliedFilters,
+      pendingFilters,
+      committedQuery,
+      searchValue,
+    }
+    sessionStorage.setItem(LIST_STATE_KEY, JSON.stringify(listState))
   }
 
   return (
@@ -292,6 +384,7 @@ export default function Problems() {
                     key={problem.id}
                     className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
                     aria-label={`${problem.title} 상세 보기`}
+                    onClick={handleOpenProblem}
                     to={`/problems/${problem.id}`}
                   >
                     <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
