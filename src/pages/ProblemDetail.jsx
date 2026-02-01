@@ -5,7 +5,6 @@ import {
   BookOpen,
   Brain,
   Clover,
-  Info,
   Sparkles,
   Star,
   X,
@@ -390,19 +389,29 @@ export default function ProblemDetail() {
       ) : problem ? (
         <div className="space-y-5">
           <div className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-              <Badge className="rounded-full bg-muted px-3 py-1 text-foreground/80">
-                {formatDifficultyLabel(problem.difficulty)}
-              </Badge>
-              {problem.status !== 'not_attempted' ? (
-                <Badge
-                  className={`rounded-full px-3 py-1 ${
-                    statusOption?.pillClass ?? 'bg-background text-foreground/80'
-                  }`}
-                >
-                  {statusOption?.label ?? '상태 미정'}
+            <div className="flex items-center justify-between gap-2 text-xs font-semibold text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge className="rounded-full bg-muted px-3 py-1 text-foreground/80">
+                  {formatDifficultyLabel(problem.difficulty)}
                 </Badge>
-              ) : null}
+                {problem.status !== 'not_attempted' ? (
+                  <Badge
+                    className={`rounded-full px-3 py-1 ${
+                      statusOption?.pillClass ?? 'bg-background text-foreground/80'
+                    }`}
+                  >
+                    {statusOption?.label ?? '상태 미정'}
+                  </Badge>
+                ) : null}
+              </div>
+              <Button
+                className="h-8 rounded border-foreground/20 px-3 text-xs font-semibold"
+                onClick={handleOpenHelp}
+                type="button"
+                variant="outline"
+              >
+                도움말
+              </Button>
             </div>
             <div className="flex items-center gap-3">
               <button
@@ -419,14 +428,6 @@ export default function ProblemDetail() {
                 />
               </button>
               <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
-              <button
-                aria-label="도움말 열기"
-                className="ml-auto flex h-8 w-8 items-center justify-center rounded-full bg-background text-muted-foreground transition hover:text-foreground"
-                onClick={handleOpenHelp}
-                type="button"
-              >
-                <Info className="h-6 w-6" />
-              </button>
             </div>
             <div className="h-px bg-border" />
           </div>
