@@ -109,6 +109,11 @@ export default function ProblemSummaryCards({
             {summaryCards.map((card, index) => {
               const cardKey = getCardKey(card, index)
               const selectedChoiceIndex = selectedChoices[cardKey]
+              const hasSelection = selectedChoiceIndex !== undefined && selectedChoiceIndex !== null
+              const selectedChoiceText =
+                hasSelection && card.choices?.[selectedChoiceIndex]
+                  ? card.choices[selectedChoiceIndex]
+                  : null
               const placeholder = SUMMARY_CARD_LABELS[card.paragraphType] ?? '빈칸'
               const prompt = SUMMARY_CARD_PROMPTS[card.paragraphType] ?? '이 문제는'
               const isCorrect = gradingResults[index]
@@ -120,9 +125,17 @@ export default function ProblemSummaryCards({
 
                   {/* 빈칸 */}
                   <div
-                    className={`inline-flex min-w-[4rem] items-center justify-center rounded-md border-2 px-3 py-2 text-sm font-semibold ${'border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground'}`}
+                    className={`inline-flex min-w-[4rem] items-center justify-center rounded-md border-2 px-3 py-2 text-sm font-semibold ${
+                      isGraded
+                        ? isCorrect
+                          ? 'bg-info-soft/80 text-info-soft-foreground'
+                          : 'bg-danger-soft/80 text-danger-soft-foreground'
+                        : hasSelection
+                          ? 'border-dashed border-muted-foreground/40 bg-muted/40 text-foreground'
+                          : 'border-dashed border-muted-foreground/40 bg-muted/40 text-muted-foreground'
+                    }`}
                   >
-                    {placeholder}
+                    {selectedChoiceText ?? placeholder}
                   </div>
 
                   {/* 선택지 */}
@@ -130,20 +143,14 @@ export default function ProblemSummaryCards({
                     <div className="flex flex-col gap-2">
                       {card.choices.map((choice, choiceIndex) => {
                         const isSelected = selectedChoiceIndex === choiceIndex
-                        const isSelectedCorrect = isGraded && isSelected && isCorrect
-                        const isSelectedWrong = isGraded && isSelected && !isCorrect
-                        const isSelectedPending = !isGraded && isSelected
+                        const isSelectedActive = isSelected
                         return (
                           <button
                             key={`${cardKey}-choice-${choiceIndex}`}
                             className={`w-full min-h-12 rounded-xl border px-4 py-3 text-left text-sm font-semibold transition ${
-                              isSelectedCorrect
-                                ? 'border-info-soft-foreground bg-background text-foreground'
-                                : isSelectedWrong
-                                  ? 'border-danger-soft-foreground bg-background text-foreground'
-                                  : isSelectedPending
-                                    ? 'border-info-soft-foreground bg-background text-foreground'
-                                    : 'border-muted-foreground/25 bg-background text-muted-foreground hover:border-muted-foreground/35 hover:text-foreground'
+                              isSelectedActive
+                                ? 'border-2 border-info-soft-foreground bg-background text-foreground'
+                                : 'border-muted-foreground/25 bg-background text-muted-foreground hover:border-muted-foreground/35 hover:text-foreground'
                             }`}
                             disabled={isGraded}
                             onClick={() => handleSelectChoice(cardKey, choiceIndex)}
