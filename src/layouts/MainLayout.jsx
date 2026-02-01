@@ -122,26 +122,26 @@ export default function MainLayout() {
           }`}
         >
           <div className="pb-[env(safe-area-inset-bottom)]">
-            <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none border bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
+            <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
               {navItems.map(({ to, label, Icon, end }) => (
                 <NavLink
                   key={to}
                   className={({ isActive }) =>
                     cn(
-                      'flex flex-col items-center gap-1 text-[11px] font-medium transition',
+                      'flex flex-col items-center gap-1 text-[12px] font-medium transition',
                       isActive ? 'text-info' : 'text-neutral-500',
                     )
                   }
                   end={end}
                   to={to}
                 >
-                  {({ isActive }) => (
+                  {({ isActive: _isActive }) => (
                     <>
                       <Icon className="h-6 w-6" />
                       <span>{label}</span>
                       <span
                         className={`h-[3px] w-6 rounded-full ${
-                          isActive ? 'bg-info' : 'bg-transparent'
+                          _isActive ? 'bg-info' : 'bg-transparent'
                         }`}
                       />
                     </>
