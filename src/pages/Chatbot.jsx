@@ -17,6 +17,8 @@ const TAB_ITEMS = [
 
 const ACTIVE_TAB_ID = 'chatbot'
 
+const MAX_INPUT_LENGTH = 500
+
 const INITIAL_MESSAGE = {
   id: 'assistant-intro',
   role: 'assistant',
@@ -471,7 +473,11 @@ export default function Chatbot() {
               <Input
                 className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
                 disabled={isStreaming}
-                onChange={(event) => updateSession(problemId, { inputValue: event.target.value })}
+                maxLength={500}
+                onChange={(event) => {
+                  const nextValue = event.target.value
+                  updateSession(problemId, { inputValue: nextValue.slice(0, 500) })
+                }}
                 placeholder="메시지를 입력하세요"
                 ref={inputRef}
                 value={inputValue}
@@ -491,6 +497,9 @@ export default function Chatbot() {
                 전송
               </Button>
             </form>
+            <p className="m-2 text-right text-[12px] text-neutral-500">
+              {inputValue.length} / {MAX_INPUT_LENGTH}
+            </p>
           </div>
         </div>
       )}
