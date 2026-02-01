@@ -1,6 +1,6 @@
 import { ArrowLeft, BookOpen, Home, User } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { cn } from '@/lib/utils'
 import { useChatbotStore } from '@/stores/useChatbotStore'
@@ -20,6 +20,7 @@ export default function MainLayout() {
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
   const [isChromeHidden, setIsChromeHidden] = useState(false)
+  const previousPathRef = useRef(location.pathname)
 
   useEffect(() => {
     const path = location.pathname
@@ -30,6 +31,18 @@ export default function MainLayout() {
       clearSummarySessions()
     }
   }, [clearChatbotSessions, clearQuizSessions, clearSummarySessions, location.pathname])
+
+  useEffect(() => {
+    const path = location.pathname
+    const isProblemDetail = /^\/problems\/[^/]+$/.test(path)
+    if (isProblemDetail && previousPathRef.current !== path) {
+      requestAnimationFrame(() => {
+        setIsChromeHidden(false)
+        window.scrollTo({ top: 0, behavior: 'auto' })
+      })
+    }
+    previousPathRef.current = path
+  }, [location.pathname])
 
   useEffect(() => {
     let lastScrollY = window.scrollY
