@@ -110,8 +110,15 @@ export default function ProblemDetail() {
         if (isActive) {
           setProblem(data)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
+          const status = error?.response?.status
+          if (status === 404) {
+            setLoadError('존재하지 않는 문제입니다.')
+            window.alert('존재하지 않는 문제입니다.')
+            navigate('/problems')
+            return
+          }
           setLoadError('문제 상세 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
           setProblem(null)
         }
@@ -127,7 +134,7 @@ export default function ProblemDetail() {
     return () => {
       isActive = false
     }
-  }, [problemId, reloadKey])
+  }, [navigate, problemId, reloadKey])
 
   const statusOption = useMemo(() => {
     if (!problem) {

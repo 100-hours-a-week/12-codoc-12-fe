@@ -45,8 +45,15 @@ export default function SummaryCards() {
         if (isActive) {
           setProblem(data)
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
+          const status = error?.response?.status
+          if (status === 404) {
+            setLoadError('존재하지 않는 문제입니다.')
+            window.alert('존재하지 않는 문제입니다.')
+            navigate('/problems')
+            return
+          }
           setLoadError('요약 카드 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
           setProblem(null)
         }
@@ -62,7 +69,7 @@ export default function SummaryCards() {
     return () => {
       isActive = false
     }
-  }, [problemId])
+  }, [navigate, problemId])
 
   const summaryCards = useMemo(() => problem?.summaryCards ?? [], [problem])
   const problemStatus = problem?.status ?? null

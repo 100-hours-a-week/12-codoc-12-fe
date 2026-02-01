@@ -148,8 +148,16 @@ export default function Chatbot() {
           setProblemStatus(data.status)
           initSession(problemId, [INITIAL_MESSAGE])
         }
-      } catch {
+      } catch (error) {
         if (isActive) {
+          const status = error?.response?.status
+          if (status === 404) {
+            setLoadError('존재하지 않는 문제입니다.')
+            setProblemStatus(null)
+            window.alert('존재하지 않는 문제입니다.')
+            navigate('/problems')
+            return
+          }
           setLoadError('챗봇 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
           setProblemStatus(null)
         }
@@ -165,7 +173,7 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [initSession, problemId])
+  }, [initSession, navigate, problemId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
