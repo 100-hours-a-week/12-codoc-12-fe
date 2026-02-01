@@ -414,20 +414,20 @@ export default function ProblemDetail() {
               </Button>
             </div>
             <div className="flex items-center gap-3">
+              <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
               <button
                 aria-label={problem.bookmarked ? '북마크 해제' : '북마크 추가'}
-                className="rounded-full transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
+                className="ml-auto rounded-full transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
                 disabled={isBookmarking}
                 onClick={handleBookmarkToggle}
                 type="button"
               >
                 <Star
-                  className={`h-5 w-5 ${
+                  className={`h-6 w-6 ${
                     problem.bookmarked ? 'fill-warning text-warning' : 'text-foreground'
                   }`}
                 />
               </button>
-              <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
             </div>
             <div className="h-px bg-border" />
           </div>
