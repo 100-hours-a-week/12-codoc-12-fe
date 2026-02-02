@@ -1,7 +1,11 @@
 import { getAccessToken } from '@/lib/auth'
 
 import { requestChatbotMessage } from './chatbotApi'
-import { parseChatbotStreamEvent, toChatbotMessageResponse } from './chatbotDto'
+import {
+  normalizeChatbotStatus,
+  parseChatbotStreamEvent,
+  toChatbotMessageResponse,
+} from './chatbotDto'
 import { toChatbotMessageRequest } from './chatbotRequestDto'
 
 export const sendChatbotMessage = async (payload = {}) => {
@@ -16,6 +20,18 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
   const url = `${baseUrl}/api/chatbot/messages/${conversationId}/stream`
   const token = getAccessToken()
 
+  const resolveStatus = (payload = {}) => {
+    const result = payload.result ?? {}
+    const candidates = [result.status, result.code, payload.status, payload.code]
+    for (const candidate of candidates) {
+      const normalized = normalizeChatbotStatus(candidate)
+      if (normalized) {
+        return normalized
+      }
+    }
+    return ''
+  }
+
   const handleParsedEvent = (eventType, data) => {
     const parsed = parseChatbotStreamEvent(data)
     if (!parsed) {
@@ -23,6 +39,11 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
     }
 
     const result = parsed.result ?? {}
+    const resolvedStatus = resolveStatus(parsed)
+    if (resolvedStatus === 'FAILED') {
+      onStatus?.(resolvedStatus, parsed)
+      return
+    }
 
     if (eventType === 'token') {
       const text = result.text ?? ''
@@ -33,16 +54,26 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
     }
 
     if (eventType === 'status') {
-      const status = result.status ?? ''
+      const status = resolveStatus(parsed)
       if (status) {
         onStatus?.(status, parsed)
       }
       return
     }
 
+    if (eventType === 'error') {
+      const status = resolveStatus(parsed)
+      if (status) {
+        onStatus?.(status, parsed)
+        return
+      }
+      onError?.(new Error('Stream error event'))
+      return
+    }
+
     if (eventType === 'final') {
       onFinal?.(parsed, data)
-      const status = parsed?.result?.status ?? parsed?.status
+      const status = resolveStatus(parsed)
       if (status) {
         onStatus?.(status, parsed)
       }

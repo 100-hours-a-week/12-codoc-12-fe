@@ -18,6 +18,7 @@ const TAB_ITEMS = [
 const ACTIVE_TAB_ID = 'chatbot'
 
 const MAX_INPUT_LENGTH = 500
+const STREAM_FAILED_MESSAGE = '요청에 실패했습니다. 다시 시도해주세요.'
 
 const INITIAL_MESSAGE = {
   id: 'assistant-intro',
@@ -124,6 +125,41 @@ export default function Chatbot() {
       })
     },
     [problemId, updateSession],
+  )
+
+  const handleStopStreaming = useCallback(
+    ({ failureMessage, patch = {} } = {}) => {
+      if (!problemId) {
+        return
+      }
+
+      handleCloseStream()
+      const targetId = assistantMessageIdRef.current
+      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
+      const nextMessages = targetId
+        ? failureMessage
+          ? currentMessages.map((message) =>
+              message.id === targetId ? { ...message, content: failureMessage } : message,
+            )
+          : currentMessages.filter(
+              (message) =>
+                !(
+                  message.id === targetId &&
+                  message.role === 'assistant' &&
+                  !(message.content ?? '').trim()
+                ),
+            )
+        : currentMessages
+
+      assistantMessageIdRef.current = null
+      updateSession(problemId, {
+        messages: nextMessages,
+        isStreaming: false,
+        assistantMessageId: null,
+        ...patch,
+      })
+    },
+    [handleCloseStream, problemId, updateSession],
   )
 
   useEffect(() => {
@@ -262,28 +298,29 @@ export default function Chatbot() {
         },
         onStatus: (status) => {
           if (status === 'COMPLETED') {
-            updateSession(problemId, { isStreaming: false })
-            handleCloseStream()
+            handleStopStreaming()
+            return
+          }
+
+          if (status === 'FAILED') {
+            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+            return
           }
         },
         onError: () => {
-          updateSession(problemId, {
-            sendError: '챗봇 응답을 받지 못했습니다. 다시 시도해주세요.',
-            isStreaming: false,
-          })
-          handleCloseStream()
+          handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+          return
         },
       })
     }
   }, [
     conversationId,
-    handleCloseStream,
     handleAppendAssistant,
     handleReplaceAssistant,
     handleMarkSummaryReady,
+    handleStopStreaming,
     isStreaming,
     problemId,
-    updateSession,
   ])
 
   useEffect(() => {
@@ -301,7 +338,7 @@ export default function Chatbot() {
       return
     }
 
-    updateSession(problemId, { sendError: null, inputValue: '' })
+    updateSession(problemId, { sendError: null, inputValue: '', conversationId: null })
 
     const userMessage = {
       id: buildMessageId(),
@@ -314,7 +351,7 @@ export default function Chatbot() {
     updateSession(problemId, {
       assistantMessageId: assistantId,
       messages: [...messages, userMessage, { id: assistantId, role: 'assistant', content: '' }],
-      isStreaming: true,
+      isStreaming: false,
     })
 
     try {
@@ -323,26 +360,27 @@ export default function Chatbot() {
         message: trimmed,
       })
 
-      updateSession(problemId, {
-        conversationId: response.conversationId,
-      })
-
       if (response.status === 'COMPLETED') {
-        updateSession(problemId, { isStreaming: false })
+        handleStopStreaming()
         return
       }
 
       if (response.status === 'FAILED') {
-        updateSession(problemId, {
-          isStreaming: false,
-          sendError: '챗봇 응답을 받지 못했습니다. 다시 시도해주세요.',
-        })
+        handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+        return
       }
-    } catch {
+
+      if (!response.conversationId) {
+        handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+        return
+      }
+
       updateSession(problemId, {
-        sendError: '메시지를 전송하지 못했습니다. 잠시 후 다시 시도해주세요.',
-        isStreaming: false,
+        conversationId: response.conversationId,
+        isStreaming: true,
       })
+    } catch {
+      handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
     }
   }
 
