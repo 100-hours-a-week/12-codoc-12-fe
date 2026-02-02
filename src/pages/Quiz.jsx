@@ -275,13 +275,13 @@ export default function Quiz() {
               <div className="space-y-1">
                 <p className="text-lg font-semibold">퀴즈 완료!</p>
                 <p className="text-2xl font-semibold">
-                  {submissionResult?.correctCount ?? correctCount}/{totalQuestions}
+                  {submissionResult?.correctCount ?? correctCount} / {totalQuestions}
                 </p>
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               <Button
-                className="w-full rounded-xl border-2 border-border"
+                className="w-full rounded-xl border-2 border-info bg-info text-info-foreground hover:bg-info hover:opacity-100"
                 onClick={handleRestart}
                 variant="secondary"
               >
