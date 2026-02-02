@@ -136,6 +136,8 @@ export default function MyPage() {
   const [avatarError, setAvatarError] = useState('')
   const [selectedAvatarId, setSelectedAvatarId] = useState(null)
   const [avatarUrl, setAvatarUrl] = useState('')
+  const [profileAvatarId, setProfileAvatarId] = useState(null)
+  const [profileAvatarUrl, setProfileAvatarUrl] = useState('')
   const [isAvatarPickerOpen, setIsAvatarPickerOpen] = useState(false)
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false)
   const [selectedDailyGoal, setSelectedDailyGoal] = useState('ONE')
@@ -202,8 +204,12 @@ export default function MyPage() {
         const nextNickname = profile?.nickname ?? '코딩 마스터'
         setNickname(nextNickname)
         setDraftNickname(nextNickname)
-        setSelectedAvatarId(profile?.avatarId ?? null)
-        setAvatarUrl(profile?.avatarImageUrl ?? '')
+        const nextAvatarId = profile?.avatarId ?? null
+        const nextAvatarUrl = profile?.avatarImageUrl ?? ''
+        setSelectedAvatarId(nextAvatarId)
+        setAvatarUrl(nextAvatarUrl)
+        setProfileAvatarId(nextAvatarId)
+        setProfileAvatarUrl(nextAvatarUrl)
       } catch {
         if (!mounted) {
           return
@@ -339,6 +345,8 @@ export default function MyPage() {
 
   const handleCancelEdit = () => {
     setDraftNickname(nickname)
+    setSelectedAvatarId(profileAvatarId)
+    setAvatarUrl(profileAvatarUrl)
     setIsEditing(false)
     setAvatarError('')
     setIsAvatarPickerOpen(false)
@@ -359,8 +367,12 @@ export default function MyPage() {
       })
       const updatedNickname = data?.data?.nickname ?? nextNickname
       const updatedAvatarUrl = data?.data?.avatarUrl ?? avatarUrl
+      const updatedAvatarId = data?.data?.avatarId ?? selectedAvatarId
       setNickname(updatedNickname)
       setAvatarUrl(updatedAvatarUrl)
+      setProfileAvatarId(updatedAvatarId)
+      setProfileAvatarUrl(updatedAvatarUrl)
+      setSelectedAvatarId(updatedAvatarId)
       setIsEditing(false)
       setIsAvatarPickerOpen(false)
       showToast('저장이 완료되었습니다.')
