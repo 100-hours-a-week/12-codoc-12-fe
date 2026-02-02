@@ -3,10 +3,15 @@ const STATUS_MAP = {
   PROCESSING: 'PROCESSING',
   COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
+  CHATBOT_STREAM_EVENT_FAILED: 'FAILED',
   '': '',
 }
 
-export const normalizeChatbotStatus = (status) => STATUS_MAP[status ?? ''] ?? ''
+export const normalizeChatbotStatus = (status) => {
+  const normalizedKey =
+    typeof status === 'string' ? status.trim().toUpperCase() : String(status ?? '')
+  return STATUS_MAP[normalizedKey] ?? ''
+}
 
 export const toChatbotMessageResponse = (apiResponse) => {
   const data = apiResponse?.data ?? {}
