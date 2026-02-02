@@ -130,6 +130,8 @@ export default function MyPage() {
   const [isLoadingContribution, setIsLoadingContribution] = useState(true)
   const [loadError, setLoadError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [showNicknameHelper, setShowNicknameHelper] = useState(false)
+  const [nicknameHelperVariant, setNicknameHelperVariant] = useState('invalid')
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [avatars, setAvatars] = useState([])
@@ -147,7 +149,13 @@ export default function MyPage() {
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
 
-  const helperText = useMemo(() => '2자 이상 15자 이하 입력 (공백, 특수문자, 비속어 제외)', [])
+  const helperText = useMemo(
+    () => ({
+      main: '2~15자 · 한글(완성형)·영문·숫자만 사용 가능',
+      sub: '공백/특수문자/자모/비속어 불가',
+    }),
+    [],
+  )
 
   const contributionRange = useMemo(() => getContributionRange(year), [year])
   const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
@@ -327,6 +335,8 @@ export default function MyPage() {
 
   const handleStartEdit = async () => {
     setDraftNickname(nickname)
+    setShowNicknameHelper(false)
+    setNicknameHelperVariant('invalid')
     setIsEditing(true)
     setIsAvatarPickerOpen(false)
 
@@ -347,6 +357,8 @@ export default function MyPage() {
     setDraftNickname(nickname)
     setSelectedAvatarId(profileAvatarId)
     setAvatarUrl(profileAvatarUrl)
+    setShowNicknameHelper(false)
+    setNicknameHelperVariant('invalid')
     setIsEditing(false)
     setAvatarError('')
     setIsAvatarPickerOpen(false)
@@ -373,11 +385,17 @@ export default function MyPage() {
       setProfileAvatarId(updatedAvatarId)
       setProfileAvatarUrl(updatedAvatarUrl)
       setSelectedAvatarId(updatedAvatarId)
+      setShowNicknameHelper(false)
+      setNicknameHelperVariant('invalid')
       setIsEditing(false)
       setIsAvatarPickerOpen(false)
       showToast('저장이 완료되었습니다.')
-    } catch {
-      setLoadError('프로필 저장에 실패했습니다.')
+    } catch (error) {
+      const errorCode = error?.response?.data?.code
+      const isDuplicate = error?.response?.status === 409 || errorCode === 'DUPLICATE_NICKNAME'
+      setNicknameHelperVariant(isDuplicate ? 'duplicate' : 'invalid')
+      setShowNicknameHelper(true)
+      showToast('프로필 저장에 실패했습니다.')
     } finally {
       setIsSaving(false)
     }
@@ -494,7 +512,18 @@ export default function MyPage() {
                 onChange={(event) => setDraftNickname(event.target.value)}
                 placeholder="닉네임을 입력하세요"
               />
-              <p className="text-[11px] font-semibold text-muted-foreground">{helperText}</p>
+              {showNicknameHelper ? (
+                nicknameHelperVariant === 'duplicate' ? (
+                  <p className="text-[11px] font-semibold text-red-500">
+                    이미 사용 중인 닉네임입니다.
+                  </p>
+                ) : (
+                  <div className="space-y-1 text-red-500">
+                    <p className="text-[11px] font-semibold">{helperText.main}</p>
+                    <p className="text-[10px] font-medium">{helperText.sub}</p>
+                  </div>
+                )
+              ) : null}
             </>
           )}
         </div>
