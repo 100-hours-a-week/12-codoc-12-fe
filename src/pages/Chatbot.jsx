@@ -31,7 +31,6 @@ const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).sli
 export default function Chatbot() {
   const { problemId } = useParams()
   const navigate = useNavigate()
-  const isIOS = useMemo(() => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream, [])
   const [problemStatus, setProblemStatus] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
@@ -201,7 +200,7 @@ export default function Chatbot() {
 
   useEffect(() => {
     const viewport = window.visualViewport
-    if (!viewport || isIOS) {
+    if (!viewport) {
       setKeyboardOffset(0)
       return
     }
@@ -228,9 +227,9 @@ export default function Chatbot() {
         cancelAnimationFrame(raf)
       }
     }
-  }, [isIOS])
+  }, [])
 
-  const effectiveKeyboardOffset = isIOS ? 0 : keyboardOffset
+  const effectiveKeyboardOffset = keyboardOffset
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -349,6 +348,12 @@ export default function Chatbot() {
 
   const handleScrollBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const handleInputFocus = () => {
+    window.setTimeout(() => {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }, 120)
   }
 
   const isQuizEnabled = useMemo(
@@ -493,6 +498,7 @@ export default function Chatbot() {
                   const nextValue = event.target.value
                   updateSession(problemId, { inputValue: nextValue.slice(0, 500) })
                 }}
+                onFocus={handleInputFocus}
                 placeholder="메시지를 입력하세요"
                 ref={inputRef}
                 value={inputValue}
