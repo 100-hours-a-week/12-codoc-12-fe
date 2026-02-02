@@ -78,7 +78,7 @@ export default function MainLayout() {
 
   const content = <Outlet />
   const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
-  const isNavHidden = /^\/problems\/[^/]+\/(chatbot|quiz|summary)$/.test(location.pathname)
+  const isNavHidden = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
 
   const handleBack = () => {
     navigate('/problems')
