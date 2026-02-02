@@ -1,6 +1,6 @@
 import { ArrowLeft, BookOpen, Home, User } from 'lucide-react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { cn } from '@/lib/utils'
 import { useChatbotStore } from '@/stores/useChatbotStore'
@@ -19,7 +19,6 @@ export default function MainLayout() {
   const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
-  const [isChromeHidden, setIsChromeHidden] = useState(false)
   const previousPathRef = useRef(location.pathname)
 
   useEffect(() => {
@@ -38,7 +37,6 @@ export default function MainLayout() {
     const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(path)
     if (isProblemFlow && previousPathRef.current !== path) {
       requestAnimationFrame(() => {
-        setIsChromeHidden(false)
         if (isProblemDetail) {
           window.scrollTo({ top: 0, behavior: 'auto' })
         }
@@ -46,35 +44,6 @@ export default function MainLayout() {
     }
     previousPathRef.current = path
   }, [location.pathname])
-
-  useEffect(() => {
-    let lastScrollY = window.scrollY
-    let ticking = false
-
-    const handleScroll = () => {
-      const current = window.scrollY
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const delta = current - lastScrollY
-          if (Math.abs(delta) > 6) {
-            if (delta > 0 && current > 24) {
-              setIsChromeHidden(true)
-            } else {
-              setIsChromeHidden(false)
-            }
-          }
-          lastScrollY = current
-          ticking = false
-        })
-        ticking = true
-      }
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    return () => {
-      window.removeEventListener('scroll', handleScroll)
-    }
-  }, [])
 
   const content = <Outlet />
   const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
@@ -89,14 +58,10 @@ export default function MainLayout() {
       <div
         className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm"
         style={{
-          '--chatbot-input-bottom': isNavHidden ? '16px' : isChromeHidden ? '16px' : '72px',
+          '--chatbot-input-bottom': isNavHidden ? '16px' : '72px',
         }}
       >
-        <header
-          className={`sticky top-0 z-30  bg-background/95 backdrop-blur transition-transform duration-200 ${
-            isChromeHidden ? '-translate-y-full' : 'translate-y-0'
-          }`}
-        >
+        <header className="sticky top-0 z-30 bg-background/95 backdrop-blur">
           <div className="relative flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
             {showBackButton ? (
               <button
@@ -121,19 +86,11 @@ export default function MainLayout() {
             </button>
           </div>
         </header>
-        <main
-          className={`flex-1 px-4 py-5 transition-[padding] duration-200 ${
-            isNavHidden ? 'pb-6' : isChromeHidden ? 'pb-6' : 'pb-24 sm:pb-28'
-          }`}
-        >
+        <main className={`flex-1 px-4 py-5 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`}>
           {content}
         </main>
         {!isNavHidden ? (
-          <footer
-            className={`fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2 transition-transform duration-200 ${
-              isChromeHidden ? 'translate-y-[120%]' : 'translate-y-0'
-            }`}
-          >
+          <footer className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2">
             <div className="pb-[env(safe-area-inset-bottom)]">
               <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
                 {navItems.map(({ to, label, Icon, end }) => (
