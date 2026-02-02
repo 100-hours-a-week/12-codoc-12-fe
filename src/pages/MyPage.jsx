@@ -569,79 +569,83 @@ export default function MyPage() {
         ) : null}
       </section>
 
-      <section className="grid grid-cols-3 gap-3">
-        {statCards.map((item) => (
-          <StatCard key={item.label} label={item.label} value={item.value} />
-        ))}
-      </section>
-
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
+      {isEditing ? (
+        <section className="flex justify-end pr-4">
           <button
-            className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+            className="text-sm font-semibold text-foreground/70 disabled:opacity-60"
+            disabled={isDeleting}
             type="button"
-            onClick={() => setIsGoalModalOpen(true)}
+            onClick={() => setIsDeleteModalOpen(true)}
           >
-            일일 목표 설정
+            {isDeleting ? '탈퇴 처리 중...' : '회원 탈퇴'}
           </button>
-          <div className="relative">
-            <button
-              className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
-              type="button"
-              onClick={() => setIsYearMenuOpen((prev) => !prev)}
-            >
-              <span>{year}년</span>
-              <span aria-hidden className="text-xs text-muted-foreground">
-                ▾
-              </span>
-            </button>
-            {isYearMenuOpen ? (
-              <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                {years.map((value) => (
-                  <button
-                    key={value}
-                    className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                      value === year ? 'bg-[#f3f4f6]' : ''
-                    }`}
-                    type="button"
-                    onClick={() => {
-                      setYear(value)
-                      setIsYearMenuOpen(false)
-                    }}
-                  >
-                    {value}년
-                  </button>
-                ))}
+        </section>
+      ) : (
+        <>
+          <section className="grid grid-cols-3 gap-3">
+            {statCards.map((item) => (
+              <StatCard key={item.label} label={item.label} value={item.value} />
+            ))}
+          </section>
+
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <button
+                className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+                type="button"
+                onClick={() => setIsGoalModalOpen(true)}
+              >
+                일일 목표 설정
+              </button>
+              <div className="relative">
+                <button
+                  className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
+                  type="button"
+                  onClick={() => setIsYearMenuOpen((prev) => !prev)}
+                >
+                  <span>{year}년</span>
+                  <span aria-hidden className="text-xs text-muted-foreground">
+                    ▾
+                  </span>
+                </button>
+                {isYearMenuOpen ? (
+                  <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                    {years.map((value) => (
+                      <button
+                        key={value}
+                        className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                          value === year ? 'bg-[#f3f4f6]' : ''
+                        }`}
+                        type="button"
+                        onClick={() => {
+                          setYear(value)
+                          setIsYearMenuOpen(false)
+                        }}
+                      >
+                        {value}년
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            ) : null}
-          </div>
-        </div>
-        <Heatmap
-          model={heatmapModel}
-          monthMarkers={monthMarkers}
-          scrollRef={heatmapScrollRef}
-          selectedCell={selectedCell}
-          onSelectCell={setSelectedCell}
-          levelClasses={levelClasses}
-        />
-      </section>
+            </div>
+            <Heatmap
+              model={heatmapModel}
+              monthMarkers={monthMarkers}
+              scrollRef={heatmapScrollRef}
+              selectedCell={selectedCell}
+              onSelectCell={setSelectedCell}
+              levelClasses={levelClasses}
+            />
+          </section>
 
-      <section className="flex justify-end">
-        <button
-          className="text-sm font-semibold text-foreground/70 disabled:opacity-60"
-          disabled={isDeleting}
-          type="button"
-          onClick={() => setIsDeleteModalOpen(true)}
-        >
-          {isDeleting ? '탈퇴 처리 중...' : '회원 탈퇴'}
-        </button>
-      </section>
-
-      {toastMessage ? (
-        <div className="rounded-2xl border border-black/10 bg-white px-4 py-5 text-center text-sm font-semibold shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-          {toastMessage}
-        </div>
-      ) : null}
+          {toastMessage ? (
+            <div className="rounded-2xl border border-black/10 bg-white px-4 py-5 text-center text-sm font-semibold shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+              {toastMessage}
+            </div>
+          ) : null}
+        </>
+      )}
       {isDeleteModalOpen
         ? createPortal(
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-6">
