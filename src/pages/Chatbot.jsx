@@ -351,7 +351,7 @@ export default function Chatbot() {
     updateSession(problemId, {
       assistantMessageId: assistantId,
       messages: [...messages, userMessage, { id: assistantId, role: 'assistant', content: '' }],
-      isStreaming: false,
+      isStreaming: true,
     })
 
     try {
@@ -485,7 +485,12 @@ export default function Chatbot() {
                         }`}
                       >
                         {isPending ? (
-                          <p className="text-muted-foreground">...</p>
+                          <div className="chatbot-typing" role="status" aria-live="polite">
+                            <span className="sr-only">응답 생성 중</span>
+                            <span aria-hidden="true" />
+                            <span aria-hidden="true" />
+                            <span aria-hidden="true" />
+                          </div>
                         ) : (
                           <p className="whitespace-pre-line">{message.content}</p>
                         )}
