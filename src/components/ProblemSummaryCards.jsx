@@ -111,6 +111,7 @@ export default function ProblemSummaryCards({
 
   const handleReset = () => {
     resetSession(problemId)
+    setActiveCardKey(cardEntries[0]?.key ?? null)
   }
 
   return (
