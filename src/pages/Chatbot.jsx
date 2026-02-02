@@ -272,12 +272,6 @@ export default function Chatbot() {
   }, [assistantMessageId])
 
   useEffect(() => {
-    if (!isStreaming) {
-      inputRef.current?.focus()
-    }
-  }, [isStreaming])
-
-  useEffect(() => {
     if (isStreaming && conversationId && !streamRef.current) {
       streamRef.current = createChatbotStream(conversationId, {
         onToken: (chunk) => {
