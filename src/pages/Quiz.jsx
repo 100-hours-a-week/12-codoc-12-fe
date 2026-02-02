@@ -351,7 +351,7 @@ export default function Quiz() {
                     type="button"
                   >
                     <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-semibold ${
                         showResultStyle
                           ? isAnsweredSelected
                             ? isCorrectAnswer
