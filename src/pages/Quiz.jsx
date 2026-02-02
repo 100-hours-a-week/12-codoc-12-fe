@@ -118,6 +118,8 @@ export default function Quiz() {
   const currentResult = currentQuiz ? results[currentQuiz.id] : null
   const selectedChoiceIndex = currentQuiz ? selectedChoices[currentQuiz.id] : null
   const currentExplanation = currentQuiz ? explanations[currentQuiz.id] : ''
+  const isPrimaryActionEnabled =
+    hasAnsweredCurrent || (selectedChoiceIndex !== null && selectedChoiceIndex !== undefined)
 
   const handleSelectChoice = (choiceIndex) => {
     if (!currentQuiz || isSubmitting || hasAnsweredCurrent) {
@@ -335,7 +337,7 @@ export default function Quiz() {
                       showResultStyle
                         ? isAnsweredSelected
                           ? isCorrectAnswer
-                            ? 'border-info-soft-foreground bg-background text-foreground'
+                            ? 'border-success text-foreground'
                             : 'border-danger-soft-foreground bg-background text-foreground'
                           : 'border-muted-foreground/20 bg-background text-muted-foreground'
                         : isSelected
@@ -353,7 +355,7 @@ export default function Quiz() {
                         showResultStyle
                           ? isAnsweredSelected
                             ? isCorrectAnswer
-                              ? 'border-info-soft-foreground bg-info-soft-foreground text-info-foreground'
+                              ? 'border-success bg-success text-success-foreground'
                               : 'border-danger-soft-foreground bg-danger-soft-foreground text-danger-foreground'
                             : 'border-muted-foreground/10 bg-muted/50 text-muted-foreground'
                           : isSelected
@@ -393,13 +395,9 @@ export default function Quiz() {
             <div className="rounded-2xl bg-background/95 pb-2 pt-2 backdrop-blur">
               <Button
                 className={`w-full rounded-xl ${
-                  hasAnsweredCurrent
-                    ? currentResult
-                      ? 'bg-info text-info-foreground hover:bg-info/90'
-                      : 'bg-danger text-danger-foreground hover:bg-danger/90'
-                    : selectedChoiceIndex !== null && selectedChoiceIndex !== undefined
-                      ? 'bg-info text-info-foreground hover:bg-info/90'
-                      : ''
+                  isPrimaryActionEnabled
+                    ? 'bg-info text-info-foreground hover:bg-info hover:opacity-100'
+                    : ''
                 }`}
                 disabled={
                   isSubmitting ||

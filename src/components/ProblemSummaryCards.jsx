@@ -107,6 +107,7 @@ export default function ProblemSummaryCards({
   const isGraded = gradingResults.length > 0
   const allCorrect =
     isGraded && gradingResults.length === summaryCards.length && gradingResults.every(Boolean)
+  const isPrimaryActionEnabled = isSubmitEnabled || isGraded
 
   const handleReset = () => {
     resetSession(problemId)
@@ -150,8 +151,8 @@ export default function ProblemSummaryCards({
                       className={`inline-flex min-w-[4.5rem] items-center justify-center rounded-xl border-2 px-3 py-2 text-sm font-semibold transition ${
                         isGraded
                           ? isCorrect
-                            ? 'bg-info-soft/80 text-info-soft-foreground'
-                            : 'bg-danger-soft/80 text-danger-soft-foreground'
+                            ? 'border-muted-foreground/35 bg-success/20 text-foreground'
+                            : 'border-muted-foreground/35 bg-danger-soft/100 text-foreground'
                           : hasSelection
                             ? 'border border-muted-foreground/35 bg-background text-foreground'
                             : 'border-dashed border-muted-foreground/40 bg-muted/40 text-neutral-500'
@@ -238,13 +239,9 @@ export default function ProblemSummaryCards({
 
       <Button
         className={`w-full rounded-xl ${
-          isGraded
-            ? allCorrect
-              ? 'bg-info text-info-foreground hover:bg-info/90'
-              : 'bg-danger text-danger-foreground hover:bg-danger/90'
-            : isSubmitEnabled
-              ? 'bg-info text-info-foreground hover:bg-info/90'
-              : ''
+          isPrimaryActionEnabled
+            ? 'bg-info text-info-foreground hover:bg-info hover:opacity-100'
+            : ''
         }`}
         disabled={isSubmitting || (!isSubmitEnabled && !isGraded)}
         onClick={() => {
@@ -259,7 +256,7 @@ export default function ProblemSummaryCards({
           handleSubmit()
         }}
         type="button"
-        variant={isGraded ? 'default' : 'secondary'}
+        variant="secondary"
       >
         {isGraded ? (allCorrect ? '퀴즈 풀기' : '다시 풀기') : '제출하기'}
       </Button>
