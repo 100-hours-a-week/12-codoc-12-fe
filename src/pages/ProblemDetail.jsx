@@ -297,10 +297,43 @@ export default function ProblemDetail() {
     if (!isHelpOpen) {
       return
     }
-    const previous = document.body.style.overflow
+    const scrollY = window.scrollY
+    const htmlEl = document.documentElement
+
+    const previousHtmlOverflow = htmlEl.style.overflow
+    const previousHtmlOverscroll = htmlEl.style.overscrollBehavior
+    const previousBodyOverflow = document.body.style.overflow
+    const previousBodyPosition = document.body.style.position
+    const previousBodyTop = document.body.style.top
+    const previousBodyWidth = document.body.style.width
+    const previousBodyOverscroll = document.body.style.overscrollBehavior
+
+    htmlEl.style.overflow = 'hidden'
+    htmlEl.style.overscrollBehavior = 'none'
     document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.top = `-${scrollY}px`
+    document.body.style.width = '100%'
+    document.body.style.overscrollBehavior = 'none'
+
+    const handleTouchMove = (event) => {
+      if (helpModalRef.current?.contains(event.target)) {
+        return
+      }
+      event.preventDefault()
+    }
+    document.addEventListener('touchmove', handleTouchMove, { passive: false })
+
     return () => {
-      document.body.style.overflow = previous
+      document.removeEventListener('touchmove', handleTouchMove)
+      htmlEl.style.overflow = previousHtmlOverflow
+      htmlEl.style.overscrollBehavior = previousHtmlOverscroll
+      document.body.style.overflow = previousBodyOverflow
+      document.body.style.position = previousBodyPosition
+      document.body.style.top = previousBodyTop
+      document.body.style.width = previousBodyWidth
+      document.body.style.overscrollBehavior = previousBodyOverscroll
+      window.scrollTo({ top: scrollY, behavior: 'auto' })
     }
   }, [isHelpOpen])
 
