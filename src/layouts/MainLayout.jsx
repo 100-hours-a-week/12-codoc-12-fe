@@ -66,11 +66,12 @@ export default function MainLayout() {
             {showBackButton ? (
               <button
                 aria-label="뒤로 가기"
-                className="absolute left-4 flex h-9 w-9 items-center justify-center rounded-full bg-transparent text-foreground transition hover:bg-muted/60"
+                className="absolute left-4 inline-flex h-9 items-center gap-1 rounded-full bg-transparent px-2 text-foreground transition hover:bg-muted/60"
                 onClick={handleBack}
                 type="button"
               >
                 <ArrowLeft className="h-5 w-5" />
+                <span className="text-xs font-semibold">문제 목록</span>
               </button>
             ) : null}
             <button
