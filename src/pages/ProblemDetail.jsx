@@ -1,14 +1,4 @@
-import {
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  BookOpen,
-  Brain,
-  Clover,
-  Sparkles,
-  Star,
-  X,
-} from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, Brain, Clover, Sparkles, Star, X } from 'lucide-react'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -77,7 +67,6 @@ export default function ProblemDetail() {
   const [loadError, setLoadError] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
   const [isBookmarking, setIsBookmarking] = useState(false)
-  const [isAtTop, setIsAtTop] = useState(true)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [helpStepIndex, setHelpStepIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
@@ -167,26 +156,6 @@ export default function ProblemDetail() {
   const handleRetry = () => {
     setReloadKey((prev) => prev + 1)
   }
-
-  const handleScrollTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }
-
-  useEffect(() => {
-    const getScrollTop = () =>
-      window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
-
-    const handleScroll = () => {
-      setIsAtTop(getScrollTop() <= 24)
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    handleScroll()
-
-    return () => {
-      window.removeEventListener('scroll', handleScroll)
-    }
-  }, [])
 
   const currentHelpStep = HELP_STEPS[helpStepIndex]
 
@@ -566,19 +535,6 @@ export default function ProblemDetail() {
           </section>
           <p className="!mt-10 text-sm text-neutral-500">※ 본 문제는 AI로 생성한 콘텐츠입니다.</p>
         </div>
-      ) : null}
-
-      {!isAtTop ? (
-        <Button
-          aria-label="맨 위로 이동"
-          className="fixed bottom-24 right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
-          onClick={handleScrollTop}
-          size="icon"
-          type="button"
-          variant="outline"
-        >
-          <ArrowUp className="h-4 w-4" />
-        </Button>
       ) : null}
 
       {isHelpOpen ? (
