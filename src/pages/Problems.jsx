@@ -236,8 +236,11 @@ export default function Problems() {
   }
 
   useEffect(() => {
+    const getScrollTop = () =>
+      window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+
     const handleScroll = () => {
-      setIsAtTop(window.scrollY <= 24)
+      setIsAtTop(getScrollTop() <= 24)
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })
@@ -505,16 +508,20 @@ export default function Problems() {
         </SheetContent>
 
         {!isAtTop ? (
-          <Button
-            aria-label="맨 위로 이동"
-            className="fixed bottom-24 right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
-            onClick={handleScrollTop}
-            size="icon"
-            type="button"
-            variant="outline"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </Button>
+          <div className="pointer-events-none fixed bottom-24 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 px-4">
+            <div className="flex justify-end">
+              <Button
+                aria-label="맨 위로 이동"
+                className="pointer-events-auto h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+                onClick={handleScrollTop}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <ArrowUp className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         ) : null}
       </div>
     </Sheet>

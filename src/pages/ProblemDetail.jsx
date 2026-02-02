@@ -78,7 +78,6 @@ export default function ProblemDetail() {
   const [reloadKey, setReloadKey] = useState(0)
   const [isBookmarking, setIsBookmarking] = useState(false)
   const [isAtTop, setIsAtTop] = useState(true)
-  const [isTabHidden, setIsTabHidden] = useState(false)
   const [isHelpOpen, setIsHelpOpen] = useState(false)
   const [helpStepIndex, setHelpStepIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
@@ -174,40 +173,16 @@ export default function ProblemDetail() {
   }
 
   useEffect(() => {
+    const getScrollTop = () =>
+      window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0
+
     const handleScroll = () => {
-      setIsAtTop(window.scrollY <= 24)
+      setIsAtTop(getScrollTop() <= 24)
     }
 
     window.addEventListener('scroll', handleScroll, { passive: true })
     handleScroll()
 
-    return () => {
-      window.removeEventListener('scroll', handleScroll)
-    }
-  }, [])
-
-  useEffect(() => {
-    let lastScrollY = window.scrollY
-    let ticking = false
-
-    const handleScroll = () => {
-      const current = window.scrollY
-      if (!ticking) {
-        window.requestAnimationFrame(() => {
-          const delta = current - lastScrollY
-          if (delta > 0 && current > 24) {
-            setIsTabHidden(true)
-          } else if (delta < 0 || current <= 24) {
-            setIsTabHidden(false)
-          }
-          lastScrollY = current
-          ticking = false
-        })
-        ticking = true
-      }
-    }
-
-    window.addEventListener('scroll', handleScroll, { passive: true })
     return () => {
       window.removeEventListener('scroll', handleScroll)
     }
@@ -357,11 +332,7 @@ export default function ProblemDetail() {
   return (
     <div className="space-y-5">
       <div className="relative">
-        <div
-          className={`rounded-2xl bg-muted/70 px-2 transition-all duration-200 ${
-            isTabHidden ? '-translate-y-6 opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
-        >
+        <div className="rounded-2xl bg-muted/70 px-2">
           <div className="grid grid-cols-3">
             {TAB_ITEMS.map((tab) => {
               const isQuizTab = tab.id === 'quiz'
