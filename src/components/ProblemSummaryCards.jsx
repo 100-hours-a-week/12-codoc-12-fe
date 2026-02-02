@@ -61,16 +61,15 @@ export default function ProblemSummaryCards({
     if (!problemId) {
       return
     }
-    if (selectedChoices[cardKey] === choiceIndex) {
-      const next = { ...selectedChoices }
-      delete next[cardKey]
-      updateSession(problemId, { selectedChoices: next })
-      return
-    }
     updateSession(problemId, {
       selectedChoices: { ...selectedChoices, [cardKey]: choiceIndex },
     })
-    setActiveCardKey(cardKey)
+    const currentIndex = cardEntries.findIndex(({ key }) => key === cardKey)
+    const nextCardKey =
+      currentIndex >= 0 && currentIndex < cardEntries.length - 1
+        ? cardEntries[currentIndex + 1].key
+        : cardKey
+    setActiveCardKey(nextCardKey)
   }
 
   const isSubmitEnabled = useMemo(() => {
