@@ -6,7 +6,8 @@ import StatusMessage from '@/components/StatusMessage'
 import { api } from '@/lib/api'
 import { clearAccessToken, logout } from '@/lib/auth'
 
-const years = [2023, 2024, 2025, 2026]
+const years = [2026, 2025, 2024, 2023]
+const recentLabel = '최근'
 const heatmapRows = HEATMAP_ROWS
 const colWidthPx = HEATMAP_COL_WIDTH_PX
 
@@ -44,10 +45,22 @@ const addDays = (date, days) => {
 
 const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
 
+const getWeekStartSunday = (date) => {
+  const start = new Date(date)
+  start.setDate(start.getDate() - start.getDay())
+  return start
+}
+
 const getKstToday = () => {
   const now = new Date()
   const kstDate = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
   return new Date(`${kstDate}T00:00:00+09:00`)
+}
+
+const getRecentContributionRange = () => {
+  const today = getKstToday()
+  const fromDate = addDays(today, -364)
+  return { fromDate, toDate: today }
 }
 
 const getContributionRange = (year) => {
@@ -60,7 +73,7 @@ const getContributionRange = (year) => {
   return { fromDate: startOfYear, toDate: endDate }
 }
 
-const buildMonthMarkers = (range) => {
+const buildMonthMarkers = (range, gridStartDate) => {
   const markers = []
   const cursor = new Date(range.fromDate.getFullYear(), range.fromDate.getMonth(), 1)
 
@@ -69,7 +82,7 @@ const buildMonthMarkers = (range) => {
   }
 
   while (cursor <= range.toDate) {
-    const dayIndex = daysBetween(range.fromDate, cursor)
+    const dayIndex = daysBetween(gridStartDate, cursor)
     const colIndex = Math.floor(dayIndex / heatmapRows)
     markers.push({
       key: formatDate(cursor),
@@ -86,7 +99,8 @@ const buildHeatmapCells = (dailySolveCount, range, cutoffDate = null) => {
   const countByDate = new Map(
     (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
   )
-  const totalDays = Math.max(1, Math.round((range.toDate - range.fromDate) / 86400000) + 1)
+  const gridStart = getWeekStartSunday(range.fromDate)
+  const totalDays = Math.max(1, Math.round((range.toDate - gridStart) / 86400000) + 1)
   const weeks = Math.ceil(totalDays / heatmapRows)
   const totalCells = weeks * heatmapRows
   const minWidthPx = weeks * colWidthPx
@@ -95,7 +109,10 @@ const buildHeatmapCells = (dailySolveCount, range, cutoffDate = null) => {
     if (idx >= totalDays) {
       return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
     }
-    const date = addDays(range.fromDate, idx)
+    const date = addDays(gridStart, idx)
+    if (date < range.fromDate) {
+      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
+    }
     if (cutoffDate && date > cutoffDate) {
       return { id: `future-${idx}`, level: 0, date: null, solveCount: 0 }
     }
@@ -105,7 +122,7 @@ const buildHeatmapCells = (dailySolveCount, range, cutoffDate = null) => {
     return { id: key, level, date: key, solveCount }
   })
 
-  return { cells, weeks, minWidthPx, startDate: range.fromDate, totalDays }
+  return { cells, weeks, minWidthPx, startDate: gridStart, totalDays }
 }
 
 function StatCard({ label, value }) {
@@ -121,7 +138,7 @@ export default function MyPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [nickname, setNickname] = useState('코딩 마스터')
   const [draftNickname, setDraftNickname] = useState(nickname)
-  const [year, setYear] = useState(getKstToday().getFullYear())
+  const [year, setYear] = useState('recent')
   const [isYearMenuOpen, setIsYearMenuOpen] = useState(false)
   const [toastMessage, setToastMessage] = useState('')
   const [isLoggingOut, setIsLoggingOut] = useState(false)
@@ -157,15 +174,23 @@ export default function MyPage() {
     [],
   )
 
-  const contributionRange = useMemo(() => getContributionRange(year), [year])
-  const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
+  const contributionRange = useMemo(() => {
+    if (year === 'recent') {
+      return getRecentContributionRange()
+    }
+    return getContributionRange(year)
+  }, [year])
 
   const heatmapModel = useMemo(() => {
     const today = getKstToday()
-    const isCurrentYear = year === today.getFullYear()
-    const cutoffDate = isCurrentYear ? today : null
+    const isCurrentYear = year !== 'recent' && year === today.getFullYear()
+    const cutoffDate = year === 'recent' || isCurrentYear ? today : null
     return buildHeatmapCells(dailySolveCount, contributionRange, cutoffDate)
   }, [contributionRange, dailySolveCount, year])
+  const monthMarkers = useMemo(
+    () => buildMonthMarkers(contributionRange, heatmapModel.startDate),
+    [contributionRange, heatmapModel.startDate],
+  )
 
   useEffect(() => {
     const container = heatmapScrollRef.current
@@ -173,8 +198,8 @@ export default function MyPage() {
       return
     }
     const today = new Date()
-    const isCurrentYear = year === today.getFullYear()
-    const targetDate = isCurrentYear ? today : contributionRange.toDate
+    const isCurrentYear = year !== 'recent' && year === today.getFullYear()
+    const targetDate = year === 'recent' || isCurrentYear ? today : contributionRange.toDate
     const dayIndex = Math.min(
       heatmapModel.totalDays - 1,
       Math.max(0, daysBetween(heatmapModel.startDate, targetDate)),
@@ -632,13 +657,25 @@ export default function MyPage() {
                   type="button"
                   onClick={() => setIsYearMenuOpen((prev) => !prev)}
                 >
-                  <span>{year}년</span>
+                  <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
                   <span aria-hidden className="text-xs text-muted-foreground">
                     ▾
                   </span>
                 </button>
                 {isYearMenuOpen ? (
                   <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                    <button
+                      className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                        year === 'recent' ? 'bg-[#f3f4f6]' : ''
+                      }`}
+                      type="button"
+                      onClick={() => {
+                        setYear('recent')
+                        setIsYearMenuOpen(false)
+                      }}
+                    >
+                      {recentLabel}
+                    </button>
                     {years.map((value) => (
                       <button
                         key={value}

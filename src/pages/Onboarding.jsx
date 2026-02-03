@@ -134,60 +134,64 @@ export default function Onboarding() {
   return (
     <div className="min-h-screen bg-[#f4f5f7] text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-5 py-10 sm:px-6">
-        <div className="rounded-[28px] bg-[#eef0f2] px-5 pb-8 pt-6 shadow-sm">
+        <div className="rounded-[28px] bg-[#eef0f2] px-5 pb-8 pt-6 shadow-sm min-h-[600px]">
           {!isResult ? (
-            <div className="space-y-8">
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm font-semibold">
-                  <span>
-                    질문 {stepIndex + 1} / {steps.length}
-                  </span>
-                  <span>{progress}%</span>
-                </div>
-                <div className="h-2 w-full rounded-full bg-[#d9dadd]">
-                  <div
-                    className="h-full rounded-full bg-[#7b7d82] transition-all"
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-start">
-                <div className="h-20 w-20 rounded-full bg-[#e2e3e6]" />
-              </div>
-
-              <div className="space-y-6">
-                <h1 className="text-lg font-semibold leading-snug">{current.title}</h1>
+            <div className="flex min-h-[560px] flex-col">
+              <div className="space-y-8">
                 <div className="space-y-3">
-                  {current.options.map((option) => {
-                    const selected = answers[current.id] === option
-                    return (
-                      <button
-                        key={option}
-                        className={`w-full rounded-2xl px-4 py-4 text-left text-sm font-medium transition ${
-                          selected
-                            ? 'bg-[#7b7d82] text-white'
-                            : 'bg-[#d7d8da] text-foreground hover:bg-[#cfd1d4]'
-                        }`}
-                        type="button"
-                        onClick={() => handleSelect(option)}
-                      >
-                        {option}
-                      </button>
-                    )
-                  })}
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>
+                      질문 {stepIndex + 1} / {steps.length}
+                    </span>
+                    <span>{progress}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-[#d9dadd]">
+                    <div
+                      className="h-full rounded-full bg-[hsl(var(--primary))] transition-all"
+                      style={{ width: `${progress}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-start">
+                  <div className="h-20 w-20 rounded-full bg-[#e2e3e6]" />
+                </div>
+
+                <div className="space-y-6">
+                  <h1 className="text-lg font-semibold leading-snug">{current.title}</h1>
+                  <div className="space-y-3">
+                    {current.options.map((option) => {
+                      const selected = answers[current.id] === option
+                      return (
+                        <button
+                          key={option}
+                          className={`w-full rounded-2xl px-4 py-4 text-left text-sm font-medium transition ${
+                            selected
+                              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                              : 'bg-[#d7d8da] text-foreground hover:bg-[hsl(var(--primary)/0.12)]'
+                          }`}
+                          type="button"
+                          onClick={() => handleSelect(option)}
+                        >
+                          {option}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
 
               {stepIndex > 0 ? (
-                <button
-                  className="inline-flex items-center gap-1 text-sm font-medium text-foreground/80"
-                  type="button"
-                  onClick={handlePrev}
-                >
-                  <span aria-hidden>←</span>
-                  이전 질문
-                </button>
+                <div className="mt-auto pt-8">
+                  <button
+                    className="inline-flex items-center gap-1 text-sm font-medium text-foreground/80"
+                    type="button"
+                    onClick={handlePrev}
+                  >
+                    <span aria-hidden>←</span>
+                    이전 질문
+                  </button>
+                </div>
               ) : null}
             </div>
           ) : (
@@ -218,6 +222,7 @@ export default function Onboarding() {
                   className="w-full rounded-2xl bg-[#cfd1d4] px-4 py-3 text-sm font-semibold"
                   type="button"
                   onClick={() => {
+                    setAnswers({})
                     setStepIndex(0)
                     setSubmitError('')
                   }}
@@ -225,7 +230,7 @@ export default function Onboarding() {
                   다시 하기
                 </button>
                 <button
-                  className="w-full rounded-2xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-60"
+                  className="w-full rounded-2xl bg-[hsl(var(--primary))] px-4 py-3 text-sm font-semibold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
                   disabled={!payload || isSubmitting}
                   type="button"
                   onClick={handleSubmit}
@@ -240,7 +245,7 @@ export default function Onboarding() {
         {!isResult ? (
           <div className="mt-6">
             <button
-              className="w-full rounded-2xl bg-foreground px-4 py-3 text-sm font-semibold text-background disabled:opacity-60"
+              className="w-full rounded-2xl bg-[hsl(var(--primary))] px-4 py-3 text-sm font-semibold text-[hsl(var(--primary-foreground))] disabled:opacity-60"
               disabled={!canMoveNext}
               type="button"
               onClick={handleNext}
