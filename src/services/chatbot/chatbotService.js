@@ -81,7 +81,7 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
   }
 
   const parseEventBlock = (block) => {
-    const lines = block.split('\n')
+    const lines = block.split(/\r?\n/)
     let eventType = 'message'
     const dataLines = []
 
@@ -131,7 +131,7 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
           break
         }
         buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split('\n\n')
+        const parts = buffer.split(/\r?\n\r?\n/)
         buffer = parts.pop() ?? ''
         parts.forEach((part) => {
           if (part.trim()) {
