@@ -443,10 +443,6 @@ export default function MyPage() {
     if (isDeleting) {
       return
     }
-    const confirmed = window.confirm('정말 회원 탈퇴하시겠어요?')
-    if (!confirmed) {
-      return
-    }
 
     setIsDeleting(true)
     try {
