@@ -1,5 +1,5 @@
 import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,63 @@ const INITIAL_MESSAGE = {
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
+const ChatMessage = memo(function ChatMessage({
+  message,
+  isPending,
+  onSummaryClick,
+  setStreamingTextNode,
+  setTypingNode,
+}) {
+  const isUser = message.role === 'user'
+  return (
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+      <div className={`flex max-w-[78%] gap-2 ${isUser ? 'flex-row-reverse' : 'items-start'}`}>
+        {!isUser ? (
+          <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+            코독
+          </div>
+        ) : null}
+        <div className="space-y-2">
+          <div
+            className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
+              isUser ? 'bg-info-soft text-foreground' : 'bg-muted/60 text-foreground'
+            }`}
+          >
+            {isPending ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="whitespace-pre-line" ref={setStreamingTextNode} />
+                <div
+                  className="chatbot-typing"
+                  ref={setTypingNode}
+                  role="status"
+                  aria-live="polite"
+                >
+                  <span className="sr-only">응답 생성 중</span>
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
+                </div>
+              </div>
+            ) : (
+              <p className="whitespace-pre-line">{message.content}</p>
+            )}
+          </div>
+          {message.role === 'assistant' && message.meta?.showSummaryCta ? (
+            <Button
+              className="w-fit rounded-xl bg-muted text-foreground hover:bg-muted/80"
+              onClick={onSummaryClick}
+              type="button"
+              variant="secondary"
+            >
+              문제 요약 카드 풀러 가기
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  )
+})
+
 export default function Chatbot() {
   const { problemId } = useParams()
   const navigate = useNavigate()
@@ -49,6 +106,11 @@ export default function Chatbot() {
 
   const streamRef = useRef(null)
   const assistantMessageIdRef = useRef(null)
+  const streamingTextRef = useRef(null)
+  const typingIndicatorRef = useRef(null)
+  const didReceiveFinalRef = useRef(false)
+  const tokenBufferRef = useRef('')
+  const flushRafRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -59,24 +121,85 @@ export default function Chatbot() {
     }
   }, [])
 
+  const clearTokenBuffer = useCallback(() => {
+    tokenBufferRef.current = ''
+    if (flushRafRef.current) {
+      cancelAnimationFrame(flushRafRef.current)
+      flushRafRef.current = null
+    }
+  }, [])
+
+  const clearStreamingNodes = useCallback(() => {
+    streamingTextRef.current = null
+    typingIndicatorRef.current = null
+  }, [])
+
+  const appendToAssistant = useCallback((text) => {
+    if (!text) {
+      return
+    }
+    if (!assistantMessageIdRef.current) {
+      return
+    }
+    const node = streamingTextRef.current
+    if (!node) {
+      return
+    }
+    node.insertAdjacentText('beforeend', text)
+    if (typingIndicatorRef.current) {
+      typingIndicatorRef.current.style.display = 'none'
+    }
+  }, [])
+
+  const flushTokenBuffer = useCallback(() => {
+    const chunk = tokenBufferRef.current
+    if (!chunk) {
+      return
+    }
+    if (!streamingTextRef.current) {
+      return
+    }
+    tokenBufferRef.current = ''
+    appendToAssistant(chunk)
+  }, [appendToAssistant])
+
+  const setStreamingTextNode = useCallback(
+    (node) => {
+      streamingTextRef.current = node
+      if (node) {
+        node.textContent = ''
+        flushTokenBuffer()
+      }
+    },
+    [flushTokenBuffer],
+  )
+
+  const setTypingNode = useCallback((node) => {
+    typingIndicatorRef.current = node
+    if (node) {
+      node.style.display = ''
+    }
+  }, [])
+
+  const scheduleFlush = useCallback(() => {
+    if (flushRafRef.current) {
+      return
+    }
+    flushRafRef.current = requestAnimationFrame(() => {
+      flushRafRef.current = null
+      flushTokenBuffer()
+    })
+  }, [flushTokenBuffer])
+
   const handleAppendAssistant = useCallback(
     (text) => {
-      const targetId = assistantMessageIdRef.current
-      if (!targetId) {
+      if (!text) {
         return
       }
-
-      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
-
-      updateSession(problemId, {
-        messages: currentMessages.map((message) =>
-          message.id === targetId
-            ? { ...message, content: `${message.content ?? ''}${text}` }
-            : message,
-        ),
-      })
+      tokenBufferRef.current = `${tokenBufferRef.current}${text}`
+      scheduleFlush()
     },
-    [problemId, updateSession],
+    [scheduleFlush],
   )
 
   const checkIsAtBottom = useCallback(() => {
@@ -93,6 +216,8 @@ export default function Chatbot() {
         return
       }
 
+      clearTokenBuffer()
+      clearStreamingNodes()
       const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
 
       updateSession(problemId, {
@@ -101,7 +226,7 @@ export default function Chatbot() {
         ),
       })
     },
-    [problemId, updateSession],
+    [clearTokenBuffer, clearStreamingNodes, problemId, updateSession],
   )
 
   const handleMarkSummaryReady = useCallback(
@@ -133,6 +258,12 @@ export default function Chatbot() {
         return
       }
 
+      if (!failureMessage) {
+        flushTokenBuffer()
+      }
+      clearTokenBuffer()
+      clearStreamingNodes()
+      didReceiveFinalRef.current = false
       handleCloseStream()
       const targetId = assistantMessageIdRef.current
       const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
@@ -159,7 +290,14 @@ export default function Chatbot() {
         ...patch,
       })
     },
-    [handleCloseStream, problemId, updateSession],
+    [
+      clearTokenBuffer,
+      clearStreamingNodes,
+      flushTokenBuffer,
+      handleCloseStream,
+      problemId,
+      updateSession,
+    ],
   )
 
   useEffect(() => {
@@ -284,6 +422,7 @@ export default function Chatbot() {
           if (finalMessage) {
             handleReplaceAssistant(finalMessage)
           }
+          didReceiveFinalRef.current = true
           const isCorrect = eventData?.result?.is_correct ?? eventData?.result?.isCorrect
           const currentNode = eventData?.result?.current_node ?? eventData?.result?.currentNode
           if (isCorrect === true && currentNode === 'RULE') {
@@ -292,7 +431,9 @@ export default function Chatbot() {
         },
         onStatus: (status) => {
           if (status === 'COMPLETED') {
-            handleStopStreaming()
+            if (didReceiveFinalRef.current) {
+              handleStopStreaming()
+            }
             return
           }
 
@@ -323,8 +464,10 @@ export default function Chatbot() {
         streamRef.current.close()
         streamRef.current = null
       }
+      clearTokenBuffer()
+      clearStreamingNodes()
     }
-  }, [])
+  }, [clearTokenBuffer, clearStreamingNodes])
 
   const handleSend = async () => {
     const trimmed = inputValue.trim()
@@ -333,6 +476,9 @@ export default function Chatbot() {
     }
 
     updateSession(problemId, { sendError: null, inputValue: '', conversationId: null })
+    clearTokenBuffer()
+    clearStreamingNodes()
+    didReceiveFinalRef.current = false
 
     const userMessage = {
       id: buildMessageId(),
@@ -387,6 +533,12 @@ export default function Chatbot() {
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }, 120)
   }
+
+  const handleSummaryCtaClick = useCallback(() => {
+    if (problemId) {
+      navigate(`/problems/${problemId}/summary`)
+    }
+  }, [navigate, problemId])
 
   const isQuizEnabled = useMemo(
     () => ['summary_card_passed', 'solved'].includes(problemStatus ?? ''),
@@ -453,59 +605,20 @@ export default function Chatbot() {
         <div className="flex flex-1 flex-col gap-4">
           <div className="flex-1 space-y-3 pb-32">
             {messages.map((message) => {
-              const isAssistant = message.role === 'assistant'
-              const isPending = isAssistant && isStreaming && !message.content
+              const isPending =
+                message.role === 'assistant' &&
+                isStreaming &&
+                message.id === assistantMessageId &&
+                !message.content
               return (
-                <div
+                <ChatMessage
                   key={message.id}
-                  className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div
-                    className={`flex max-w-[78%] gap-2 ${
-                      message.role === 'user' ? 'flex-row-reverse' : 'items-start'
-                    }`}
-                  >
-                    {message.role === 'assistant' ? (
-                      <div className="mt-1 h-8 w-8 shrink-0 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground">
-                        코독
-                      </div>
-                    ) : null}
-                    <div className="space-y-2">
-                      <div
-                        className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-                          message.role === 'user'
-                            ? 'bg-info-soft text-foreground'
-                            : 'bg-muted/60 text-foreground'
-                        }`}
-                      >
-                        {isPending ? (
-                          <div className="chatbot-typing" role="status" aria-live="polite">
-                            <span className="sr-only">응답 생성 중</span>
-                            <span aria-hidden="true" />
-                            <span aria-hidden="true" />
-                            <span aria-hidden="true" />
-                          </div>
-                        ) : (
-                          <p className="whitespace-pre-line">{message.content}</p>
-                        )}
-                      </div>
-                      {message.role === 'assistant' && message.meta?.showSummaryCta ? (
-                        <Button
-                          className="w-fit rounded-xl bg-muted text-foreground hover:bg-muted/80"
-                          onClick={() => {
-                            if (problemId) {
-                              navigate(`/problems/${problemId}/summary`)
-                            }
-                          }}
-                          type="button"
-                          variant="secondary"
-                        >
-                          문제 요약 카드 풀러 가기
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
+                  isPending={isPending}
+                  message={message}
+                  onSummaryClick={handleSummaryCtaClick}
+                  setStreamingTextNode={isPending ? setStreamingTextNode : undefined}
+                  setTypingNode={isPending ? setTypingNode : undefined}
+                />
               )
             })}
             <div ref={bottomRef} />
