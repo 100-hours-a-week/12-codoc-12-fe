@@ -468,6 +468,16 @@ export default function Home() {
         header={<h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>}
         cardClassName="mt-1"
       />
+      <div className="mt-3">
+        <a
+          className="block w-full rounded-xl border border-black/15 bg-white px-4 py-3 text-center text-sm font-semibold text-foreground shadow-sm transition hover:bg-[#f3f4f6]"
+          href="https://docs.google.com/forms/d/e/1FAIpQLSd7MbHiijJHphq767m1eeHmpmqqA8XRzcDuG2TljsBKCR3yqQ/viewform?pli=1"
+          target="_blank"
+          rel="noreferrer"
+        >
+          개발자 괴롭히기 (사용자 피드백 설문)
+        </a>
+      </div>
     </div>
   )
 }
