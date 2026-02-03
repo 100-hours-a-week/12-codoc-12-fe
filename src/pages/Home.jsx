@@ -133,11 +133,11 @@ function QuestCard({ quest, onClaim }) {
           <div
             className={`flex h-10 w-10 items-center justify-center rounded-full border text-lg font-semibold ${
               isDone
-                ? 'border-[#3f3f46] bg-white text-[#3f3f46]'
-                : 'border-dashed border-[#9ca3af] text-[#9ca3af]'
+                ? 'border-[hsl(var(--primary))] bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))]'
+                : 'border-[#bfc3c9] bg-[#f4f5f7] text-[#9ca3af]'
             }`}
           >
-            {isDone ? '✓' : '•'}
+            ✓
           </div>
         </div>
         <p
