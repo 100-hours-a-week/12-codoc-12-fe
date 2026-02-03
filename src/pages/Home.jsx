@@ -475,7 +475,7 @@ export default function Home() {
           target="_blank"
           rel="noreferrer"
         >
-          개발자 괴롭히기 (사용자 피드백 설문)
+          사용자 피드백 설문
         </a>
       </div>
     </div>
