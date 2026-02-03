@@ -33,9 +33,9 @@ const levelClasses = [
 ]
 
 const statusCopy = {
-  IN_PROGRESS: { action: '진행 중', variant: 'claim', disabled: true },
-  COMPLETED: { action: '경험치 획득', variant: 'claim', disabled: false },
-  CLAIMED: { action: '획득 완료', variant: 'done', disabled: true },
+  IN_PROGRESS: { variant: 'pending', disabled: true },
+  COMPLETED: { variant: 'ready', disabled: false },
+  CLAIMED: { variant: 'done', disabled: true },
 }
 
 const formatDate = (date) => date.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
@@ -48,6 +48,12 @@ const addDays = (date, days) => {
 
 const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
 
+const getWeekStartSunday = (date) => {
+  const start = new Date(date)
+  start.setDate(start.getDate() - start.getDay())
+  return start
+}
+
 const getKstToday = () => {
   const now = new Date()
   const kstDate = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
@@ -59,7 +65,7 @@ const getContributionRange = (today) => {
   return { fromDate, toDate: today, today }
 }
 
-const buildMonthMarkers = (range) => {
+const buildMonthMarkers = (range, gridStartDate) => {
   const markers = []
   const cursor = new Date(range.fromDate.getFullYear(), range.fromDate.getMonth(), 1)
 
@@ -68,7 +74,7 @@ const buildMonthMarkers = (range) => {
   }
 
   while (cursor <= range.toDate) {
-    const dayIndex = daysBetween(range.fromDate, cursor)
+    const dayIndex = daysBetween(gridStartDate, cursor)
     const colIndex = Math.floor(dayIndex / heatmapRows)
     markers.push({
       key: formatDate(cursor),
@@ -85,7 +91,8 @@ const buildHeatmapModel = (dailySolveCount, range) => {
   const countByDate = new Map(
     (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
   )
-  const totalDays = Math.max(1, daysBetween(range.fromDate, range.toDate) + 1)
+  const gridStart = getWeekStartSunday(range.fromDate)
+  const totalDays = Math.max(1, daysBetween(gridStart, range.toDate) + 1)
   const weeks = Math.ceil(totalDays / heatmapRows)
   const totalCells = weeks * heatmapRows
   const minWidthPx = weeks * colWidthPx
@@ -94,7 +101,10 @@ const buildHeatmapModel = (dailySolveCount, range) => {
     if (idx >= totalDays) {
       return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
     }
-    const date = addDays(range.fromDate, idx)
+    const date = addDays(gridStart, idx)
+    if (date < range.fromDate) {
+      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
+    }
     if (date > range.today) {
       return { id: `future-${idx}`, level: 0, date: null, solveCount: 0 }
     }
@@ -104,11 +114,14 @@ const buildHeatmapModel = (dailySolveCount, range) => {
     return { id: key, level, date: key, solveCount }
   })
 
-  return { cells, weeks, minWidthPx, startDate: range.fromDate, totalDays }
+  return { cells, weeks, minWidthPx, startDate: gridStart, totalDays }
 }
 
 function QuestCard({ quest, onClaim }) {
   const isDone = quest.variant === 'done'
+  const isReady = quest.variant === 'ready'
+  const isPending = quest.variant === 'pending'
+  const actionLabel = isReady || isPending ? `+${quest.reward ?? 0}XP` : '획득완료'
   return (
     <article className="flex min-h-[140px] flex-col justify-between rounded-[16px] border border-black/10 bg-white p-2.5 shadow-[0_6px_12px_rgba(15,23,42,0.06)]">
       <div className="space-y-2.5">
@@ -128,7 +141,7 @@ function QuestCard({ quest, onClaim }) {
           </div>
         </div>
         <p
-          className="text-sm font-semibold leading-snug"
+          className="text-center text-sm font-semibold leading-snug"
           style={{
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -143,13 +156,15 @@ function QuestCard({ quest, onClaim }) {
         className={`mt-4 w-full rounded-xl px-3 py-2 text-xs font-semibold transition ${
           isDone
             ? 'bg-[#e5e7eb] text-[#6b7280]'
-            : 'border border-black/10 bg-white text-foreground hover:bg-[#f3f4f6]'
+            : isReady
+              ? 'bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary)/0.9)]'
+              : 'border border-black/10 bg-white text-foreground'
         } disabled:cursor-not-allowed disabled:opacity-60`}
         disabled={quest.disabled}
         type="button"
         onClick={() => onClaim(quest.userQuestId)}
       >
-        {quest.action}
+        {actionLabel}
       </button>
     </article>
   )
@@ -170,7 +185,6 @@ export default function Home() {
 
   const today = useMemo(() => getKstToday(), [])
   const contributionRange = useMemo(() => getContributionRange(today), [today])
-  const monthMarkers = useMemo(() => buildMonthMarkers(contributionRange), [contributionRange])
 
   useEffect(() => {
     let mounted = true
@@ -204,7 +218,7 @@ export default function Home() {
           return {
             userQuestId: item.userQuestId,
             title: item.title,
-            action: statusMeta.action,
+            reward: item.reward ?? 0,
             variant: statusMeta.variant,
             disabled: statusMeta.disabled,
           }
@@ -256,7 +270,7 @@ export default function Home() {
         return {
           userQuestId: item.userQuestId,
           title: item.title,
-          action: statusMeta.action,
+          reward: item.reward ?? 0,
           variant: statusMeta.variant,
           disabled: statusMeta.disabled,
         }
@@ -275,6 +289,10 @@ export default function Home() {
   const heatmapModel = useMemo(
     () => buildHeatmapModel(dailySolveCount, contributionRange),
     [contributionRange, dailySolveCount],
+  )
+  const monthMarkers = useMemo(
+    () => buildMonthMarkers(contributionRange, heatmapModel.startDate),
+    [contributionRange, heatmapModel.startDate],
   )
 
   useEffect(() => {
@@ -310,22 +328,22 @@ export default function Home() {
           {
             userQuestId: null,
             title: '퀘스트를 준비 중입니다',
-            action: '잠시만요',
-            variant: 'claim',
+            reward: 0,
+            variant: 'pending',
             disabled: true,
           },
           {
             userQuestId: null,
             title: '곧 새로운 퀘스트가 도착해요',
-            action: '잠시만요',
-            variant: 'claim',
+            reward: 0,
+            variant: 'pending',
             disabled: true,
           },
           {
             userQuestId: null,
             title: '조금만 기다려주세요',
-            action: '잠시만요',
-            variant: 'claim',
+            reward: 0,
+            variant: 'pending',
             disabled: true,
           },
         ]
