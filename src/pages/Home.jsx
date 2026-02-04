@@ -147,6 +147,9 @@ function QuestCard({ quest, onClaim }) {
             WebkitLineClamp: 2,
             WebkitBoxOrient: 'vertical',
             overflow: 'hidden',
+            wordBreak: 'keep-all',
+            overflowWrap: 'normal',
+            minHeight: '2.6em',
           }}
         >
           {quest.title}
