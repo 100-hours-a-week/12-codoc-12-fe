@@ -4,13 +4,13 @@ on:
   workflow_call:
     inputs:
       ref_name:
-        description: "Branch name from caller workflow"
+        description: 'Branch name from caller workflow'
         required: true
         type: string
   workflow_dispatch:
     inputs:
       ref_name:
-        description: "Branch name to deploy"
+        description: 'Branch name to deploy'
         required: true
         type: string
 
