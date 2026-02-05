@@ -1,10 +1,18 @@
 name: frontend-cd
 
 on:
-  # frontend-ci 완료 후 트리거
-  workflow_run:
-    workflows: ['frontend-ci']
-    types: [completed]
+  workflow_call:
+    inputs:
+      ref_name:
+        description: "Branch name from caller workflow"
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref_name:
+        description: "Branch name to deploy"
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,11 +24,9 @@ concurrency:
 
 jobs:
   deploy:
-    # 테스트용: develop push 결과만 배포
+    # develop / chore-cicd push 결과만 배포
     if: >
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.event == 'push' &&
-      github.event.workflow_run.head_branch == 'develop'
+      inputs.ref_name == 'develop'
 
     runs-on: ubuntu-latest
 
@@ -31,7 +37,6 @@ jobs:
         with:
           name: frontend-build
           path: ./artifact
-          run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
       # 2. 다운로드 확인
@@ -44,9 +49,9 @@ jobs:
       - name: Upload FE Build Folder to Server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ secrets.FE_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.ref_name == 'develop' && secrets.FE_HOST_DEV || secrets.FE_HOST }}
+          username: ${{ inputs.ref_name == 'develop' && secrets.DEPLOY_USER_DEV || secrets.DEPLOY_USER }}
+          key: ${{ inputs.ref_name == 'develop' && secrets.SSH_PRIVATE_KEY_DEV || secrets.SSH_PRIVATE_KEY }}
           source: 'artifact/**'
           target: '/home/ubuntu/fe/incoming/release'
           strip_components: 1
@@ -55,9 +60,9 @@ jobs:
       - name: Execute FE Deploy Script
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.FE_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host: ${{ inputs.ref_name == 'develop' && secrets.FE_HOST_DEV || secrets.FE_HOST }}
+          username: ${{ inputs.ref_name == 'develop' && secrets.DEPLOY_USER_DEV || secrets.DEPLOY_USER }}
+          key: ${{ inputs.ref_name == 'develop' && secrets.SSH_PRIVATE_KEY_DEV || secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
             test -f /home/ubuntu/fe/deploy.sh
@@ -68,11 +73,11 @@ jobs:
       - name: Notify Discord
         if: always()
         run: |
-          RUN_URL="${{ github.event.workflow_run.html_url }}"
-          BRANCH="${{ github.event.workflow_run.head_branch }}"
-          SHA="${{ github.event.workflow_run.head_sha }}"
-          ACTOR="${{ github.triggering_actor }}"
-          COMMIT_MSG="${{ github.event.workflow_run.head_commit.message }}"
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BRANCH="${{ inputs.ref_name }}"
+          SHA="${{ github.sha }}"
+          ACTOR="${{ github.actor }}"
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
 
           if [ "${{ job.status }}" = "success" ]; then
             STATUS="성공"

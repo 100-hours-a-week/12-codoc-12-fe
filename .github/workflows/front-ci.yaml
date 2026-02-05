@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 # 같은 PR/브랜치에서 커밋이 연속으로 올라오면
 # 이전 실행을 취소하고 최신 커밋만 검증해서 CI 낭비를 줄임
@@ -156,3 +157,10 @@ jobs:
             }]
           }" \
           ${{ secrets.DISCORD_WEBHOOK }}
+
+  deploy:
+    needs: verify
+    uses: ./.github/workflows/front-cd.yaml
+    secrets: inherit
+    with:
+      ref_name: ${{ github.ref_name }}
