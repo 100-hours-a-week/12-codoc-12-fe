@@ -1,16 +1,18 @@
 name: frontend-cd
 
 on:
-  workflow_call:
-    inputs:
-      ref_name:
-        description: 'Branch name from caller workflow'
-        required: true
-        type: string
+  # frontend-ci 완료 후 트리거
+  workflow_run:
+    workflows: ['frontend-ci']
+    types: [completed]
   workflow_dispatch:
     inputs:
       ref_name:
         description: 'Branch name to deploy'
+        required: true
+        type: string
+      run_id:
+        description: 'CI workflow run ID to fetch artifacts'
         required: true
         type: string
 
@@ -26,7 +28,10 @@ jobs:
   deploy:
     # develop 자동 배포, main은 수동 실행일 때만 배포
     if: >
-      inputs.ref_name == 'develop' ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'develop') ||
       (github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main')
 
     runs-on: ubuntu-latest
@@ -38,6 +43,7 @@ jobs:
         with:
           name: frontend-build
           path: ./artifact
+          run-id: ${{ github.event_name == 'workflow_dispatch' && inputs.run_id || github.event.workflow_run.id }}
           github-token: ${{ github.token }}
 
       # 2. 다운로드 확인
@@ -50,9 +56,9 @@ jobs:
       - name: Upload FE Build Folder to Server
         uses: appleboy/scp-action@v0.1.7
         with:
-          host: ${{ inputs.ref_name == 'develop' && secrets.FE_HOST_DEV || secrets.FE_HOST }}
-          username: ${{ inputs.ref_name == 'develop' && secrets.DEPLOY_USER_DEV || secrets.DEPLOY_USER }}
-          key: ${{ inputs.ref_name == 'develop' && secrets.SSH_PRIVATE_KEY_DEV || secrets.SSH_PRIVATE_KEY }}
+          host: ${{ github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main' && secrets.FE_HOST || secrets.FE_HOST_DEV }}
+          username: ${{ github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main' && secrets.DEPLOY_USER || secrets.DEPLOY_USER_DEV }}
+          key: ${{ github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main' && secrets.SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY_DEV }}
           source: 'artifact/**'
           target: '/home/ubuntu/fe/incoming/release'
           strip_components: 1
@@ -61,9 +67,9 @@ jobs:
       - name: Execute FE Deploy Script
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ inputs.ref_name == 'develop' && secrets.FE_HOST_DEV || secrets.FE_HOST }}
-          username: ${{ inputs.ref_name == 'develop' && secrets.DEPLOY_USER_DEV || secrets.DEPLOY_USER }}
-          key: ${{ inputs.ref_name == 'develop' && secrets.SSH_PRIVATE_KEY_DEV || secrets.SSH_PRIVATE_KEY }}
+          host: ${{ github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main' && secrets.FE_HOST || secrets.FE_HOST_DEV }}
+          username: ${{ github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main' && secrets.DEPLOY_USER || secrets.DEPLOY_USER_DEV }}
+          key: ${{ github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main' && secrets.SSH_PRIVATE_KEY || secrets.SSH_PRIVATE_KEY_DEV }}
           script: |
             set -e
             test -f /home/ubuntu/fe/deploy.sh
@@ -75,10 +81,10 @@ jobs:
         if: always()
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BRANCH="${{ inputs.ref_name }}"
-          SHA="${{ github.sha }}"
+          BRANCH="${{ github.event_name == 'workflow_dispatch' && inputs.ref_name || github.event.workflow_run.head_branch }}"
+          SHA="${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}"
           ACTOR="${{ github.actor }}"
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          COMMIT_MSG="${{ github.event_name == 'workflow_dispatch' && github.event.head_commit.message || github.event.workflow_run.head_commit.message }}"
 
           if [ "${{ job.status }}" = "success" ]; then
             STATUS="성공"
