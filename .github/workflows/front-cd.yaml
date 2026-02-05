@@ -24,9 +24,10 @@ concurrency:
 
 jobs:
   deploy:
-    # develop / chore-cicd push 결과만 배포
+    # develop 자동 배포, main은 수동 실행일 때만 배포
     if: >
-      inputs.ref_name == 'develop'
+      inputs.ref_name == 'develop' ||
+      (github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main')
 
     runs-on: ubuntu-latest
 
