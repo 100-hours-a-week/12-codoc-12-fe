@@ -7,10 +7,18 @@ on:
         description: 'Branch name from caller workflow'
         required: true
         type: string
+      run_id:
+        description: 'Caller workflow run ID to fetch artifacts'
+        required: true
+        type: string
   workflow_dispatch:
     inputs:
       ref_name:
         description: 'Branch name to deploy'
+        required: true
+        type: string
+      run_id:
+        description: 'CI workflow run ID to fetch artifacts'
         required: true
         type: string
 
@@ -38,6 +46,7 @@ jobs:
         with:
           name: frontend-build
           path: ./artifact
+          run-id: ${{ inputs.run_id }}
           github-token: ${{ github.token }}
 
       # 2. 다운로드 확인
