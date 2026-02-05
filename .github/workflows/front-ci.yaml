@@ -157,3 +157,10 @@ jobs:
             }]
           }" \
           ${{ secrets.DISCORD_WEBHOOK }}
+
+  deploy:
+    needs: verify
+    uses: ./.github/workflows/front-cd.yaml
+    secrets: inherit
+    with:
+      ref_name: ${{ github.ref_name }}
