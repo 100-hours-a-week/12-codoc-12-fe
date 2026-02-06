@@ -38,19 +38,16 @@ const ChatMessage = memo(function ChatMessage({
 }) {
   const isUser = message.role === 'user'
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`flex max-w-[78%] gap-2 ${isUser ? 'flex-row-reverse' : 'items-start'}`}>
-        {!isUser ? (
-          <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-            코독
+    <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
+      {isUser ? (
+        <div className="max-w-[78%] space-y-2">
+          <div className="rounded-2xl bg-info-soft px-4 py-3 text-sm leading-relaxed text-foreground">
+            <p className="whitespace-pre-line">{message.content}</p>
           </div>
-        ) : null}
-        <div className="space-y-2">
-          <div
-            className={`rounded-2xl px-4 py-3 text-sm leading-relaxed ${
-              isUser ? 'bg-info-soft text-foreground' : 'bg-muted/60 text-foreground'
-            }`}
-          >
+        </div>
+      ) : (
+        <div className="w-full space-y-2">
+          <div className="text-sm leading-relaxed text-foreground">
             {isPending ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="whitespace-pre-line" ref={setStreamingTextNode} />
@@ -81,7 +78,7 @@ const ChatMessage = memo(function ChatMessage({
             </Button>
           ) : null}
         </div>
-      </div>
+      )}
     </div>
   )
 })
@@ -603,7 +600,7 @@ export default function Chatbot() {
         </Card>
       ) : (
         <div className="flex flex-1 flex-col gap-4">
-          <div className="flex-1 space-y-3 pb-32">
+          <div className="flex-1 space-y-10 pb-32">
             {messages.map((message) => {
               const isPending =
                 message.role === 'assistant' &&
