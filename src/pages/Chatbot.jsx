@@ -41,13 +41,13 @@ const ChatMessage = memo(function ChatMessage({
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
       {isUser ? (
         <div className="max-w-[78%] space-y-2">
-          <div className="rounded-2xl bg-info-soft px-4 py-3 text-sm leading-relaxed text-foreground">
+          <div className="rounded-2xl bg-info-soft px-4 py-3 text-[16px] leading-[28px] text-foreground">
             <p className="whitespace-pre-line">{message.content}</p>
           </div>
         </div>
       ) : (
         <div className="w-full space-y-2">
-          <div className="text-sm leading-relaxed text-foreground">
+          <div className="text-[16px] leading-[28px] text-foreground">
             {isPending ? (
               <div className="flex flex-wrap items-center gap-2">
                 <span className="whitespace-pre-line" ref={setStreamingTextNode} />
