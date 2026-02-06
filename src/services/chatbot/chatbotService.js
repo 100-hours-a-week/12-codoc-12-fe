@@ -46,7 +46,7 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
     }
 
     if (eventType === 'token') {
-      const text = result.text ?? ''
+      const text = result.text ?? parsed.text ?? ''
       if (text) {
         onToken?.(text, parsed)
       }
