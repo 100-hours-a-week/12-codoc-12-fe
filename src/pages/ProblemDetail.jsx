@@ -23,6 +23,7 @@ const TAB_ITEMS = [
 ]
 
 const ACTIVE_TAB_ID = 'problem'
+const HELP_AUTO_KEY = 'codoc_help_auto_shown'
 const HELP_STEPS = [
   {
     id: 'summary',
@@ -285,6 +286,22 @@ export default function ProblemDetail() {
     setHelpStepIndex(0)
     setIsHelpOpen(true)
   }
+
+  useEffect(() => {
+    if (isLoading || loadError || !problem || isHelpOpen) {
+      return
+    }
+    if (typeof window === 'undefined') {
+      return
+    }
+    if (window.localStorage.getItem(HELP_AUTO_KEY) === '1') {
+      return
+    }
+    window.localStorage.setItem(HELP_AUTO_KEY, '1')
+    window.requestAnimationFrame(() => {
+      handleOpenHelp()
+    })
+  }, [handleOpenHelp, isHelpOpen, isLoading, loadError, problem])
 
   const handleCloseHelp = () => {
     setIsHelpOpen(false)
