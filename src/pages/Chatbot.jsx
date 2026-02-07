@@ -544,42 +544,44 @@ export default function Chatbot() {
 
   return (
     <div className="flex min-h-full flex-col space-y-5">
-      <div className="rounded-2xl bg-muted/70 px-2">
-        <div className="grid grid-cols-3">
-          {TAB_ITEMS.map((tab) => {
-            const isQuizTab = tab.id === 'quiz'
-            const isEnabled = !isQuizTab || isQuizEnabled
+      <div className="sticky top-[52px] z-20 -mx-4 bg-background/95 px-4 pb-3 pt-3 backdrop-blur">
+        <div className="rounded-2xl bg-muted/70 px-2 shadow-sm">
+          <div className="grid grid-cols-3">
+            {TAB_ITEMS.map((tab) => {
+              const isQuizTab = tab.id === 'quiz'
+              const isEnabled = !isQuizTab || isQuizEnabled
 
-            return (
-              <button
-                key={tab.id}
-                className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                  tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
-                } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                disabled={!isEnabled}
-                onClick={() => {
-                  if (!problemId) {
-                    return
-                  }
-                  if (tab.id === 'problem') {
-                    navigate(`/problems/${problemId}`)
-                  }
-                  if (tab.id === 'quiz' && isEnabled) {
-                    navigate(`/problems/${problemId}/quiz`)
-                  }
-                }}
-                type="button"
-              >
-                <tab.Icon className="h-5 w-5" />
-                {tab.label}
-                <span
-                  className={`mt-1 h-[2px] w-12 rounded-full ${
-                    tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
-                  }`}
-                />
-              </button>
-            )
-          })}
+              return (
+                <button
+                  key={tab.id}
+                  className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
+                    tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
+                  } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  disabled={!isEnabled}
+                  onClick={() => {
+                    if (!problemId) {
+                      return
+                    }
+                    if (tab.id === 'problem') {
+                      navigate(`/problems/${problemId}`)
+                    }
+                    if (tab.id === 'quiz' && isEnabled) {
+                      navigate(`/problems/${problemId}/quiz`)
+                    }
+                  }}
+                  type="button"
+                >
+                  <tab.Icon className="h-5 w-5" />
+                  {tab.label}
+                  <span
+                    className={`mt-1 h-[2px] w-12 rounded-full ${
+                      tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
+                    }`}
+                  />
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 

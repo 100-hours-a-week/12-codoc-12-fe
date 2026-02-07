@@ -325,8 +325,8 @@ export default function ProblemDetail() {
 
   return (
     <div className="space-y-5">
-      <div className="relative">
-        <div className="rounded-2xl bg-muted/70 px-2">
+      <div className="sticky top-[52px] z-20 -mx-4 bg-background/95 px-4 pb-3 pt-3 backdrop-blur">
+        <div className="rounded-2xl bg-muted/100 px-2 shadow-sm">
           <div className="grid grid-cols-3">
             {TAB_ITEMS.map((tab) => {
               const isQuizTab = tab.id === 'quiz'
