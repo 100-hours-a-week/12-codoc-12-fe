@@ -17,6 +17,7 @@ const TAB_ITEMS = [
 
 const ACTIVE_TAB_ID = 'quiz'
 const QUIZ_ALLOWED_STATUSES = ['summary_card_passed', 'solved']
+const QUIZ_REWARD_XP = 50
 
 const buildIdempotencyKey = (quizId) =>
   `${quizId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -123,6 +124,8 @@ export default function Quiz() {
     hasAnsweredCurrent || (selectedChoiceIndex !== null && selectedChoiceIndex !== undefined)
   const totalCorrect = submissionResult?.correctCount ?? correctCount
   const isPerfectScore = totalQuestions > 0 && totalCorrect === totalQuestions
+  const isFirstSolved =
+    Boolean(submissionResult?.xpGranted) && submissionResult?.nextStatus === 'solved'
 
   const handleSelectChoice = (choiceIndex) => {
     if (!currentQuiz || isSubmitting || hasAnsweredCurrent) {
@@ -287,11 +290,18 @@ export default function Quiz() {
               <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background shadow-sm">
                 <Trophy className="h-10 w-10" />
               </div>
-              <div className="space-y-1">
-                <p className="text-lg font-semibold">퀴즈 완료!</p>
+              <div className="space-y-4">
+                {isPerfectScore ? (
+                  <p className="text-xl font-semibold">축하합니다!</p>
+                ) : (
+                  <p className="text-xl font-semibold">다시 도전해보세요!</p>
+                )}
                 <p className="text-2xl font-semibold">
                   {totalCorrect} / {totalQuestions}
                 </p>
+                {isFirstSolved ? (
+                  <p className="text-lg font-semibold text-info">+{QUIZ_REWARD_XP} XP</p>
+                ) : null}
               </div>
             </div>
             <div className="space-y-3">
