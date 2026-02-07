@@ -1,23 +1,13 @@
 import { getAccessToken } from '@/lib/auth'
 
-import { requestChatbotMessage } from './chatbotApi'
-import {
-  normalizeChatbotStatus,
-  parseChatbotStreamEvent,
-  toChatbotMessageResponse,
-} from './chatbotDto'
+import { normalizeChatbotStatus, parseChatbotStreamEvent } from './chatbotDto'
 import { toChatbotMessageRequest } from './chatbotRequestDto'
 
-export const sendChatbotMessage = async (payload = {}) => {
-  const response = await requestChatbotMessage(toChatbotMessageRequest(payload))
-  return toChatbotMessageResponse(response)
-}
-
-export const createChatbotStream = (conversationId, handlers = {}) => {
+export const createChatbotStream = (payload = {}, handlers = {}) => {
   const { onToken, onFinal, onError, onStatus } = handlers
   const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-  const url = `${baseUrl}/api/chatbot/messages/${conversationId}/stream`
+  const url = `${baseUrl}/api/chatbot/messages/stream`
   const token = getAccessToken()
 
   const resolveStatus = (payload = {}) => {
@@ -105,10 +95,15 @@ export const createChatbotStream = (conversationId, handlers = {}) => {
   const startStream = async () => {
     try {
       const response = await fetch(url, {
-        method: 'GET',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        method: 'POST',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        },
         credentials: 'include',
         signal: controller.signal,
+        body: JSON.stringify(toChatbotMessageRequest(payload)),
       })
 
       if (!response.ok) {
