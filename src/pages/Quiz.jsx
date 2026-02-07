@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { getProblemDetail } from '@/services/problems/problemsService'
 import { submitProblem, submitQuiz } from '@/services/submissions/submissionsService'
 import { useQuizStore } from '@/stores/useQuizStore'
@@ -179,6 +180,14 @@ export default function Quiz() {
     setIsSubmitting(true)
     try {
       const response = await submitProblem(problemId)
+      setProblem((prev) => (prev ? { ...prev, status: response.nextStatus } : prev))
+      queueProblemListUpdate({
+        id: problemId,
+        status: response.nextStatus,
+        bookmarked: problem?.bookmarked,
+        difficulty: problem?.difficulty,
+        title: problem?.title,
+      })
       updateSession(problemId, { submissionResult: response, isResultView: true })
     } catch {
       setActionError('결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
