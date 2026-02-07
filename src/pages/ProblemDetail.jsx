@@ -290,10 +290,10 @@ export default function ProblemDetail() {
     }
   }, [isHelpOpen])
 
-  const handleOpenHelp = () => {
+  const handleOpenHelp = useCallback(() => {
     setHelpStepIndex(0)
     setIsHelpOpen(true)
-  }
+  }, [])
 
   useEffect(() => {
     if (isLoading || loadError || !problem || isHelpOpen) {
