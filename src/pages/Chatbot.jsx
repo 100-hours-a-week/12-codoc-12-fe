@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { getProblemDetail } from '@/services/problems/problemsService'
-import { createChatbotStream, sendChatbotMessage } from '@/services/chatbot/chatbotService'
+import { createChatbotStream } from '@/services/chatbot/chatbotService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
 
 const TAB_ITEMS = [
@@ -96,7 +96,6 @@ export default function Chatbot() {
   const session = problemId ? sessions[String(problemId)] : null
   const messages = useMemo(() => session?.messages ?? [INITIAL_MESSAGE], [session?.messages])
   const inputValue = session?.inputValue ?? ''
-  const conversationId = session?.conversationId ?? null
   const assistantMessageId = session?.assistantMessageId ?? null
   const isStreaming = session?.isStreaming ?? false
   const sendError = session?.sendError ?? null
@@ -108,6 +107,7 @@ export default function Chatbot() {
   const didReceiveFinalRef = useRef(false)
   const tokenBufferRef = useRef('')
   const flushRafRef = useRef(null)
+  const streamPayloadRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -129,6 +129,7 @@ export default function Chatbot() {
   const clearStreamingNodes = useCallback(() => {
     streamingTextRef.current = null
     typingIndicatorRef.current = null
+    streamPayloadRef.current = null
   }, [])
 
   const appendToAssistant = useCallback((text) => {
@@ -407,8 +408,8 @@ export default function Chatbot() {
   }, [assistantMessageId])
 
   useEffect(() => {
-    if (isStreaming && conversationId && !streamRef.current) {
-      streamRef.current = createChatbotStream(conversationId, {
+    if (isStreaming && streamPayloadRef.current && !streamRef.current) {
+      streamRef.current = createChatbotStream(streamPayloadRef.current, {
         onToken: (chunk) => {
           if (chunk) {
             handleAppendAssistant(chunk)
@@ -444,15 +445,14 @@ export default function Chatbot() {
           return
         },
       })
+      streamPayloadRef.current = null
     }
   }, [
-    conversationId,
     handleAppendAssistant,
     handleReplaceAssistant,
     handleMarkSummaryReady,
     handleStopStreaming,
     isStreaming,
-    problemId,
   ])
 
   useEffect(() => {
@@ -472,7 +472,7 @@ export default function Chatbot() {
       return
     }
 
-    updateSession(problemId, { sendError: null, inputValue: '', conversationId: null })
+    updateSession(problemId, { sendError: null, inputValue: '' })
     clearTokenBuffer()
     clearStreamingNodes()
     didReceiveFinalRef.current = false
@@ -491,34 +491,7 @@ export default function Chatbot() {
       isStreaming: true,
     })
 
-    try {
-      const response = await sendChatbotMessage({
-        problemId,
-        message: trimmed,
-      })
-
-      if (response.status === 'COMPLETED') {
-        handleStopStreaming()
-        return
-      }
-
-      if (response.status === 'FAILED') {
-        handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
-        return
-      }
-
-      if (!response.conversationId) {
-        handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
-        return
-      }
-
-      updateSession(problemId, {
-        conversationId: response.conversationId,
-        isStreaming: true,
-      })
-    } catch {
-      handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
-    }
+    streamPayloadRef.current = { problemId, message: trimmed }
   }
 
   const handleScrollBottom = () => {
