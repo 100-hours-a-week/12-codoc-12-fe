@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
+import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import {
   getProblemDetail,
   registerProblemBookmark,
@@ -146,6 +147,13 @@ export default function ProblemDetail() {
         : await removeProblemBookmark(problem.id)
 
       setProblem((prev) => (prev ? { ...prev, bookmarked: response.bookmarked } : prev))
+      queueProblemListUpdate({
+        id: problem.id,
+        bookmarked: response.bookmarked,
+        status: problem.status,
+        difficulty: problem.difficulty,
+        title: problem.title,
+      })
     } finally {
       setIsBookmarking(false)
     }

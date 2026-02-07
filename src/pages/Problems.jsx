@@ -1,5 +1,5 @@
 import { ArrowUp, Filter, RefreshCw, Search, Star } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/sheet'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
+import { consumeProblemListUpdates } from '@/lib/problemListUpdates'
 import { getProblemList } from '@/services/problems/problemsService'
 
 const DIFFICULTY_OPTIONS = [1, 2, 3, 4, 5]
@@ -51,6 +52,7 @@ export default function Problems() {
   const [isAtTop, setIsAtTop] = useState(true)
   const listRestoredRef = useRef(false)
   const scrollRestoredRef = useRef(false)
+  const isRevalidatingRef = useRef(false)
   const [isRestored, setIsRestored] = useState(shouldRestore)
 
   useEffect(() => {
@@ -272,6 +274,80 @@ export default function Problems() {
     setIsRestored(false)
     setCommittedQuery(searchValue.trim())
   }
+
+  const revalidateList = useCallback(async () => {
+    if (isRevalidatingRef.current) {
+      return
+    }
+    isRevalidatingRef.current = true
+
+    try {
+      const {
+        items,
+        nextCursor: newCursor,
+        hasNextPage: nextPage,
+      } = await getProblemList({
+        limit: PAGE_SIZE,
+        query: committedQuery || undefined,
+        difficulties: appliedFilters.difficulties,
+        statuses: appliedFilters.status,
+        bookmarked: appliedFilters.bookmarks.includes(BOOKMARK_VALUE),
+      })
+      setProblems(items)
+      setNextCursor(newCursor)
+      setHasNextPage(nextPage)
+      setLoadError(null)
+      setLoadMoreError(null)
+    } catch {
+      // Keep the current list if revalidation fails.
+    } finally {
+      isRevalidatingRef.current = false
+    }
+  }, [appliedFilters, committedQuery])
+
+  useEffect(() => {
+    if (isLoading) {
+      return
+    }
+    const updates = consumeProblemListUpdates()
+    if (!updates) {
+      return
+    }
+
+    const shouldKeep = (problem) => {
+      if (appliedFilters.bookmarks.includes(BOOKMARK_VALUE) && !problem.bookmarked) {
+        return false
+      }
+      if (appliedFilters.status.length > 0 && !appliedFilters.status.includes(problem.status)) {
+        return false
+      }
+      if (
+        appliedFilters.difficulties.length > 0 &&
+        !appliedFilters.difficulties.includes(problem.difficulty)
+      ) {
+        return false
+      }
+      return true
+    }
+
+    setProblems((prev) => {
+      let didChange = false
+      const next = prev
+        .map((problem) => {
+          const update = updates[String(problem.id)]
+          if (!update) {
+            return problem
+          }
+          didChange = true
+          return { ...problem, ...update }
+        })
+        .filter(shouldKeep)
+
+      return didChange ? next : prev
+    })
+
+    revalidateList()
+  }, [appliedFilters, isLoading, revalidateList])
 
   const handleOpenProblem = () => {
     sessionStorage.setItem(SCROLL_Y_KEY, String(window.scrollY))

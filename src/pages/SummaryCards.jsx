@@ -6,6 +6,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ProblemSummaryCards from '@/components/ProblemSummaryCards'
+import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { getProblemDetail } from '@/services/problems/problemsService'
 
 const TAB_ITEMS = [
@@ -89,6 +90,15 @@ export default function SummaryCards() {
 
   const handleStatusChange = (status) => {
     setProblem((prev) => (prev ? { ...prev, status } : prev))
+    if (problem?.id) {
+      queueProblemListUpdate({
+        id: problem.id,
+        status,
+        bookmarked: problem.bookmarked,
+        difficulty: problem.difficulty,
+        title: problem.title,
+      })
+    }
   }
 
   return (
