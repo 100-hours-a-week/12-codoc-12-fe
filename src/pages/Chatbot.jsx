@@ -412,6 +412,7 @@ export default function Chatbot() {
   }, [])
 
   const effectiveKeyboardOffset = keyboardOffset
+  const inputBottomOffset = `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px)`
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -589,7 +590,7 @@ export default function Chatbot() {
         </Card>
       ) : (
         <div className="flex flex-1 flex-col gap-4">
-          <div className="flex-1 space-y-10 pb-32">
+          <div className="flex-1 space-y-10 pb-[calc(var(--chatbot-input-bottom)+12rem)]">
             {messages.map((message) => {
               const isPending =
                 message.role === 'assistant' &&
@@ -613,8 +614,13 @@ export default function Chatbot() {
           {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
 
           <div
+            aria-hidden
+            className="fixed left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 bg-background/95 backdrop-blur"
+            style={{ bottom: 0, height: inputBottomOffset }}
+          />
+          <div
             className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
-            style={{ bottom: `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px)` }}
+            style={{ bottom: inputBottomOffset }}
           >
             <p className="m-2 text-right text-[12px] text-neutral-500">
               {inputValue.length} / {MAX_INPUT_LENGTH}
