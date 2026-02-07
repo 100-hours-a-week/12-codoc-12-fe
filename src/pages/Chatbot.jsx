@@ -107,9 +107,11 @@ export default function Chatbot() {
   const didReceiveFinalRef = useRef(false)
   const tokenBufferRef = useRef('')
   const flushRafRef = useRef(null)
+  const autoScrollRafRef = useRef(null)
   const streamPayloadRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const isAtBottomRef = useRef(true)
 
   const handleCloseStream = useCallback(() => {
     if (streamRef.current) {
@@ -146,6 +148,12 @@ export default function Chatbot() {
     node.insertAdjacentText('beforeend', text)
     if (typingIndicatorRef.current) {
       typingIndicatorRef.current.style.display = 'none'
+    }
+    if (isAtBottomRef.current && !autoScrollRafRef.current) {
+      autoScrollRafRef.current = requestAnimationFrame(() => {
+        autoScrollRafRef.current = null
+        bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+      })
     }
   }, [])
 
@@ -204,7 +212,9 @@ export default function Chatbot() {
     const threshold = 160
     const scrollBottom = window.innerHeight + window.scrollY
     const pageHeight = document.documentElement.scrollHeight
-    setIsAtBottom(scrollBottom >= pageHeight - threshold)
+    const nextIsAtBottom = scrollBottom >= pageHeight - threshold
+    isAtBottomRef.current = nextIsAtBottom
+    setIsAtBottom(nextIsAtBottom)
   }, [])
 
   const handleReplaceAssistant = useCallback(
@@ -463,6 +473,10 @@ export default function Chatbot() {
       }
       clearTokenBuffer()
       clearStreamingNodes()
+      if (autoScrollRafRef.current) {
+        cancelAnimationFrame(autoScrollRafRef.current)
+        autoScrollRafRef.current = null
+      }
     }
   }, [clearTokenBuffer, clearStreamingNodes])
 
