@@ -121,6 +121,8 @@ export default function Quiz() {
   const currentExplanation = currentQuiz ? explanations[currentQuiz.id] : ''
   const isPrimaryActionEnabled =
     hasAnsweredCurrent || (selectedChoiceIndex !== null && selectedChoiceIndex !== undefined)
+  const totalCorrect = submissionResult?.correctCount ?? correctCount
+  const isPerfectScore = totalQuestions > 0 && totalCorrect === totalQuestions
 
   const handleSelectChoice = (choiceIndex) => {
     if (!currentQuiz || isSubmitting || hasAnsweredCurrent) {
@@ -194,6 +196,10 @@ export default function Quiz() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleGoProblemList = () => {
+    navigate('/problems')
   }
 
   const handleRestart = () => {
@@ -284,17 +290,17 @@ export default function Quiz() {
               <div className="space-y-1">
                 <p className="text-lg font-semibold">퀴즈 완료!</p>
                 <p className="text-2xl font-semibold">
-                  {submissionResult?.correctCount ?? correctCount} / {totalQuestions}
+                  {totalCorrect} / {totalQuestions}
                 </p>
               </div>
             </div>
             <div className="space-y-3">
               <Button
                 className="w-full rounded-xl border-2 border-info bg-info text-info-foreground hover:bg-info hover:opacity-100"
-                onClick={handleRestart}
+                onClick={isPerfectScore ? handleGoProblemList : handleRestart}
                 variant="secondary"
               >
-                다시 풀어보기
+                {isPerfectScore ? '문제 목록으로 돌아가기' : '다시 풀어보기'}
               </Button>
               <Button
                 className="w-full rounded-xl border-2"
