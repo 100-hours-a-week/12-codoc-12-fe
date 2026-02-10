@@ -2,7 +2,13 @@ import { useEffect, useMemo } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
-import { getAccessToken, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
+import {
+  getAccessToken,
+  getAccessTokenPayload,
+  getAccessTokenStatus,
+  refreshAccessToken,
+} from '@/lib/auth'
+import { setUserId } from '@/lib/ga4'
 
 const fallbackMessage = '서비스 코독에 오신걸 환영 합니다'
 
@@ -34,13 +40,23 @@ export default function Login() {
   }, [])
 
   useEffect(() => {
+    const applyUserId = (token) => {
+      const payload = getAccessTokenPayload(token)
+      const userId = payload?.userId ?? payload?.sub
+      if (userId) {
+        setUserId(userId)
+      }
+    }
+
     const redirectWithStatus = (token) => {
       const status = getAccessTokenStatus(token)
       if (status === 'ONBOARDING') {
+        applyUserId(token)
         navigate('/onboarding', { replace: true })
         return true
       }
       if (status === 'ACTIVE') {
+        applyUserId(token)
         navigate('/', { replace: true })
         return true
       }
