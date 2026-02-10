@@ -1,12 +1,13 @@
 import { BookOpen, Brain, Clover } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ProblemSummaryCards from '@/components/ProblemSummaryCards'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
+import { trackEvent } from '@/lib/ga4'
 import { getProblemDetail } from '@/services/problems/problemsService'
 
 const TAB_ITEMS = [
@@ -24,6 +25,15 @@ export default function SummaryCards() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [isExiting, setIsExiting] = useState(false)
+  const hasTrackedSummaryCompleteRef = useRef(false)
+
+  useEffect(() => {
+    if (!problemId) {
+      return
+    }
+    trackEvent('summary_view', { problem_id: String(problemId) })
+    hasTrackedSummaryCompleteRef.current = false
+  }, [problemId])
 
   useEffect(() => {
     let isActive = true
@@ -90,6 +100,14 @@ export default function SummaryCards() {
 
   const handleStatusChange = (status) => {
     setProblem((prev) => (prev ? { ...prev, status } : prev))
+    if (
+      problemId &&
+      !hasTrackedSummaryCompleteRef.current &&
+      (status === 'summary_card_passed' || status === 'solved')
+    ) {
+      trackEvent('summary_complete', { problem_id: String(problemId) })
+      hasTrackedSummaryCompleteRef.current = true
+    }
     if (problem?.id) {
       queueProblemListUpdate({
         id: problem.id,

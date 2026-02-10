@@ -5,6 +5,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { trackEvent } from '@/lib/ga4'
 import { getProblemDetail } from '@/services/problems/problemsService'
 import { createChatbotStream } from '@/services/chatbot/chatbotService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
@@ -112,6 +113,13 @@ export default function Chatbot() {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const isAtBottomRef = useRef(true)
+
+  useEffect(() => {
+    if (!problemId) {
+      return
+    }
+    trackEvent('chatbot_view', { problem_id: String(problemId) })
+  }, [problemId])
 
   const handleCloseStream = useCallback(() => {
     if (streamRef.current) {
