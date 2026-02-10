@@ -1,9 +1,13 @@
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Sparkles, Star } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import Heatmap, { HEATMAP_COL_WIDTH_PX, HEATMAP_ROWS } from '@/components/Heatmap'
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
+import { Badge } from '@/components/ui/badge'
+import { formatDifficultyLabel } from '@/constants/difficulty'
+import { normalizeProblemStatus, STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 
 const heatmapRows = HEATMAP_ROWS
 const colWidthPx = HEATMAP_COL_WIDTH_PX
@@ -174,12 +178,16 @@ function QuestCard({ quest, onClaim }) {
 }
 
 export default function Home() {
+  const navigate = useNavigate()
   const [quests, setQuests] = useState([])
   const [dailySolveCount, setDailySolveCount] = useState([])
   const [streak, setStreak] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [recommendedProblem, setRecommendedProblem] = useState(null)
+  const [isLoadingRecommend, setIsLoadingRecommend] = useState(true)
+  const [recommendError, setRecommendError] = useState('')
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
   const [questPage, setQuestPage] = useState(0)
@@ -191,6 +199,32 @@ export default function Home() {
 
   useEffect(() => {
     let mounted = true
+
+    const fetchRecommended = async () => {
+      setIsLoadingRecommend(true)
+      setRecommendError('')
+      try {
+        const response = await api.get('/api/problems/recommended')
+        if (!mounted) {
+          return
+        }
+        setRecommendedProblem(response.data?.data?.problem ?? null)
+      } catch (error) {
+        if (!mounted) {
+          return
+        }
+        if (error?.response?.status === 404) {
+          setRecommendedProblem(null)
+          return
+        }
+        setRecommendedProblem(null)
+        setRecommendError('추천 문제를 불러오지 못했습니다.')
+      } finally {
+        if (mounted) {
+          setIsLoadingRecommend(false)
+        }
+      }
+    }
 
     const fetchHome = async (options = {}) => {
       const { showLoading = true } = options
@@ -244,6 +278,7 @@ export default function Home() {
     }
 
     fetchHome()
+    fetchRecommended()
 
     return () => {
       mounted = false
@@ -256,6 +291,7 @@ export default function Home() {
     }
     setIsRefreshing(true)
     setLoadError('')
+    setRecommendError('')
     try {
       await api.post('/api/user/quests/refresh', {})
       const fromDate = formatDate(contributionRange.fromDate)
@@ -267,6 +303,17 @@ export default function Home() {
         }),
         api.get('/api/user/streak'),
       ])
+      let nextRecommended = null
+      try {
+        const recommendRes = await api.get('/api/problems/recommended')
+        nextRecommended = recommendRes.data?.data?.problem ?? null
+      } catch (error) {
+        if (error?.response?.status === 404) {
+          nextRecommended = null
+        } else {
+          setRecommendError('추천 문제를 불러오지 못했습니다.')
+        }
+      }
       const questItems = questRes.data?.data?.quests ?? []
       const mappedQuests = questItems.map((item) => {
         const statusMeta = statusCopy[item.status] ?? statusCopy.IN_PROGRESS
@@ -282,6 +329,7 @@ export default function Home() {
       setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
       setStreak(streakRes.data?.data?.streak ?? 0)
       setSelectedCell(null)
+      setRecommendedProblem(nextRecommended)
     } catch {
       setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
@@ -323,6 +371,17 @@ export default function Home() {
       setLoadError('보상 수령에 실패했습니다. 잠시 후 다시 시도해주세요.')
     }
   }
+
+  const handleOpenRecommended = () => {
+    if (!recommendedProblem?.problemId) {
+      return
+    }
+    navigate(`/problems/${recommendedProblem.problemId}`)
+  }
+
+  const normalizedRecommendStatus = normalizeProblemStatus(recommendedProblem?.status)
+  const recommendedStatus =
+    STATUS_OPTIONS.find((option) => option.value === normalizedRecommendStatus) ?? null
 
   const questItems =
     quests.length > 0
@@ -489,6 +548,80 @@ export default function Home() {
         header={<h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>}
         cardClassName="mt-1"
       />
+      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">리더보드</h3>
+          <span className="text-xs font-semibold text-muted-foreground">준비 중</span>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">리더보드 데이터를 준비하고 있어요.</p>
+      </section>
+
+      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+        <div className="flex items-center gap-2">
+          <span className="text-[hsl(var(--warning))]">
+            <Sparkles className="h-4 w-4 fill-current" aria-hidden />
+          </span>
+          <div>
+            <h3 className="text-base font-semibold">나를 위한 추천문제</h3>
+            <p className="text-xs text-muted-foreground">
+              현재 레벨에 맞는 문제를 추천해 드립니다.
+            </p>
+          </div>
+        </div>
+        {isLoadingRecommend ? (
+          <StatusMessage className="mt-3">추천 문제를 불러오는 중...</StatusMessage>
+        ) : recommendError ? (
+          <StatusMessage className="mt-3" tone="error">
+            {recommendError}
+          </StatusMessage>
+        ) : recommendedProblem ? (
+          <button
+            className="mt-3 w-full rounded-2xl border border-black/10 bg-[#f5f6f8] px-4 py-3 text-left shadow-sm transition hover:bg-[#eef0f2]"
+            type="button"
+            onClick={handleOpenRecommended}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="flex items-center gap-2 text-sm font-semibold">
+                {recommendedProblem.title}
+                {recommendedProblem.bookmarked ? (
+                  <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
+                ) : null}
+              </p>
+              <span className="text-sm text-muted-foreground" aria-hidden>
+                ›
+              </span>
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+              <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
+                {formatDifficultyLabel(recommendedProblem.difficulty)}
+              </Badge>
+              {recommendedStatus ? (
+                <Badge
+                  className={`rounded-full px-3 py-1 ${
+                    recommendedStatus.pillClass ?? 'bg-background text-foreground/80'
+                  }`}
+                >
+                  {recommendedStatus.label}
+                </Badge>
+              ) : null}
+            </div>
+            {recommendedProblem.reason ? (
+              <p className="mt-2 text-xs text-foreground/80">{recommendedProblem.reason}</p>
+            ) : null}
+          </button>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">추천 문제가 아직 준비되지 않았어요.</p>
+        )}
+      </section>
+
+      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">실시간 인기 문제</h3>
+          <span className="text-xs font-semibold text-muted-foreground">준비 중</span>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">인기 문제 데이터를 준비하고 있어요.</p>
+      </section>
+
       <div className="mt-3">
         <a
           className="block w-full rounded-xl border border-black/15 bg-white px-4 py-3 text-center text-sm font-semibold text-foreground shadow-sm transition hover:bg-[#f3f4f6]"
