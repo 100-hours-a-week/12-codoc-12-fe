@@ -606,7 +606,9 @@ export default function Home() {
               ) : null}
             </div>
             {recommendedProblem.reason ? (
-              <p className="mt-2 text-xs text-foreground/80">{recommendedProblem.reason}</p>
+              <p className="mt-2 text-base leading-relaxed text-foreground/80">
+                {recommendedProblem.reason}
+              </p>
             ) : null}
           </button>
         ) : (
