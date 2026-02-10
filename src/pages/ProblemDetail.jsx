@@ -10,6 +10,7 @@ import { Card } from '@/components/ui/card'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
+import { trackEvent } from '@/lib/ga4'
 import {
   getProblemDetail,
   registerProblemBookmark,
@@ -77,6 +78,13 @@ export default function ProblemDetail() {
   const chatbotTabRef = useRef(null)
   const quizTabRef = useRef(null)
   const helpModalRef = useRef(null)
+
+  useEffect(() => {
+    if (!problemId) {
+      return
+    }
+    trackEvent('problem_view', { problem_id: String(problemId) })
+  }, [problemId])
 
   useEffect(() => {
     let isActive = true

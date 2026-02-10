@@ -1,4 +1,5 @@
-import { Route, Routes } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Route, Routes, useLocation } from 'react-router-dom'
 
 import AuthGate from '@/components/AuthGate'
 import MainLayout from '@/layouts/MainLayout'
@@ -11,8 +12,20 @@ import Quiz from '@/pages/Quiz'
 import ProblemDetail from '@/pages/ProblemDetail'
 import Problems from '@/pages/Problems'
 import SummaryCards from '@/pages/SummaryCards'
+import { initGa4, trackPageView } from '@/lib/ga4'
 
 function App() {
+  const location = useLocation()
+
+  useEffect(() => {
+    initGa4()
+  }, [])
+
+  useEffect(() => {
+    const path = `${location.pathname}${location.search}${location.hash}`
+    trackPageView(path)
+  }, [location])
+
   return (
     <Routes>
       <Route element={<Login />} path="/login" />

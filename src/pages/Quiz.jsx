@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { trackEvent } from '@/lib/ga4'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { getProblemDetail } from '@/services/problems/problemsService'
 import { submitProblem, submitQuiz } from '@/services/submissions/submissionsService'
@@ -45,6 +46,13 @@ export default function Quiz() {
   const submissionResult = session?.submissionResult ?? null
   const quizzes = useMemo(() => problem?.quizzes ?? [], [problem])
   const totalQuestions = quizzes.length
+
+  useEffect(() => {
+    if (!problemId) {
+      return
+    }
+    trackEvent('quiz_view', { problem_id: String(problemId) })
+  }, [problemId])
 
   useEffect(() => {
     let isActive = true
@@ -185,6 +193,15 @@ export default function Quiz() {
     setIsSubmitting(true)
     try {
       const response = await submitProblem(problemId)
+      const correctCountForEvent = response?.correctCount ?? correctCount
+      trackEvent('quiz_complete', {
+        problem_id: String(problemId),
+        correct_count: correctCountForEvent,
+        total_questions: totalQuestions,
+        is_perfect: totalQuestions > 0 && correctCountForEvent === totalQuestions,
+        xp_granted: response?.xpGranted ?? null,
+        next_status: response?.nextStatus ?? null,
+      })
       setProblem((prev) => (prev ? { ...prev, status: response.nextStatus } : prev))
       queueProblemListUpdate({
         id: problemId,

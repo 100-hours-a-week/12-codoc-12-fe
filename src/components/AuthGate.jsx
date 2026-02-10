@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { getAccessToken, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
+import { getAccessToken, getAccessTokenPayload, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
+import { setUserId } from '@/lib/ga4'
 
 const resolveStatus = (token) => {
   const tokenStatus = getAccessTokenStatus(token)
@@ -21,10 +22,18 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     let isMounted = true
+    const applyUserId = (token) => {
+      const payload = getAccessTokenPayload(token)
+      const userId = payload?.userId ?? payload?.sub
+      if (userId) {
+        setUserId(userId)
+      }
+    }
 
     const ensureSession = async () => {
       const existingToken = getAccessToken()
       if (existingToken) {
+        applyUserId(existingToken)
         if (isMounted) {
           setStatus(resolveStatus(existingToken) ?? 'unauthenticated')
         }
@@ -33,6 +42,7 @@ export default function AuthGate({ children }) {
 
       try {
         const token = await refreshAccessToken()
+        applyUserId(token)
         if (isMounted) {
           setStatus(resolveStatus(token) ?? 'unauthenticated')
         }
