@@ -92,8 +92,8 @@ jobs:
       # 10. 빌드
       - name: Build
         env:
-          # PR에서는 주입하지 않고 push 빌드에서만 주입
-          VITE_GA_ID: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' && secrets.VITE_GA_ID_PROD || secrets.VITE_GA_ID_DEV) || '' }}
+          # PR에서는 주입하지 않고 main push 빌드에서만 주입
+          VITE_GA_ID: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.VITE_GA_ID_PROD || '' }}
         run: npm run build
 
       # 11. 빌드 산출물 감지
