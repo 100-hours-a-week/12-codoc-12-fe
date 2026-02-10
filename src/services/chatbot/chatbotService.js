@@ -19,6 +19,7 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
         return normalized
       }
     }
+
     return ''
   }
 
