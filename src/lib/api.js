@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 import { clearAccessToken, getAccessToken, refreshAccessToken } from './auth'
+import { applyRateLimitFromResponse } from './rateLimit'
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
@@ -20,6 +21,10 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const { config, response } = error ?? {}
+
+    if (applyRateLimitFromResponse(response)) {
+      return Promise.reject(error)
+    }
 
     if (!response || response.status !== 401 || config?._retry) {
       return Promise.reject(error)

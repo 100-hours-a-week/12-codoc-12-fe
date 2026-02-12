@@ -20,6 +20,7 @@ const ACTIVE_TAB_ID = 'chatbot'
 
 const MAX_INPUT_LENGTH = 500
 const STREAM_FAILED_MESSAGE = '요청에 실패했습니다. 다시 시도해주세요.'
+const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.'
 
 const INITIAL_MESSAGE = {
   id: 'assistant-intro',
@@ -462,6 +463,16 @@ export default function Chatbot() {
         onError: () => {
           handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
           return
+        },
+        onRateLimit: ({ message }) => {
+          const rateLimitMessage = message ?? STREAM_RATE_LIMIT_MESSAGE
+          handleStopStreaming({
+            failureMessage: rateLimitMessage,
+            patch: {
+              isInputBlocked: false,
+              sendError: null,
+            },
+          })
         },
       })
       streamPayloadRef.current = null
