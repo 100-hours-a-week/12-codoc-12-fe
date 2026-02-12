@@ -21,6 +21,9 @@ const ACTIVE_TAB_ID = 'chatbot'
 const MAX_INPUT_LENGTH = 500
 const STREAM_FAILED_MESSAGE = '요청에 실패했습니다. 다시 시도해주세요.'
 const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.'
+const STREAM_RENDER_BASE_CPS = 44
+const STREAM_RENDER_BACKLOG_CPS = 72
+const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
 
 const INITIAL_MESSAGE = {
   id: 'assistant-intro',
@@ -108,7 +111,9 @@ export default function Chatbot() {
   const typingIndicatorRef = useRef(null)
   const didReceiveFinalRef = useRef(false)
   const tokenBufferRef = useRef('')
-  const flushRafRef = useRef(null)
+  const drainRafRef = useRef(null)
+  const drainBudgetRef = useRef(0)
+  const lastDrainTimestampRef = useRef(0)
   const autoScrollRafRef = useRef(null)
   const streamPayloadRef = useRef(null)
   const bottomRef = useRef(null)
@@ -131,10 +136,12 @@ export default function Chatbot() {
 
   const clearTokenBuffer = useCallback(() => {
     tokenBufferRef.current = ''
-    if (flushRafRef.current) {
-      cancelAnimationFrame(flushRafRef.current)
-      flushRafRef.current = null
+    if (drainRafRef.current) {
+      cancelAnimationFrame(drainRafRef.current)
+      drainRafRef.current = null
     }
+    drainBudgetRef.current = 0
+    lastDrainTimestampRef.current = 0
   }, [])
 
   const clearStreamingNodes = useCallback(() => {
@@ -166,27 +173,92 @@ export default function Chatbot() {
     }
   }, [])
 
-  const flushTokenBuffer = useCallback(() => {
+  const flushTokenBufferImmediately = useCallback(() => {
+    if (!tokenBufferRef.current || !streamingTextRef.current) {
+      return
+    }
     const chunk = tokenBufferRef.current
-    if (!chunk) {
-      return
-    }
-    if (!streamingTextRef.current) {
-      return
-    }
     tokenBufferRef.current = ''
+    drainBudgetRef.current = 0
+    lastDrainTimestampRef.current = 0
     appendToAssistant(chunk)
   }, [appendToAssistant])
+
+  const getCharsPerSecond = useCallback((queuedLength) => {
+    const backlogBoost = Math.min(STREAM_RENDER_BACKLOG_CPS, queuedLength * 0.25)
+    return STREAM_RENDER_BASE_CPS + backlogBoost
+  }, [])
+
+  const drainTokenBuffer = useCallback(
+    (timestamp) => {
+      drainRafRef.current = null
+
+      if (!assistantMessageIdRef.current) {
+        tokenBufferRef.current = ''
+        drainBudgetRef.current = 0
+        lastDrainTimestampRef.current = 0
+        return
+      }
+
+      if (!streamingTextRef.current) {
+        drainRafRef.current = requestAnimationFrame(drainTokenBuffer)
+        return
+      }
+
+      const queuedText = tokenBufferRef.current
+      if (!queuedText) {
+        drainBudgetRef.current = 0
+        lastDrainTimestampRef.current = 0
+        return
+      }
+
+      const prevTimestamp = lastDrainTimestampRef.current || timestamp
+      const elapsedMs = Math.max(0, timestamp - prevTimestamp)
+      lastDrainTimestampRef.current = timestamp
+
+      const charsPerSecond = getCharsPerSecond(queuedText.length)
+      drainBudgetRef.current += (elapsedMs * charsPerSecond) / 1000
+
+      const drainSize = Math.min(
+        queuedText.length,
+        STREAM_RENDER_MAX_CHARS_PER_FRAME,
+        Math.floor(drainBudgetRef.current),
+      )
+
+      if (drainSize > 0) {
+        const nextChunk = queuedText.slice(0, drainSize)
+        tokenBufferRef.current = queuedText.slice(drainSize)
+        drainBudgetRef.current -= drainSize
+        appendToAssistant(nextChunk)
+      }
+
+      if (tokenBufferRef.current) {
+        drainRafRef.current = requestAnimationFrame(drainTokenBuffer)
+        return
+      }
+      drainBudgetRef.current = 0
+      lastDrainTimestampRef.current = 0
+    },
+    [appendToAssistant, getCharsPerSecond],
+  )
+
+  const startTokenDrain = useCallback(() => {
+    if (drainRafRef.current || !tokenBufferRef.current) {
+      return
+    }
+    drainBudgetRef.current = Math.max(1, drainBudgetRef.current)
+    drainRafRef.current = requestAnimationFrame(drainTokenBuffer)
+  }, [drainTokenBuffer])
 
   const setStreamingTextNode = useCallback(
     (node) => {
       streamingTextRef.current = node
       if (node) {
         node.textContent = ''
-        flushTokenBuffer()
+        startTokenDrain()
       }
     },
-    [flushTokenBuffer],
+    [startTokenDrain],
   )
 
   const setTypingNode = useCallback((node) => {
@@ -196,25 +268,15 @@ export default function Chatbot() {
     }
   }, [])
 
-  const scheduleFlush = useCallback(() => {
-    if (flushRafRef.current) {
-      return
-    }
-    flushRafRef.current = requestAnimationFrame(() => {
-      flushRafRef.current = null
-      flushTokenBuffer()
-    })
-  }, [flushTokenBuffer])
-
   const handleAppendAssistant = useCallback(
     (text) => {
       if (!text) {
         return
       }
       tokenBufferRef.current = `${tokenBufferRef.current}${text}`
-      scheduleFlush()
+      startTokenDrain()
     },
-    [scheduleFlush],
+    [startTokenDrain],
   )
 
   const checkIsAtBottom = useCallback(() => {
@@ -276,7 +338,7 @@ export default function Chatbot() {
       }
 
       if (!failureMessage) {
-        flushTokenBuffer()
+        flushTokenBufferImmediately()
       }
       clearTokenBuffer()
       clearStreamingNodes()
@@ -310,7 +372,7 @@ export default function Chatbot() {
     [
       clearTokenBuffer,
       clearStreamingNodes,
-      flushTokenBuffer,
+      flushTokenBufferImmediately,
       handleCloseStream,
       problemId,
       updateSession,
