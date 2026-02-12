@@ -1,6 +1,9 @@
 import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -42,6 +45,82 @@ const ChatMessage = memo(function ChatMessage({
   setTypingNode,
 }) {
   const isUser = message.role === 'user'
+  const markdownComponents = useMemo(
+    () => ({
+      h1: ({ node: _node, ...props }) => (
+        <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />
+      ),
+      h2: ({ ...props }) => (
+        <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />
+      ),
+      h3: ({ ...props }) => (
+        <h3 className="mt-4 mb-2 text-base font-semibold text-foreground" {...props} />
+      ),
+      h4: ({ node: _node, ...props }) => (
+        <h4 className="mt-3 mb-1 text-sm font-semibold text-foreground" {...props} />
+      ),
+      p: ({ ...props }) => (
+        <p className="mb-3 text-[15px] leading-[1.7] text-foreground/90" {...props} />
+      ),
+      hr: () => (
+        <div>
+          <br />
+          <hr className="border-foreground/10" />
+          <br />
+        </div>
+      ),
+      ul: ({ ...props }) => (
+        <ul className="mb-3 list-disc space-y-2 pl-5 text-[15px] text-foreground/90" {...props} />
+      ),
+      ol: ({ ...props }) => (
+        <ol
+          className="mb-3 list-decimal space-y-2 pl-5 text-[15px] text-foreground/90"
+          {...props}
+        />
+      ),
+      li: ({ ...props }) => <li className="leading-relaxed" {...props} />,
+      blockquote: ({ node: _node, ...props }) => (
+        <blockquote
+          className="rounded-xl bg-muted/40 px-4 py-3 text-[15px] leading-[1.6] text-foreground/90"
+          {...props}
+        />
+      ),
+      table: ({ node: _node, ...props }) => (
+        <div className="my-3 overflow-x-auto">
+          <table className="min-w-full text-[13px] leading-relaxed" {...props} />
+        </div>
+      ),
+      thead: ({ node: _node, ...props }) => <thead className="bg-muted/60" {...props} />,
+      tbody: ({ node: _node, ...props }) => <tbody {...props} />,
+      tr: ({ node: _node, ...props }) => <tr className="border-b border-border" {...props} />,
+      th: ({ node: _node, ...props }) => (
+        <th className="px-3 py-2 text-left text-xs font-semibold text-foreground/80" {...props} />
+      ),
+      td: ({ node: _node, ...props }) => (
+        <td className="px-3 py-2 align-top text-xs text-foreground/90" {...props} />
+      ),
+      pre: ({ ...props }) => (
+        <pre
+          className="my-3 overflow-x-auto rounded-xl bg-muted px-4 py-3 text-sm leading-relaxed"
+          {...props}
+        />
+      ),
+      code: ({ node: _node, inline, className, children, ...props }) =>
+        inline ? (
+          <code
+            className="rounded bg-muted/60 px-1.5 py-0.5 text-[0.85em] text-foreground/90"
+            {...props}
+          >
+            {children}
+          </code>
+        ) : (
+          <code className={className} {...props}>
+            {children}
+          </code>
+        ),
+    }),
+    [],
+  )
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
       {isUser ? (
@@ -69,7 +148,12 @@ const ChatMessage = memo(function ChatMessage({
                 </div>
               </div>
             ) : (
-              <p className="whitespace-pre-line">{message.content}</p>
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm, remarkBreaks]}
+                components={markdownComponents}
+              >
+                {message.content}
+              </ReactMarkdown>
             )}
           </div>
           {message.role === 'assistant' && message.meta?.showSummaryCta ? (
