@@ -1,5 +1,7 @@
 import axios from 'axios'
 
+import { applyRateLimitFromResponse } from './rateLimit'
+
 let accessToken = null
 let refreshPromise = null
 
@@ -47,6 +49,14 @@ const refreshClient = axios.create({
   timeout: 10000,
   withCredentials: true,
 })
+
+refreshClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    applyRateLimitFromResponse(error?.response)
+    return Promise.reject(error)
+  },
+)
 
 export const refreshAccessToken = async () => {
   if (refreshPromise) {
