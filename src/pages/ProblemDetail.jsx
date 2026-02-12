@@ -2,6 +2,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Brain, Clover, Sparkles, Star, X } fro
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
+import remarkBreaks from 'remark-breaks'
 
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
@@ -457,7 +458,7 @@ export default function ProblemDetail() {
           <section className="space-y-3">
             {problem.content ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm]}
+                remarkPlugins={[remarkGfm, remarkBreaks]}
                 components={{
                   h1: ({ node: _node, ...props }) => (
                     <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />
