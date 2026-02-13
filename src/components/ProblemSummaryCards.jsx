@@ -15,9 +15,11 @@ const SUMMARY_CARD_LABELS = {
 const SUMMARY_CARD_PROMPTS = {
   BACKGROUND: '이 문제는',
   GOAL: '에서',
-  RULE: '을(를) 사용해',
-  CONSTRAINT: '을 만족하는',
+  RULE: '를 달성하기 위해',
+  CONSTRAINT: '을 적용하고',
 }
+
+const SUMMARY_CARD_SUFFIX = '을 고려하는 문제이다.'
 
 const getCardKey = (card, index) => String(card.paragraphType ?? card.id ?? `summary-${index}`)
 
@@ -164,7 +166,7 @@ export default function ProblemSummaryCards({
                   </span>
                 )
               })}
-              <span>를 구하는 문제이다.</span>
+              <span>{SUMMARY_CARD_SUFFIX}</span>
             </div>
           </div>
 
