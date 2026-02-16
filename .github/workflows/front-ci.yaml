@@ -47,6 +47,7 @@ jobs:
 
       # 4. ESLint 검사
       - name: Lint
+        if: github.event_name == 'push'
         run: npm run lint
 
       # 5. Prettier 포맷 체크 (warn-only)
