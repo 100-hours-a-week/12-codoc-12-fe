@@ -7,7 +7,10 @@ const NOTIFICATION_TYPE_LABELS = {
 
 const toNotificationTypeLabel = (type) => NOTIFICATION_TYPE_LABELS[type] ?? type ?? '알림'
 
-const toDateTimeLabel = (value) => {
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+
+const toRelativeTimeLabel = (value) => {
   if (!value) {
     return ''
   }
@@ -17,26 +20,31 @@ const toDateTimeLabel = (value) => {
     return ''
   }
 
-  return new Intl.DateTimeFormat('ko-KR', {
-    month: 'numeric',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-    timeZone: 'Asia/Seoul',
-  }).format(date)
+  const diffMs = Math.max(0, Date.now() - date.getTime())
+
+  if (diffMs < DAY_MS) {
+    const hours = Math.floor(diffMs / HOUR_MS)
+    return `${hours}시간전`
+  }
+
+  const days = Math.floor(diffMs / DAY_MS)
+  return `${days}일전`
 }
 
-export const toNotificationItem = (item = {}) => ({
-  id: item.notificationId ?? null,
-  type: item.type ?? null,
-  typeLabel: toNotificationTypeLabel(item.type),
-  title: item.title ?? '',
-  body: item.body ?? '',
-  linkUrl: item.linkUrl ?? null,
-  createdAt: item.createdAt ?? null,
-  createdAtLabel: toDateTimeLabel(item.createdAt),
-})
+export const toNotificationItem = (item = {}) => {
+  const createdAt = item.createdAt ?? item.created_at ?? null
+
+  return {
+    id: item.notificationId ?? null,
+    type: item.type ?? null,
+    typeLabel: toNotificationTypeLabel(item.type),
+    title: item.title ?? '',
+    body: item.body ?? '',
+    linkUrl: item.linkUrl ?? null,
+    createdAt,
+    createdAtLabel: toRelativeTimeLabel(createdAt),
+  }
+}
 
 export const toNotificationsResponse = (apiResponse) => {
   const data = apiResponse?.data ?? {}
