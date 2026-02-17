@@ -151,8 +151,6 @@ export default function Notifications() {
       {!isLoading && notifications.length > 0 ? (
         <ul className="space-y-2">
           {notifications.map((notification) => {
-            const clickable = Boolean(resolveLink(notification.linkUrl))
-
             return (
               <li key={notification.id ?? `${notification.type}-${notification.createdAt}`}>
                 <button
@@ -160,24 +158,14 @@ export default function Notifications() {
                   onClick={() => openNotificationLink(navigate, notification.linkUrl)}
                   type="button"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[11px] font-semibold text-info">
-                        {notification.typeLabel}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold leading-5">{notification.title}</p>
-                      {notification.body ? (
-                        <p className="mt-1 text-sm leading-5 text-muted-foreground">
-                          {notification.body}
-                        </p>
-                      ) : null}
-                      <p className="mt-2 text-[11px] font-medium text-muted-foreground">
-                        {notification.createdAtLabel}
-                      </p>
-                    </div>
-                    {clickable ? (
-                      <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1 flex flex-col gap-3">
+                    <p className="text-sm font-semibold leading-5">{notification.title}</p>
+                    {notification.body ? (
+                      <p className="text-sm leading-5 text-muted-foreground">{notification.body}</p>
                     ) : null}
+                    <p className="text-[11px] font-medium text-muted-foreground">
+                      {notification.createdAtLabel}
+                    </p>
                   </div>
                 </button>
               </li>
