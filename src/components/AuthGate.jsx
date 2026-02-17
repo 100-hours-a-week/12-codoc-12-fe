@@ -1,8 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { getAccessToken, getAccessTokenPayload, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
+import {
+  getAccessToken,
+  getAccessTokenPayload,
+  getAccessTokenStatus,
+  refreshAccessToken,
+} from '@/lib/auth'
+import {
+  getNotificationPermission,
+  getWebPushToken,
+  isFirebaseMessagingConfigured,
+  requestNotificationPermission,
+} from '@/lib/firebaseMessaging'
 import { setUserId } from '@/lib/ga4'
+import { registerNotificationDevice } from '@/services/notifications/notificationsService'
 
 const resolveStatus = (token) => {
   const tokenStatus = getAccessTokenStatus(token)
@@ -22,6 +34,28 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     let isMounted = true
+    const syncPushDevice = async () => {
+      if (!isFirebaseMessagingConfigured()) {
+        return
+      }
+
+      let permission = getNotificationPermission()
+      if (permission !== 'granted') {
+        permission = await requestNotificationPermission()
+      }
+
+      if (permission !== 'granted') {
+        return
+      }
+
+      try {
+        const pushToken = await getWebPushToken()
+        await registerNotificationDevice(pushToken, 'WEB')
+      } catch {
+        // Best-effort sync only.
+      }
+    }
+
     const applyUserId = (token) => {
       const payload = getAccessTokenPayload(token)
       const userId = payload?.userId ?? payload?.sub
@@ -34,6 +68,7 @@ export default function AuthGate({ children }) {
       const existingToken = getAccessToken()
       if (existingToken) {
         applyUserId(existingToken)
+        void syncPushDevice()
         if (isMounted) {
           setStatus(resolveStatus(existingToken) ?? 'unauthenticated')
         }
@@ -43,6 +78,7 @@ export default function AuthGate({ children }) {
       try {
         const token = await refreshAccessToken()
         applyUserId(token)
+        void syncPushDevice()
         if (isMounted) {
           setStatus(resolveStatus(token) ?? 'unauthenticated')
         }

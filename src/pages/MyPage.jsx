@@ -5,6 +5,7 @@ import Heatmap, { HEATMAP_COL_WIDTH_PX, HEATMAP_ROWS } from '@/components/Heatma
 import StatusMessage from '@/components/StatusMessage'
 import { api } from '@/lib/api'
 import { clearAccessToken, logout } from '@/lib/auth'
+import { deactivateNotificationDevice } from '@/services/notifications/notificationsService'
 
 const years = [2026, 2025, 2024, 2023]
 const recentLabel = '최근'
@@ -446,6 +447,7 @@ export default function MyPage() {
 
     setIsDeleting(true)
     try {
+      await deactivateNotificationDevice().catch(() => {})
       await api.delete('/api/user')
       clearAccessToken()
       window.location.replace('/login')
