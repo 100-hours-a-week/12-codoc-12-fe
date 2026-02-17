@@ -90,7 +90,7 @@ export default function NotificationSettings() {
 
       <article className="space-y-3">
         <div>
-          <p className="text-sm font-semibold text-muted-foreground/80">서비스별 푸시 알림</p>
+          <p className="text-sm font-semibold text-muted-foreground/70">서비스별 푸시 알림</p>
         </div>
 
         {preferenceError ? <StatusMessage tone="error">{preferenceError}</StatusMessage> : null}
