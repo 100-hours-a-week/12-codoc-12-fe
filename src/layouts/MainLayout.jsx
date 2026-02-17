@@ -1,9 +1,11 @@
-import { ArrowLeft, BookOpen, Home, User } from 'lucide-react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowLeft, Bell, BookOpen, Home, User } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { useNotificationBootstrap } from '@/hooks/useNotificationBootstrap'
 import { cn } from '@/lib/utils'
 import { useChatbotStore } from '@/stores/useChatbotStore'
+import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useQuizStore } from '@/stores/useQuizStore'
 import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
@@ -19,7 +21,10 @@ export default function MainLayout() {
   const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
+  const hasUnread = useNotificationStore((state) => state.hasUnread)
   const previousPathRef = useRef(location.pathname)
+
+  useNotificationBootstrap()
 
   useEffect(() => {
     const path = location.pathname
@@ -48,6 +53,7 @@ export default function MainLayout() {
   const content = <Outlet />
   const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
   const isNavHidden = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
+  const showNotificationButton = !showBackButton
 
   const handleBack = () => {
     navigate('/problems')
@@ -74,6 +80,7 @@ export default function MainLayout() {
                 <span className="text-xs font-semibold">문제 목록</span>
               </button>
             ) : null}
+
             <button
               className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl"
               onClick={() => navigate('/')}
@@ -85,11 +92,28 @@ export default function MainLayout() {
               </span>
               <span className="sr-only">Codoc</span>
             </button>
+
+            {showNotificationButton ? (
+              <button
+                aria-label="알림"
+                className="absolute right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-transparent text-foreground transition hover:bg-muted/60"
+                onClick={() => navigate('/notifications')}
+                type="button"
+              >
+                <Bell className="h-6 w-6" />
+                {hasUnread ? (
+                  <span className="absolute right-[9px] top-[9px] h-2.5 w-2.5 rounded-full bg-[hsl(var(--danger))]" />
+                ) : null}
+                <span className="sr-only">읽지 않은 알림</span>
+              </button>
+            ) : null}
           </div>
         </header>
+
         <main className={`flex-1 px-4 py-5 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`}>
           {content}
         </main>
+
         {!isNavHidden ? (
           <footer className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2">
             <div className="pb-[env(safe-area-inset-bottom)]">
