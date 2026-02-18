@@ -9,6 +9,7 @@ const toNotificationTypeLabel = (type) => NOTIFICATION_TYPE_LABELS[type] ?? type
 
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
+const MINUTE_MS = 60 * 1000
 
 const toRelativeTimeLabel = (value) => {
   if (!value) {
@@ -21,6 +22,14 @@ const toRelativeTimeLabel = (value) => {
   }
 
   const diffMs = Math.max(0, Date.now() - date.getTime())
+
+  if (diffMs < HOUR_MS) {
+    const minutes = Math.floor(diffMs / MINUTE_MS)
+    if (minutes <= 0) {
+      return '방금'
+    }
+    return `${minutes}분전`
+  }
 
   if (diffMs < DAY_MS) {
     const hours = Math.floor(diffMs / HOUR_MS)
