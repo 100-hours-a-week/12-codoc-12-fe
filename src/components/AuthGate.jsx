@@ -16,6 +16,9 @@ import {
 import { setUserId } from '@/lib/ga4'
 import { registerNotificationDevice } from '@/services/notifications/notificationsService'
 
+let syncPushDevicePromise = null
+let syncedPushToken = ''
+
 const resolveStatus = (token) => {
   const tokenStatus = getAccessTokenStatus(token)
   if (tokenStatus === 'ONBOARDING') {
@@ -35,6 +38,11 @@ export default function AuthGate({ children }) {
   useEffect(() => {
     let isMounted = true
     const syncPushDevice = async () => {
+      if (syncPushDevicePromise) {
+        await syncPushDevicePromise
+        return
+      }
+
       if (!isFirebaseMessagingConfigured()) {
         return
       }
@@ -48,11 +56,23 @@ export default function AuthGate({ children }) {
         return
       }
 
-      try {
+      syncPushDevicePromise = (async () => {
         const pushToken = await getWebPushToken()
+
+        if (!pushToken || pushToken === syncedPushToken) {
+          return
+        }
+
         await registerNotificationDevice(pushToken, 'WEB')
+        syncedPushToken = pushToken
+      })()
+
+      try {
+        await syncPushDevicePromise
       } catch {
         // Best-effort sync only.
+      } finally {
+        syncPushDevicePromise = null
       }
     }
 
