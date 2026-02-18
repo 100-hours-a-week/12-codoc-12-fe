@@ -9,7 +9,13 @@ import {
 } from '@/services/notifications/notificationsService'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 
-const resolveLink = (linkUrl) => {
+const LINK_CODE_PATHS = {
+  HOME: '/',
+  MY: '/my',
+  LEADERBOARD: '/leaderboard',
+}
+
+const resolveLegacyLink = (linkUrl) => {
   if (!linkUrl) {
     return null
   }
@@ -25,8 +31,43 @@ const resolveLink = (linkUrl) => {
   return linkUrl
 }
 
-const openNotificationLink = (navigate, linkUrl) => {
-  const resolvedLink = resolveLink(linkUrl)
+const resolvePathByLinkCode = (linkCode, linkParams = {}) => {
+  if (!linkCode) {
+    return null
+  }
+
+  if (linkCode === 'PROBLEM_DETAIL') {
+    const rawProblemId = linkParams?.problemId
+
+    if (rawProblemId === null || rawProblemId === undefined) {
+      return '/problems'
+    }
+
+    const problemId = String(rawProblemId).trim()
+
+    if (!problemId) {
+      return '/problems'
+    }
+
+    return `/problems/${encodeURIComponent(problemId)}`
+  }
+
+  return LINK_CODE_PATHS[linkCode] ?? null
+}
+
+const resolveNotificationLink = (notification) => {
+  if (!notification || typeof notification !== 'object') {
+    return null
+  }
+
+  return (
+    resolvePathByLinkCode(notification.linkCode, notification.linkParams) ??
+    resolveLegacyLink(notification.linkUrl)
+  )
+}
+
+const openNotificationLink = (navigate, notification) => {
+  const resolvedLink = resolveNotificationLink(notification)
 
   if (!resolvedLink) {
     return
@@ -155,7 +196,7 @@ export default function Notifications() {
               <li key={notification.id ?? `${notification.type}-${notification.createdAt}`}>
                 <button
                   className="w-full rounded-2xl border border-border bg-card p-4 text-left shadow-[0_6px_16px_rgba(15,23,42,0.05)] transition hover:bg-muted/40"
-                  onClick={() => openNotificationLink(navigate, notification.linkUrl)}
+                  onClick={() => openNotificationLink(navigate, notification)}
                   type="button"
                 >
                   <div className="min-w-0 flex-1 flex flex-col gap-3">
