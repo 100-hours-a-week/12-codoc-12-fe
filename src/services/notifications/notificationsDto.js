@@ -31,6 +31,32 @@ const toRelativeTimeLabel = (value) => {
   return `${days}일전`
 }
 
+const normalizeLinkParams = (value) => {
+  if (!value) {
+    return {}
+  }
+
+  let candidate = value
+
+  if (typeof candidate === 'string') {
+    try {
+      candidate = JSON.parse(candidate)
+    } catch {
+      return {}
+    }
+  }
+
+  if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) {
+    return {}
+  }
+
+  const entries = Object.entries(candidate)
+    .filter(([key]) => typeof key === 'string' && key.trim() !== '')
+    .map(([key, itemValue]) => [key, itemValue == null ? '' : String(itemValue)])
+
+  return Object.fromEntries(entries)
+}
+
 export const toNotificationItem = (item = {}) => {
   const createdAt = item.createdAt ?? item.created_at ?? null
 
@@ -40,7 +66,9 @@ export const toNotificationItem = (item = {}) => {
     typeLabel: toNotificationTypeLabel(item.type),
     title: item.title ?? '',
     body: item.body ?? '',
-    linkUrl: item.linkUrl ?? null,
+    linkCode: item.linkCode ?? item.link_code ?? null,
+    linkParams: normalizeLinkParams(item.linkParams ?? item.link_params ?? null),
+    linkUrl: item.linkUrl ?? item.link_url ?? null,
     createdAt,
     createdAtLabel: toRelativeTimeLabel(createdAt),
   }
