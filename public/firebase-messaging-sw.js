@@ -3,6 +3,8 @@
 importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-compat.js')
 
+const NOTIFICATION_LOGO_PATH = '/favicon.png'
+
 const params = new URL(self.location.href).searchParams
 
 const firebaseConfig = {
@@ -44,6 +46,8 @@ if (messaging) {
     self.registration.showNotification(title, {
       body,
       tag: `codoc:${type}`,
+      icon: NOTIFICATION_LOGO_PATH,
+      badge: NOTIFICATION_LOGO_PATH,
       data: {
         linkUrl,
       },
