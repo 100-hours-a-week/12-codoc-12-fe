@@ -90,6 +90,18 @@ jobs:
       - name: Test
         run: npm test --if-present
 
+      # 10. 빌드타임 .env 주입
+      - name: Prepare .env (build-time)
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+        env:
+          FE_ENV: ${{ secrets.FE_ENV }}
+        run: |
+          if [ -z "$FE_ENV" ]; then
+            echo "ERROR: FE_ENV secret is empty"
+            exit 1
+          fi
+          printf '%s' "$FE_ENV" > .env
+
       # 10. 빌드
       - name: Build
         env:
