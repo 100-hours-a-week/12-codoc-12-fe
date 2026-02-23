@@ -616,14 +616,6 @@ export default function Home() {
         )}
       </section>
 
-      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold">실시간 인기 문제</h3>
-          <span className="text-xs font-semibold text-muted-foreground">준비 중</span>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">인기 문제 데이터를 준비하고 있어요.</p>
-      </section>
-
       <div className="mt-3">
         <a
           className="block w-full rounded-xl border border-black/15 bg-white px-4 py-3 text-center text-sm font-semibold text-foreground shadow-sm transition hover:bg-[#f3f4f6]"
