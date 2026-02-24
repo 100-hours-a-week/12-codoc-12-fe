@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { trackEvent } from '@/lib/ga4'
+import { createChatbotStream, getAllChatbotConversations } from '@/services/chatbot/chatbotService'
 import { getProblemDetail } from '@/services/problems/problemsService'
-import { createChatbotStream } from '@/services/chatbot/chatbotService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
 
 const TAB_ITEMS = [
@@ -36,6 +36,34 @@ const INITIAL_MESSAGE = {
 }
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const toHistoryMessages = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [INITIAL_MESSAGE]
+  }
+
+  const historyMessages = items.flatMap((item) => {
+    const conversationId = item?.conversationId ?? buildMessageId()
+    const userMessage = String(item?.userMessage ?? '').trim()
+    const aiMessage = String(item?.aiMessage ?? '').trim()
+    const nextMessages = []
+
+    if (userMessage) {
+      nextMessages.push({ id: `conv-${conversationId}-user`, role: 'user', content: userMessage })
+    }
+    if (aiMessage) {
+      nextMessages.push({
+        id: `conv-${conversationId}-assistant`,
+        role: 'assistant',
+        content: aiMessage,
+      })
+    }
+
+    return nextMessages
+  })
+
+  return historyMessages.length > 0 ? [INITIAL_MESSAGE, ...historyMessages] : [INITIAL_MESSAGE]
+}
 
 const ChatMessage = memo(function ChatMessage({
   message,
@@ -480,10 +508,14 @@ export default function Chatbot() {
       setLoadError(null)
 
       try {
-        const data = await getProblemDetail(problemId)
+        const existingSession = useChatbotStore.getState().sessions[String(problemId)]
+        const [data, history] = await Promise.all([
+          getProblemDetail(problemId),
+          existingSession ? Promise.resolve({ items: [] }) : getAllChatbotConversations(problemId),
+        ])
         if (isActive) {
           setProblemStatus(data.status)
-          initSession(problemId, [INITIAL_MESSAGE])
+          initSession(problemId, toHistoryMessages(history?.items))
         }
       } catch (error) {
         if (isActive) {

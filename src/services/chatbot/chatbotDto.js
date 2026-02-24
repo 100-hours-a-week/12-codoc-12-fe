@@ -22,6 +22,23 @@ export const toChatbotMessageResponse = (apiResponse) => {
   }
 }
 
+export const toChatbotConversationItem = (item = {}) => ({
+  conversationId: item.conversationId ?? item.id ?? null,
+  userMessage: item.userMessage ?? item.user_message ?? '',
+  aiMessage: item.aiMessage ?? item.ai_message ?? '',
+})
+
+export const toChatbotConversationListResponse = (apiResponse) => {
+  const data = apiResponse?.data ?? {}
+  const items = Array.isArray(data.items) ? data.items : []
+
+  return {
+    items: items.map(toChatbotConversationItem),
+    nextCursor: data.nextCursor ?? data.next_cursor ?? null,
+    hasNextPage: Boolean(data.hasNextPage ?? data.has_next_page),
+  }
+}
+
 export const parseChatbotStreamEvent = (data) => {
   if (!data) {
     return null
