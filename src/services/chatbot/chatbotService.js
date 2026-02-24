@@ -5,8 +5,16 @@ import {
   getRetryAfterSeconds,
 } from '@/lib/rateLimit'
 
-import { normalizeChatbotStatus, parseChatbotStreamEvent } from './chatbotDto'
-import { toChatbotMessageRequest } from './chatbotRequestDto'
+import { requestChatbotConversations } from './chatbotApi'
+import {
+  normalizeChatbotStatus,
+  parseChatbotStreamEvent,
+  toChatbotConversationListResponse,
+} from './chatbotDto'
+import { toChatbotConversationListParams, toChatbotMessageRequest } from './chatbotRequestDto'
+
+const CHATBOT_CONVERSATIONS_PAGE_LIMIT = 50
+const CHATBOT_CONVERSATIONS_MAX_PAGES = 20
 
 export const createChatbotStream = (payload = {}, handlers = {}) => {
   const { onToken, onFinal, onError, onStatus, onRateLimit } = handlers
@@ -212,4 +220,44 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
   return {
     close: () => controller.abort(),
   }
+}
+
+export const getChatbotConversations = async (params = {}) => {
+  const normalizedParams = toChatbotConversationListParams(params)
+  const response = await requestChatbotConversations(normalizedParams)
+  return toChatbotConversationListResponse(response)
+}
+
+export const getAllChatbotConversations = async (problemId, options = {}) => {
+  const normalizedProblemId = Number(problemId)
+  if (!Number.isInteger(normalizedProblemId) || normalizedProblemId <= 0) {
+    return { items: [], nextCursor: null, hasNextPage: false }
+  }
+
+  const requestedLimit = Number(options.limit)
+  const pageLimit =
+    Number.isInteger(requestedLimit) && requestedLimit > 0
+      ? Math.min(requestedLimit, CHATBOT_CONVERSATIONS_PAGE_LIMIT)
+      : CHATBOT_CONVERSATIONS_PAGE_LIMIT
+
+  let cursor = null
+  let hasNextPage = true
+  let pageCount = 0
+  const allItems = []
+
+  while (hasNextPage && pageCount < CHATBOT_CONVERSATIONS_MAX_PAGES) {
+    pageCount += 1
+
+    const page = await getChatbotConversations({
+      problemId: normalizedProblemId,
+      cursor,
+      limit: pageLimit,
+    })
+
+    allItems.push(...(Array.isArray(page.items) ? page.items : []))
+    cursor = page.nextCursor ?? null
+    hasNextPage = Boolean(page.hasNextPage && cursor != null)
+  }
+
+  return { items: allItems, nextCursor: cursor, hasNextPage }
 }
