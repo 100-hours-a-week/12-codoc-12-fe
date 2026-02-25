@@ -606,7 +606,7 @@ export default function Leaderboards() {
       ) : null}
 
       <div className="rounded-2xl border border-muted/60 bg-white shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
-        <div className="grid grid-cols-[64px_72px_1fr_88px] items-center border-b border-muted bg-muted/50 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
+        <div className="grid min-w-0 grid-cols-[64px_72px_minmax(0,1fr)_88px] items-center border-b border-muted bg-muted/50 px-3 py-2 text-[11px] font-semibold text-muted-foreground">
           <span>순위</span>
           <span>프로필</span>
           <span>이용자</span>
@@ -647,7 +647,7 @@ export default function Leaderboards() {
                 <div
                   id={`rank-row-${rankValue}`}
                   key={`${rankValue}-${item?.userId ?? item?.nickname ?? index}`}
-                  className="grid grid-cols-[64px_72px_1fr_88px] items-center px-3 py-3 text-sm"
+                  className="grid min-w-0 grid-cols-[64px_72px_minmax(0,1fr)_88px] items-center px-3 py-3 text-sm"
                 >
                   <span className="font-semibold text-muted-foreground">#{rankValue}</span>
                   <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-muted/60 text-[10px] font-semibold text-muted-foreground">
@@ -661,10 +661,10 @@ export default function Leaderboards() {
                       '프로필 아이콘'
                     )}
                   </div>
-                  <span className="text-sm font-semibold text-foreground">
+                  <span className="text-sm font-semibold text-foreground truncate">
                     {item?.nickname ?? '-'}
                   </span>
-                  <span className="text-right text-sm font-semibold text-foreground">
+                  <span className="text-right text-sm font-semibold text-foreground truncate">
                     {item?.weeklyXp ?? 0}
                   </span>
                 </div>
@@ -704,7 +704,7 @@ export default function Leaderboards() {
             type="button"
             disabled={isJumpingToRank}
           >
-            <div className="grid grid-cols-[64px_72px_1fr_88px] items-center">
+            <div className="grid min-w-0 grid-cols-[64px_72px_minmax(0,1fr)_88px] items-center">
               <span className="text-muted-foreground">#{getRankValue(userRank, '-')}</span>
               <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-muted/60 text-[10px] font-semibold text-muted-foreground">
                 {userRank.avatarUrl ? (
@@ -717,8 +717,8 @@ export default function Leaderboards() {
                   '프로필 아이콘'
                 )}
               </div>
-              <span className="text-foreground">{userRank.nickname ?? 'me'}</span>
-              <span className="text-right text-foreground">{userRank.weeklyXp ?? 0}</span>
+              <span className="text-foreground truncate">{userRank.nickname ?? 'me'}</span>
+              <span className="text-right text-foreground truncate">{userRank.weeklyXp ?? 0}</span>
             </div>
           </button>
         </div>
