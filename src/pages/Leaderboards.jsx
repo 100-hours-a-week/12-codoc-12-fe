@@ -16,11 +16,11 @@ const LIST_LIMIT = 50
 const JUMP_RANGE = 20
 
 const LEAGUE_RULES = [
-  { name: '브론즈', promote: '상위 30명', demote: '-' },
-  { name: '실버', promote: '상위 10명', demote: '하위 5명' },
-  { name: '골드', promote: '상위 5명', demote: '하위 5명' },
-  { name: '플래티넘', promote: '상위 5명', demote: '하위 10명' },
-  { name: '다이아몬드', promote: '-', demote: '하위 30명' },
+  { name: '브론즈', promote: '상위 20명', demote: '-' },
+  { name: '실버', promote: '상위 15명', demote: '하위 5명' },
+  { name: '골드', promote: '상위 10명', demote: '하위 10명' },
+  { name: '플래티넘', promote: '상위 10명', demote: '하위 10명' },
+  { name: '다이아몬드', promote: '-', demote: '하위 10명' },
 ]
 
 const formatSeasonDate = (value) => {
@@ -759,11 +759,13 @@ export default function Leaderboards() {
                 <div className="mt-3 space-y-2 text-center">
                   <p className="text-base font-semibold">경쟁하고 성장하세요!</p>
                   <p className="text-sm text-muted-foreground">
-                    같은 리그의 50명이 그룹으로 일주일간 경쟁합니다.
+                    같은 리그의 30명이 그룹으로 일주일간 경쟁합니다.
                     <br />
                     매주 가장 크게 성장한 사람이 상위 리그로 진출합니다!
                     <br />
-                    (매주 화요일 6am kst 갱신)
+                    매주 화 01:00 시작 · 다음 주 월 00:00 종료 (KST)
+                    <br />
+                    리더보드는 매 정각 업데이트됩니다.
                   </p>
                 </div>
 
