@@ -1,4 +1,4 @@
-import { Crown, Users } from 'lucide-react'
+import { Crown, Globe, Users } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 const TAB_OPTIONS = [
   { id: 'group', label: '그룹', Icon: Users },
   { id: 'league', label: '리그', Icon: Crown },
-  { id: 'global', label: '전체', Icon: Users },
+  { id: 'global', label: '전체', Icon: Globe },
 ]
 
 const LIST_LIMIT = 50
