@@ -7,6 +7,7 @@ import MainLayout from '@/layouts/MainLayout'
 import { initGa4, trackPageView } from '@/lib/ga4'
 import Chatbot from '@/pages/Chatbot'
 import Home from '@/pages/Home'
+import Leaderboards from '@/pages/Leaderboards'
 import Login from '@/pages/Login'
 import MyPage from '@/pages/MyPage'
 import Notifications from '@/pages/Notifications'
@@ -56,6 +57,7 @@ function App() {
           <Route element={<Quiz />} path="problems/:problemId/quiz" />
           <Route element={<Notifications />} path="notifications" />
           <Route element={<NotificationSettings />} path="notifications/settings" />
+          <Route element={<Leaderboards />} path="leaderboard" />
           <Route element={<MyPage />} path="my" />
         </Route>
       </Routes>

@@ -1,5 +1,5 @@
 import { ArrowLeft, Bell, BookOpen, Home, User } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useNotificationBootstrap } from '@/hooks/useNotificationBootstrap'
@@ -23,6 +23,8 @@ export default function MainLayout() {
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
   const hasUnread = useNotificationStore((state) => state.hasUnread)
   const previousPathRef = useRef(location.pathname)
+  const shellRef = useRef(null)
+  const [shellRect, setShellRect] = useState({ left: 0, width: 0 })
 
   useNotificationBootstrap()
 
@@ -50,6 +52,30 @@ export default function MainLayout() {
     previousPathRef.current = path
   }, [location.pathname])
 
+  useEffect(() => {
+    const updateRect = () => {
+      if (!shellRef.current) {
+        return
+      }
+      const rect = shellRef.current.getBoundingClientRect()
+      setShellRect({ left: rect.left, width: rect.width })
+    }
+
+    updateRect()
+    let observer = null
+    if (typeof ResizeObserver !== 'undefined' && shellRef.current) {
+      observer = new ResizeObserver(updateRect)
+      observer.observe(shellRef.current)
+    }
+    window.addEventListener('resize', updateRect)
+    return () => {
+      window.removeEventListener('resize', updateRect)
+      if (observer) {
+        observer.disconnect()
+      }
+    }
+  }, [])
+
   const content = <Outlet />
   const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
   const isNavHidden = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
@@ -62,7 +88,9 @@ export default function MainLayout() {
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
       <div
+        ref={shellRef}
         className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm"
+        data-shell="app"
         style={{
           '--chatbot-input-bottom': isNavHidden ? '16px' : '72px',
         }}
@@ -115,7 +143,10 @@ export default function MainLayout() {
         </main>
 
         {!isNavHidden ? (
-          <footer className="fixed bottom-0 left-1/2 w-full max-w-[430px] -translate-x-1/2">
+          <footer
+            className="fixed bottom-0 z-40"
+            style={{ left: `${shellRect.left}px`, width: `${shellRect.width}px` }}
+          >
             <div className="pb-[env(safe-area-inset-bottom)]">
               <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
                 {navItems.map(({ to, label, Icon, end }) => (

@@ -188,6 +188,10 @@ export default function Home() {
   const [recommendedProblem, setRecommendedProblem] = useState(null)
   const [isLoadingRecommend, setIsLoadingRecommend] = useState(true)
   const [recommendError, setRecommendError] = useState('')
+  const [leagueInfo, setLeagueInfo] = useState(null)
+  const [groupRank, setGroupRank] = useState(null)
+  const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true)
+  const [leaderboardError, setLeaderboardError] = useState('')
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
   const [questPage, setQuestPage] = useState(0)
@@ -277,8 +281,41 @@ export default function Home() {
       }
     }
 
+    const fetchLeaderboard = async () => {
+      setIsLeaderboardLoading(true)
+      setLeaderboardError('')
+
+      const [leagueResult, groupResult] = await Promise.allSettled([
+        api.get('/api/user/league'),
+        api.get('/api/user/leaderboards/group'),
+      ])
+
+      if (!mounted) {
+        return
+      }
+
+      if (leagueResult.status === 'fulfilled') {
+        setLeagueInfo(leagueResult.value.data?.data ?? null)
+      } else {
+        setLeagueInfo(null)
+      }
+
+      if (groupResult.status === 'fulfilled') {
+        setGroupRank(groupResult.value.data?.data ?? null)
+      } else {
+        setGroupRank(null)
+        const status = groupResult.reason?.response?.status
+        setLeaderboardError(
+          status === 403 ? '곧 리그가 시작됩니다!' : '리더보드 정보를 불러오지 못했습니다.',
+        )
+      }
+
+      setIsLeaderboardLoading(false)
+    }
+
     fetchHome()
     fetchRecommended()
+    fetchLeaderboard()
 
     return () => {
       mounted = false
@@ -548,13 +585,48 @@ export default function Home() {
         header={<h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>}
         cardClassName="mt-1"
       />
-      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+      <button
+        className="w-full rounded-[22px] border border-black/10 bg-white px-4 py-4 text-left shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:bg-[#f7f8fa]"
+        type="button"
+        onClick={() => navigate('/leaderboard')}
+      >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold">리더보드</h3>
-          <span className="text-xs font-semibold text-muted-foreground">준비 중</span>
+          <span className="text-sm text-muted-foreground">›</span>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">리더보드 데이터를 준비하고 있어요.</p>
-      </section>
+
+        {isLeaderboardLoading ? (
+          <StatusMessage className="mt-3">리더보드를 불러오는 중...</StatusMessage>
+        ) : leaderboardError ? (
+          <StatusMessage className="mt-3" tone="error">
+            {leaderboardError}
+          </StatusMessage>
+        ) : groupRank ? (
+          <div className="mt-3 flex items-center gap-4">
+            <div className="flex h-[86px] w-[86px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-muted-foreground/30 bg-white text-sm font-semibold text-muted-foreground">
+              {leagueInfo?.logoUrl ? (
+                <img
+                  alt="league logo"
+                  className="h-full w-full object-cover"
+                  src={leagueInfo.logoUrl}
+                />
+              ) : (
+                (leagueInfo?.name ?? 'LEAGUE').slice(0, 6)
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-2">
+              <span className="text-sm font-semibold text-foreground">
+                주간 경험치: {groupRank.weeklyXp ?? 0}XP
+              </span>
+              <span className="text-sm font-semibold text-foreground">
+                순위: {groupRank.placeGroup ? `${groupRank.placeGroup}/50` : '-'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <StatusMessage className="mt-3">리더보드 데이터를 준비하고 있어요.</StatusMessage>
+        )}
+      </button>
 
       <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
         <div className="flex items-center gap-2">
