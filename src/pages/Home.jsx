@@ -619,7 +619,7 @@ export default function Home() {
                 주간 경험치: {groupRank.weeklyXp ?? 0}XP
               </span>
               <span className="text-sm font-semibold text-foreground">
-                순위: {groupRank.placeGroup ? `${groupRank.placeGroup}/50` : '-'}
+                그룹 순위: {groupRank.placeGroup ?? '-'}
               </span>
             </div>
           </div>
