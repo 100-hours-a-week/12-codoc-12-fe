@@ -797,11 +797,7 @@ export default function Chatbot() {
                 <button
                   key={tab.id}
                   className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                    tab.id === ACTIVE_TAB_ID
-                      ? 'text-info'
-                      : isEnabled
-                        ? 'text-foreground/80'
-                        : 'text-neutral-500'
+                    tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
                   } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                   disabled={!isEnabled}
                   onClick={() => {
