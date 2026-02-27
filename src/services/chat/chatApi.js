@@ -36,3 +36,16 @@ export const requestSearchChatRooms = async (params = {}) => {
   })
   return response.data
 }
+
+export const requestJoinChatRoom = async (roomId, payload) => {
+  const response = await api.post(`/api/chat-rooms/${roomId}/join`, payload)
+  return response.data
+}
+
+export const requestChatMessages = async (roomId, params = {}) => {
+  const response = await api.get(`/api/chat-rooms/${roomId}/messages`, {
+    params,
+    paramsSerializer: { serialize: serializeParams },
+  })
+  return response.data
+}

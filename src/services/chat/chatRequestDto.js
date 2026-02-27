@@ -16,6 +16,11 @@ const normalizeKeyword = (value) => {
   return candidate || undefined
 }
 
+const normalizePassword = (value) => {
+  const candidate = String(value ?? '').trim()
+  return candidate || undefined
+}
+
 export const toChatRoomListParams = (params = {}) => {
   const nextParams = {}
 
@@ -42,3 +47,17 @@ export const toChatRoomSearchParams = (params = {}) => {
 
   return nextParams
 }
+
+export const toChatRoomJoinRequest = (password) => {
+  const normalizedPassword = normalizePassword(password)
+
+  if (!normalizedPassword) {
+    return {}
+  }
+
+  return {
+    password: normalizedPassword,
+  }
+}
+
+export const toChatMessageListParams = (params = {}) => toChatRoomListParams(params)

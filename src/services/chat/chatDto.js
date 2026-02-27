@@ -29,6 +29,21 @@ const toRelativeTimeLabel = (value) => {
   return `${Math.floor(diffMs / DAY_MS)}일 전`
 }
 
+const pad2 = (value) => String(value).padStart(2, '0')
+
+const toMessageDateTimeLabel = (value) => {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
 const toJoinedChatRoomItem = (item = {}) => {
   const lastMessageAt = item.lastMessageAt ?? null
 
@@ -57,6 +72,20 @@ const toSearchChatRoomItem = (item = {}) => {
   }
 }
 
+const toChatMessageItem = (item = {}) => {
+  const createdAt = item.createdAt ?? null
+  const senderId = Number(item.senderId)
+
+  return {
+    messageId: item.messageId ?? null,
+    senderId: Number.isInteger(senderId) ? senderId : null,
+    type: String(item.type ?? 'TEXT').toUpperCase(),
+    content: item.content ?? '',
+    createdAt,
+    createdAtLabel: toMessageDateTimeLabel(createdAt),
+  }
+}
+
 const toCursorPagingResponse = (apiResponse, itemMapper) => {
   const data = apiResponse?.data ?? {}
   const items = Array.isArray(data.items) ? data.items : []
@@ -73,3 +102,6 @@ export const toJoinedChatRoomListResponse = (apiResponse) =>
 
 export const toSearchChatRoomListResponse = (apiResponse) =>
   toCursorPagingResponse(apiResponse, toSearchChatRoomItem)
+
+export const toChatMessageListResponse = (apiResponse) =>
+  toCursorPagingResponse(apiResponse, toChatMessageItem)

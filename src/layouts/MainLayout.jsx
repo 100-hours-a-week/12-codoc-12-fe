@@ -128,11 +128,20 @@ export default function MainLayout() {
   }, [])
 
   const content = <Outlet />
-  const showBackButton = /^\/problems\/[^/]+/.test(location.pathname)
-  const isNavHidden = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
+  const isProblemPath = /^\/problems\/[^/]+/.test(location.pathname)
+  const isProblemFlowPath = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
+  const isChatRoomDetailPath = /^\/chat\/[^/]+$/.test(location.pathname)
+
+  const showBackButton = isProblemPath || isChatRoomDetailPath
+  const isNavHidden = isProblemFlowPath
   const showNotificationButton = !showBackButton
 
   const handleBack = () => {
+    if (isChatRoomDetailPath) {
+      navigate('/chat')
+      return
+    }
+
     navigate('/problems')
   }
 
@@ -158,7 +167,9 @@ export default function MainLayout() {
                 type="button"
               >
                 <ArrowLeft className="h-5 w-5" />
-                <span className="text-xs font-semibold">문제 목록</span>
+                <span className="text-xs font-semibold">
+                  {isChatRoomDetailPath ? '오픈채팅 목록' : '문제 목록'}
+                </span>
               </button>
             ) : null}
 
