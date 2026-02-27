@@ -35,6 +35,11 @@ const ACTIVE_TAB_ID = 'problem'
 const HELP_AUTO_KEY = 'codoc_help_auto_shown'
 const HELP_STEPS = [
   {
+    id: 'session',
+    title: '풀이 시작/포기',
+    description: '문제 풀이를 시작하거나, 진행 중인 풀이를 포기할 수 있습니다.',
+  },
+  {
     id: 'summary',
     title: '문제 요약 카드',
     description: '문제 내용을 요약하는 퀴즈입니다.\n요약 카드를 해결해야 퀴즈를 풀 수 있어요.',
@@ -92,9 +97,19 @@ export default function ProblemDetail() {
     clearProblem,
   } = useProblemDetailStore()
   const problemSession = problemId ? sessions[String(problemId)] : null
-  const isExpired = isSessionExpired(problemSession?.expiresAt)
-  const hasActiveSession = Boolean(problemSession?.sessionId) && !isExpired
+  const activeSession = useMemo(() => {
+    const items = Object.values(sessions)
+    return items.find((entry) => entry?.sessionId) ?? null
+  }, [sessions])
+  const resolvedSession =
+    problemSession ??
+    (activeSession?.problemId && String(activeSession.problemId) === String(problemId)
+      ? activeSession
+      : null)
+  const isExpired = isSessionExpired(resolvedSession?.expiresAt)
+  const hasActiveSession = Boolean(resolvedSession?.sessionId) && !isExpired
   const summaryButtonRef = useRef(null)
+  const sessionButtonRef = useRef(null)
   const chatbotTabRef = useRef(null)
   const quizTabRef = useRef(null)
   const helpModalRef = useRef(null)
@@ -223,7 +238,11 @@ export default function ProblemDetail() {
     setSessionError(null)
     try {
       await closeProblemSession()
-      clearSession(problemId)
+      if (resolvedSession?.problemId) {
+        clearSession(resolvedSession.problemId)
+      } else if (problemId) {
+        clearSession(problemId)
+      }
     } catch {
       setSessionError('세션을 종료하지 못했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
@@ -236,13 +255,9 @@ export default function ProblemDetail() {
     setIsAbandonOpen(false)
   }
 
-  const summaryCards = useMemo(() => problemSession?.summaryCards ?? [], [problemSession])
+  const summaryCards = useMemo(() => resolvedSession?.summaryCards ?? [], [resolvedSession])
   const hasSummaryCards = summaryCards.length > 0
-  const summaryButtonLabel = !hasActiveSession
-    ? '문제 풀이 시작 후 이용하세요'
-    : hasSummaryCards
-      ? '문제 요약 카드 만들기'
-      : '요약 카드가 없습니다'
+  const summaryButtonLabel = '문제 요약 카드 만들기'
 
   const handleRetry = () => {
     setReloadKey((prev) => prev + 1)
@@ -251,6 +266,9 @@ export default function ProblemDetail() {
   const currentHelpStep = HELP_STEPS[helpStepIndex]
 
   const getHelpTarget = useCallback((stepId) => {
+    if (stepId === 'session') {
+      return sessionButtonRef.current
+    }
     if (stepId === 'summary') {
       return summaryButtonRef.current
     }
@@ -375,6 +393,7 @@ export default function ProblemDetail() {
   const handleOpenHelp = useCallback(() => {
     setHelpStepIndex(0)
     setIsHelpOpen(true)
+    window.scrollTo({ top: 0, behavior: 'auto' })
   }, [])
 
   useEffect(() => {
@@ -424,7 +443,11 @@ export default function ProblemDetail() {
                   key={tab.id}
                   ref={tabRef}
                   className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                    tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
+                    tab.id === ACTIVE_TAB_ID
+                      ? 'text-info'
+                      : isEnabled
+                        ? 'text-foreground/80'
+                        : 'text-neutral-500'
                   } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                   disabled={!isEnabled}
                   onClick={() => {
@@ -527,7 +550,7 @@ export default function ProblemDetail() {
             type="button"
             variant="secondary"
           >
-            {hasSummaryCards ? <Sparkles className="h-5 w-5" /> : null}
+            <Sparkles className="h-5 w-5" />
             {summaryButtonLabel}
           </Button>
 
@@ -655,25 +678,28 @@ export default function ProblemDetail() {
           bottom: 'calc(var(--chatbot-input-bottom) + 16px)',
         }}
       >
-        <div className="flex flex-col items-end gap-2 px-4">
-          {hasActiveSession ? <SessionTimer expiresAt={problemSession?.expiresAt} /> : null}
-          <Button
-            className={`rounded-full px-5 shadow-md ${
-              hasActiveSession ? 'bg-danger text-danger-foreground hover:bg-danger/90' : ''
-            }`}
-            disabled={isSessionStarting || isSessionEnding}
-            onClick={() => {
-              if (hasActiveSession) {
-                setIsAbandonOpen(true)
-                return
-              }
-              handleStartSession()
-            }}
-            type="button"
-          >
-            {hasActiveSession ? '풀이 포기' : '풀이 시작'}
-          </Button>
-          {sessionError ? <p className="text-xs text-danger">{sessionError}</p> : null}
+        <div className="flex flex-col items-end px-4">
+          <div className="flex flex-col items-center gap-1.5 self-end">
+            {hasActiveSession ? <SessionTimer expiresAt={resolvedSession?.expiresAt} /> : null}
+            <Button
+              className={`rounded-full px-5 shadow-md ${
+                hasActiveSession ? 'bg-danger text-danger-foreground hover:bg-danger/90' : ''
+              }`}
+              disabled={isSessionStarting || isSessionEnding}
+              ref={sessionButtonRef}
+              onClick={() => {
+                if (hasActiveSession) {
+                  setIsAbandonOpen(true)
+                  return
+                }
+                handleStartSession()
+              }}
+              type="button"
+            >
+              {hasActiveSession ? '풀이 포기' : '풀이 시작'}
+            </Button>
+          </div>
+          {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
         </div>
       </div>
 
