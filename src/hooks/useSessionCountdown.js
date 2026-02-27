@@ -8,12 +8,13 @@ const getTimestamp = (expiresAt) => {
   return Number.isNaN(timestamp) ? null : timestamp
 }
 
-const getRemainingMs = (expiresAt) => {
+const getRemainingMs = (expiresAt, now) => {
   const target = getTimestamp(expiresAt)
   if (!target) {
     return null
   }
-  return Math.max(0, target - Date.now())
+  const nowTimestamp = Number.isFinite(now) ? now : Date.now()
+  return Math.max(0, target - nowTimestamp)
 }
 
 const formatTime = (timeLeftMs) => {
@@ -41,7 +42,7 @@ export const useSessionCountdown = (expiresAt) => {
     return () => window.clearInterval(intervalId)
   }, [expiresAt])
 
-  const timeLeftMs = useMemo(() => getRemainingMs(expiresAt) ?? null, [expiresAt, now])
+  const timeLeftMs = useMemo(() => getRemainingMs(expiresAt, now) ?? null, [expiresAt, now])
   const formatted = useMemo(() => formatTime(timeLeftMs), [timeLeftMs])
   const isExpired = timeLeftMs !== null && timeLeftMs <= 0
 
