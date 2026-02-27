@@ -36,8 +36,8 @@ const HELP_AUTO_KEY = 'codoc_help_auto_shown'
 const HELP_STEPS = [
   {
     id: 'session',
-    title: '풀이 시작/중단',
-    description: '문제 풀이를 시작하거나, 진행 중인 풀이를 중단할 수 있습니다.',
+    title: '풀이 시작/포기',
+    description: '문제 풀이를 시작하거나, 진행 중인 풀이를 포기할 수 있습니다.',
   },
   {
     id: 'summary',
@@ -696,7 +696,7 @@ export default function ProblemDetail() {
               }}
               type="button"
             >
-              {hasActiveSession ? '풀이 중단' : '풀이 시작'}
+              {hasActiveSession ? '풀이 포기' : '풀이 시작'}
             </Button>
           </div>
           {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
@@ -715,8 +715,8 @@ export default function ProblemDetail() {
             aria-modal="true"
             className="relative w-full max-w-[320px] rounded-2xl bg-background p-5 shadow-xl"
           >
-            <h3 className="text-base font-semibold text-foreground">풀이를 중단할까요?</h3>
-            <p className="mt-2 text-sm text-muted-foreground">정말 중단하겠습니까?</p>
+            <h3 className="text-base font-semibold text-foreground">풀이를 포기할까요?</h3>
+            <p className="mt-2 text-sm text-muted-foreground">정말 포기하겠습니까?</p>
             <div className="mt-5 flex items-center gap-3">
               <Button
                 className="flex-1 rounded-xl"
