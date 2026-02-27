@@ -1,8 +1,9 @@
 import { Lock, Search, Users } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
-import { getChatRoomList } from '@/services/chat/chatService'
+import { getChatRoomList, joinChatRoom } from '@/services/chat/chatService'
 
 const PAGE_LIMIT = 20
 const SCOPE_OPTIONS = [
@@ -25,12 +26,33 @@ const getEmptyMessage = (scope, keyword) => {
   return '참여 중인 오픈채팅방이 없습니다.'
 }
 
-const JoinedChatRoomCard = ({ room }) => {
+const toJoinErrorMessage = (error) => {
+  const code = error?.response?.data?.code
+
+  if (code === 'CHAT_ROOM_INVALID_PASSWORD') {
+    return '비밀번호가 올바르지 않습니다.'
+  }
+  if (code === 'CHAT_ROOM_FULL') {
+    return '정원이 가득 찬 오픈채팅방입니다.'
+  }
+  if (code === 'CHAT_ROOM_NOT_FOUND') {
+    return '오픈채팅방을 찾을 수 없습니다.'
+  }
+
+  return '오픈채팅방 입장에 실패했습니다. 잠시 후 다시 시도해주세요.'
+}
+
+const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
   const preview = room.lastMessagePreview?.trim() || '아직 메시지가 없습니다.'
 
   return (
     <li>
-      <div className="rounded-2xl border border-border bg-card p-4 shadow-[0_6px_16px_rgba(15,23,42,0.05)]">
+      <button
+        className="w-full rounded-2xl border border-border bg-card p-4 text-left shadow-[0_6px_16px_rgba(15,23,42,0.05)] transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-70"
+        disabled={isOpening}
+        onClick={() => onOpen(room)}
+        type="button"
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold">{room.title}</p>
@@ -48,16 +70,21 @@ const JoinedChatRoomCard = ({ room }) => {
             <Users className="h-3.5 w-3.5" />
             {room.participantsCount}명
           </span>
-          <span>{room.lastMessageAtLabel || '메시지 없음'}</span>
+          <span>{isOpening ? '입장 중...' : room.lastMessageAtLabel || '메시지 없음'}</span>
         </div>
-      </div>
+      </button>
     </li>
   )
 }
 
-const SearchChatRoomCard = ({ room }) => (
+const SearchChatRoomCard = ({ room, isOpening, onOpen }) => (
   <li>
-    <div className="rounded-2xl border border-border bg-card p-4 shadow-[0_6px_16px_rgba(15,23,42,0.05)]">
+    <button
+      className="w-full rounded-2xl border border-border bg-card p-4 text-left shadow-[0_6px_16px_rgba(15,23,42,0.05)] transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-70"
+      disabled={isOpening}
+      onClick={() => onOpen(room)}
+      type="button"
+    >
       <div className="flex items-start justify-between gap-3">
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">{room.title}</p>
         <span
@@ -75,13 +102,15 @@ const SearchChatRoomCard = ({ room }) => (
           <Users className="h-3.5 w-3.5" />
           {room.participantCount}/{room.maxParticipants}
         </span>
-        <span>{room.lastMessageAtLabel || '메시지 없음'}</span>
+        <span>{isOpening ? '입장 중...' : room.lastMessageAtLabel || '메시지 없음'}</span>
       </div>
-    </div>
+    </button>
   </li>
 )
 
 export default function ChatRooms() {
+  const navigate = useNavigate()
+
   const [scope, setScope] = useState('joined')
   const [inputKeyword, setInputKeyword] = useState('')
   const [keyword, setKeyword] = useState('')
@@ -93,6 +122,8 @@ export default function ChatRooms() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState('')
+  const [joinError, setJoinError] = useState('')
+  const [pendingRoomId, setPendingRoomId] = useState(null)
 
   const fetchRooms = useCallback(
     async ({ cursor = null, append = false } = {}) => {
@@ -112,6 +143,7 @@ export default function ChatRooms() {
         setIsLoading(true)
       }
       setLoadError('')
+      setJoinError('')
 
       try {
         const response = await getChatRoomList({
@@ -153,6 +185,55 @@ export default function ChatRooms() {
       return
     }
     fetchRooms({ cursor: nextCursor, append: true })
+  }
+
+  const handleOpenRoom = async (room) => {
+    const roomId = Number(room.roomId)
+
+    if (!Number.isInteger(roomId) || roomId <= 0) {
+      setJoinError('유효하지 않은 오픈채팅방입니다.')
+      return
+    }
+
+    if (pendingRoomId === roomId) {
+      return
+    }
+
+    setJoinError('')
+
+    if (scope === 'joined') {
+      navigate(`/chat/${roomId}`, { state: { roomTitle: room.title } })
+      return
+    }
+
+    let password
+    if (room.hasPassword) {
+      const entered = window.prompt('비밀번호를 입력해주세요.')
+      if (entered === null) {
+        return
+      }
+      password = entered.trim()
+      if (!password) {
+        setJoinError('비밀번호를 입력해주세요.')
+        return
+      }
+    }
+
+    setPendingRoomId(roomId)
+
+    try {
+      await joinChatRoom({ roomId, password })
+      navigate(`/chat/${roomId}`, { state: { roomTitle: room.title } })
+    } catch (error) {
+      const code = error?.response?.data?.code
+      if (code === 'CHAT_ROOM_ALREADY_JOINED') {
+        navigate(`/chat/${roomId}`, { state: { roomTitle: room.title } })
+        return
+      }
+      setJoinError(toJoinErrorMessage(error))
+    } finally {
+      setPendingRoomId(null)
+    }
   }
 
   const emptyMessage = useMemo(() => getEmptyMessage(scope, keyword), [scope, keyword])
@@ -214,6 +295,7 @@ export default function ChatRooms() {
       ) : null}
 
       {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
+      {joinError ? <StatusMessage tone="error">{joinError}</StatusMessage> : null}
 
       {isLoading ? (
         <div className="space-y-2">
@@ -234,13 +316,26 @@ export default function ChatRooms() {
 
       {!isLoading && rooms.length > 0 ? (
         <ul className="space-y-2">
-          {rooms.map((room) =>
-            scope === 'joined' ? (
-              <JoinedChatRoomCard key={room.roomId} room={room} />
+          {rooms.map((room) => {
+            const roomId = Number(room.roomId)
+            const isOpening = Number.isInteger(roomId) && pendingRoomId === roomId
+
+            return scope === 'joined' ? (
+              <JoinedChatRoomCard
+                key={room.roomId}
+                isOpening={isOpening}
+                onOpen={handleOpenRoom}
+                room={room}
+              />
             ) : (
-              <SearchChatRoomCard key={room.roomId} room={room} />
-            ),
-          )}
+              <SearchChatRoomCard
+                key={room.roomId}
+                isOpening={isOpening}
+                onOpen={handleOpenRoom}
+                room={room}
+              />
+            )
+          })}
         </ul>
       ) : null}
 
