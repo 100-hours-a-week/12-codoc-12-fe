@@ -14,6 +14,14 @@ import { getChatRoomMessages } from '@/services/chat/chatService'
 
 const PAGE_LIMIT = 30
 const MAX_INPUT_LENGTH = 500
+const SEND_RETRY_DELAY_MS = 700
+
+const CONNECTION_STATUS_META = {
+  connecting: { label: '연결 중', className: 'bg-muted text-muted-foreground' },
+  connected: { label: '연결됨', className: 'bg-emerald-100 text-emerald-700' },
+  reconnecting: { label: '재연결 중', className: 'bg-amber-100 text-amber-700' },
+  disconnected: { label: '연결 종료', className: 'bg-red-100 text-red-600' },
+}
 
 const toCurrentUserId = () => {
   const payload = getAccessTokenPayload()
@@ -29,9 +37,6 @@ const toCurrentUserId = () => {
 const toMessageLoadError = (error) => {
   const code = error?.response?.data?.code
 
-  if (code === 'NO_CHAT_ROOM_PARTICIPANT') {
-    return '참여 중인 오픈채팅방이 아닙니다. 목록에서 입장해주세요.'
-  }
   if (code === 'CHAT_ROOM_NOT_FOUND') {
     return '오픈채팅방을 찾을 수 없습니다.'
   }
@@ -41,21 +46,48 @@ const toMessageLoadError = (error) => {
 
 const SYSTEM_MESSAGE_TYPES = new Set(['SYSTEM', 'INIT'])
 
+const toCreatedAtTime = (message) => {
+  const value = Date.parse(message?.createdAt ?? '')
+  return Number.isFinite(value) ? value : 0
+}
+
+const toNumericMessageId = (message) => {
+  const value = Number(message?.messageId)
+  return Number.isFinite(value) ? value : null
+}
+
+const compareMessagesDesc = (a, b) => {
+  const byCreatedAt = toCreatedAtTime(b) - toCreatedAtTime(a)
+  if (byCreatedAt !== 0) {
+    return byCreatedAt
+  }
+
+  const idA = toNumericMessageId(a)
+  const idB = toNumericMessageId(b)
+
+  if (idA != null && idB != null && idA !== idB) {
+    return idB - idA
+  }
+
+  return 0
+}
+
 const mergeMessages = (items = []) => {
-  const seen = new Set()
+  const byId = new Map()
+  const withoutId = []
 
-  return items.filter((item) => {
-    if (item.messageId == null) {
-      return true
+  items.forEach((item) => {
+    if (item?.messageId == null) {
+      withoutId.push(item)
+      return
     }
 
-    if (seen.has(item.messageId)) {
-      return false
+    if (!byId.has(item.messageId)) {
+      byId.set(item.messageId, item)
     }
-
-    seen.add(item.messageId)
-    return true
   })
+
+  return [...byId.values(), ...withoutId].sort(compareMessagesDesc)
 }
 
 function ChatMessageItem({ isMine, message }) {
@@ -102,10 +134,16 @@ export default function ChatRoomDetail() {
   const [realtimeError, setRealtimeError] = useState('')
   const [sendError, setSendError] = useState('')
   const [inputValue, setInputValue] = useState('')
+  const [connectionStatus, setConnectionStatus] = useState('connecting')
+  const [pendingCount, setPendingCount] = useState(0)
 
   const currentUserId = useMemo(() => toCurrentUserId(), [])
   const connectionRef = useRef(null)
   const subscriptionRef = useRef(null)
+  const connectionTokenRef = useRef(0)
+  const pendingMessagesRef = useRef([])
+  const flushTimeoutRef = useRef(null)
+  const isFlushingRef = useRef(false)
 
   const normalizedRoomId = useMemo(() => {
     const parsed = Number(roomId)
@@ -129,6 +167,72 @@ export default function ChatRoomDetail() {
 
     return `오픈채팅방 #${normalizedRoomId}`
   }, [normalizedRoomId, titleFromState])
+
+  const statusMeta = CONNECTION_STATUS_META[connectionStatus] ?? CONNECTION_STATUS_META.connecting
+
+  const clearFlushTimeout = useCallback(() => {
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current)
+      flushTimeoutRef.current = null
+    }
+  }, [])
+
+  const enqueuePendingMessage = useCallback((content, retriesLeft = 1) => {
+    pendingMessagesRef.current.push({ content, retriesLeft })
+    setPendingCount(pendingMessagesRef.current.length)
+  }, [])
+
+  const flushPendingMessages = useCallback(() => {
+    const connection = connectionRef.current
+
+    if (!connection || !connection.isConnected() || normalizedRoomId == null) {
+      return
+    }
+
+    if (isFlushingRef.current) {
+      return
+    }
+
+    isFlushingRef.current = true
+    clearFlushTimeout()
+
+    try {
+      while (pendingMessagesRef.current.length > 0) {
+        if (!connectionRef.current?.isConnected()) {
+          break
+        }
+
+        const queued = pendingMessagesRef.current[0]
+
+        try {
+          connection.publishJson(toChatMessageSendDestination(normalizedRoomId), {
+            content: queued.content,
+          })
+          pendingMessagesRef.current.shift()
+          setPendingCount(pendingMessagesRef.current.length)
+          setSendError('')
+        } catch {
+          if (queued.retriesLeft > 0) {
+            queued.retriesLeft -= 1
+            setSendError('메시지 전송을 재시도하고 있습니다.')
+            flushTimeoutRef.current = setTimeout(() => {
+              isFlushingRef.current = false
+              flushPendingMessages()
+            }, SEND_RETRY_DELAY_MS)
+            return
+          }
+
+          pendingMessagesRef.current.shift()
+          setPendingCount(pendingMessagesRef.current.length)
+          setSendError('일부 메시지 전송에 실패했습니다. 다시 시도해주세요.')
+        }
+      }
+    } finally {
+      if (!flushTimeoutRef.current) {
+        isFlushingRef.current = false
+      }
+    }
+  }, [clearFlushTimeout, normalizedRoomId])
 
   const fetchMessages = useCallback(
     async ({ cursor = null, append = false } = {}) => {
@@ -162,6 +266,16 @@ export default function ChatRoomDetail() {
         setNextCursor(response.nextCursor)
         setHasNextPage(Boolean(response.hasNextPage))
       } catch (error) {
+        const code = error?.response?.data?.code
+
+        if (code === 'NO_CHAT_ROOM_PARTICIPANT') {
+          navigate('/chat', {
+            replace: true,
+            state: { chatRedirectError: '참여 중인 오픈채팅방이 아닙니다.' },
+          })
+          return
+        }
+
         if (!append) {
           setMessages([])
           setHasNextPage(false)
@@ -173,7 +287,7 @@ export default function ChatRoomDetail() {
         setIsLoadingMore(false)
       }
     },
-    [normalizedRoomId],
+    [navigate, normalizedRoomId],
   )
 
   useEffect(() => {
@@ -182,11 +296,32 @@ export default function ChatRoomDetail() {
 
   useEffect(() => {
     if (normalizedRoomId == null) {
+      setConnectionStatus('disconnected')
       return undefined
     }
 
+    const connectionToken = connectionTokenRef.current + 1
+    connectionTokenRef.current = connectionToken
+
+    setRealtimeError('')
+    setConnectionStatus('connecting')
+
     const connection = createChatStompConnection({
+      onConnecting: () => {
+        if (connectionTokenRef.current !== connectionToken) {
+          return
+        }
+
+        setConnectionStatus((previous) =>
+          previous === 'connected' ? 'reconnecting' : 'connecting',
+        )
+      },
       onConnect: () => {
+        if (connectionTokenRef.current !== connectionToken) {
+          return
+        }
+
+        setConnectionStatus('connected')
         setRealtimeError('')
 
         subscriptionRef.current?.unsubscribe()
@@ -199,20 +334,39 @@ export default function ChatRoomDetail() {
 
             const nextMessage = toChatMessageItem(payload)
 
-            setMessages((previous) => {
-              const merged = [nextMessage, ...previous]
-              return mergeMessages(merged)
-            })
+            setMessages((previous) => mergeMessages([nextMessage, ...previous]))
           },
         )
+
+        flushPendingMessages()
       },
       onStompError: () => {
+        if (connectionTokenRef.current !== connectionToken) {
+          return
+        }
+
+        setConnectionStatus('reconnecting')
         setRealtimeError('실시간 연결 오류가 발생했습니다. 자동 재연결 중입니다.')
       },
       onWebSocketClose: () => {
-        setRealtimeError('실시간 연결이 끊어졌습니다. 자동 재연결 중입니다.')
+        if (connectionTokenRef.current !== connectionToken) {
+          return
+        }
+
+        const shouldReconnect = connectionRef.current?.isActive()
+
+        setConnectionStatus(shouldReconnect ? 'reconnecting' : 'disconnected')
+
+        if (shouldReconnect) {
+          setRealtimeError('실시간 연결이 끊어졌습니다. 자동 재연결 중입니다.')
+        }
       },
       onWebSocketError: () => {
+        if (connectionTokenRef.current !== connectionToken) {
+          return
+        }
+
+        setConnectionStatus('reconnecting')
         setRealtimeError('실시간 연결 오류가 발생했습니다. 자동 재연결 중입니다.')
       },
     })
@@ -221,12 +375,21 @@ export default function ChatRoomDetail() {
     connection.activate()
 
     return () => {
+      connectionTokenRef.current += 1
+      clearFlushTimeout()
+      isFlushingRef.current = false
+
       subscriptionRef.current?.unsubscribe()
       subscriptionRef.current = null
+
       connectionRef.current = null
       connection.deactivate()
+
+      pendingMessagesRef.current = []
+      setPendingCount(0)
+      setConnectionStatus('disconnected')
     }
-  }, [normalizedRoomId])
+  }, [clearFlushTimeout, flushPendingMessages, normalizedRoomId])
 
   const handleLoadMore = () => {
     if (!hasNextPage || !nextCursor || isLoadingMore) {
@@ -255,7 +418,9 @@ export default function ChatRoomDetail() {
     const connection = connectionRef.current
 
     if (!connection || !connection.isConnected()) {
-      setSendError('실시간 연결을 준비 중입니다. 잠시 후 다시 시도해주세요.')
+      enqueuePendingMessage(content)
+      setInputValue('')
+      setSendError('연결이 복구되면 자동으로 전송됩니다.')
       return
     }
 
@@ -264,7 +429,10 @@ export default function ChatRoomDetail() {
       setInputValue('')
       setSendError('')
     } catch {
-      setSendError('메시지 전송에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      enqueuePendingMessage(content)
+      setInputValue('')
+      setSendError('전송 실패로 자동 재시도를 예약했습니다.')
+      flushPendingMessages()
     }
   }
 
@@ -280,7 +448,14 @@ export default function ChatRoomDetail() {
           오픈채팅 목록으로
         </button>
 
-        <h2 className="mt-2 text-base font-semibold">{roomTitle}</h2>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <h2 className="min-w-0 truncate text-base font-semibold">{roomTitle}</h2>
+          <span
+            className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${statusMeta.className}`}
+          >
+            {statusMeta.label}
+          </span>
+        </div>
         <p className="mt-1 text-xs text-muted-foreground">최신 메시지 순으로 표시됩니다.</p>
       </div>
 
@@ -362,8 +537,13 @@ export default function ChatRoomDetail() {
           </button>
         </div>
 
+        {pendingCount > 0 ? (
+          <StatusMessage className="mt-2" tone="muted">
+            대기 중인 메시지 {pendingCount}개가 연결 복구 후 자동 전송됩니다.
+          </StatusMessage>
+        ) : null}
         {sendError ? (
-          <StatusMessage tone="error" className="mt-2">
+          <StatusMessage className="mt-2" tone="error">
             {sendError}
           </StatusMessage>
         ) : null}

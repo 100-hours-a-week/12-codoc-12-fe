@@ -55,6 +55,7 @@ export const toChatMessageSendDestination = (roomId) => `/pub/chat/messages/${ro
 export const createChatStompConnection = (options = {}) => {
   const {
     reconnectDelay = 2000,
+    onConnecting,
     onConnect,
     onDisconnect,
     onWebSocketClose,
@@ -71,6 +72,7 @@ export const createChatStompConnection = (options = {}) => {
   })
 
   client.beforeConnect = async () => {
+    onConnecting?.()
     const token = await resolveConnectToken()
     client.connectHeaders = token ? { Authorization: `Bearer ${token}` } : {}
   }
@@ -99,6 +101,7 @@ export const createChatStompConnection = (options = {}) => {
     activate: () => client.activate(),
     deactivate: () => client.deactivate(),
     isConnected: () => client.connected,
+    isActive: () => client.active,
     subscribe: (destination, handler, headers = {}) =>
       client.subscribe(
         destination,
