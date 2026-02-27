@@ -1,11 +1,16 @@
-import { Lock, Search, Users } from 'lucide-react'
+import { Lock, Plus, Search, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
-import { getChatRoomList, joinChatRoom } from '@/services/chat/chatService'
+import { createChatRoom, getChatRoomList, joinChatRoom } from '@/services/chat/chatService'
 
 const PAGE_LIMIT = 20
+const MAX_TITLE_LENGTH = 100
+const MIN_PASSWORD_LENGTH = 4
+const MAX_PASSWORD_LENGTH = 72
+const ASCII_PASSWORD_PATTERN = /^[\x20-\x7E]+$/
+
 const SCOPE_OPTIONS = [
   { value: 'joined', label: '참여한 방' },
   { value: 'all', label: '전체 방' },
@@ -40,6 +45,46 @@ const toJoinErrorMessage = (error) => {
   }
 
   return '오픈채팅방 입장에 실패했습니다. 잠시 후 다시 시도해주세요.'
+}
+
+const toCreateErrorMessage = (error) => {
+  const code = error?.response?.data?.code
+
+  if (code === 'INVALID_INPUT') {
+    return '입력값을 확인해주세요.'
+  }
+
+  return '오픈채팅방 생성에 실패했습니다. 잠시 후 다시 시도해주세요.'
+}
+
+const validateCreateForm = ({ title, password }) => {
+  const normalizedTitle = title.trim()
+  const normalizedPassword = password.trim()
+
+  if (!normalizedTitle) {
+    return '오픈채팅방 제목을 입력해주세요.'
+  }
+
+  if (normalizedTitle.length > MAX_TITLE_LENGTH) {
+    return `오픈채팅방 제목은 최대 ${MAX_TITLE_LENGTH}자까지 입력할 수 있습니다.`
+  }
+
+  if (!normalizedPassword) {
+    return ''
+  }
+
+  if (
+    normalizedPassword.length < MIN_PASSWORD_LENGTH ||
+    normalizedPassword.length > MAX_PASSWORD_LENGTH
+  ) {
+    return `비밀번호는 ${MIN_PASSWORD_LENGTH}~${MAX_PASSWORD_LENGTH}자로 입력해주세요.`
+  }
+
+  if (!ASCII_PASSWORD_PATTERN.test(normalizedPassword)) {
+    return '비밀번호는 영문/숫자/특수문자(ASCII)만 사용할 수 있습니다.'
+  }
+
+  return ''
 }
 
 const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
@@ -125,6 +170,12 @@ export default function ChatRooms() {
   const [joinError, setJoinError] = useState('')
   const [pendingRoomId, setPendingRoomId] = useState(null)
 
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [createTitle, setCreateTitle] = useState('')
+  const [createPassword, setCreatePassword] = useState('')
+  const [isCreating, setIsCreating] = useState(false)
+  const [createError, setCreateError] = useState('')
+
   const fetchRooms = useCallback(
     async ({ cursor = null, append = false } = {}) => {
       if (scope === 'all' && !keyword) {
@@ -187,6 +238,47 @@ export default function ChatRooms() {
     fetchRooms({ cursor: nextCursor, append: true })
   }
 
+  const toggleCreateForm = () => {
+    setIsCreateOpen((previous) => !previous)
+    setCreateError('')
+  }
+
+  const handleCreateSubmit = async (event) => {
+    event.preventDefault()
+
+    if (isCreating) {
+      return
+    }
+
+    const validationMessage = validateCreateForm({
+      title: createTitle,
+      password: createPassword,
+    })
+
+    if (validationMessage) {
+      setCreateError(validationMessage)
+      return
+    }
+
+    setCreateError('')
+    setIsCreating(true)
+
+    try {
+      const { roomId } = await createChatRoom({
+        title: createTitle.trim(),
+        password: createPassword.trim() || undefined,
+      })
+
+      navigate(`/chat/${roomId}`, {
+        state: { roomTitle: createTitle.trim() },
+      })
+    } catch (error) {
+      setCreateError(toCreateErrorMessage(error))
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
   const handleOpenRoom = async (room) => {
     const roomId = Number(room.roomId)
 
@@ -246,6 +338,64 @@ export default function ChatRooms() {
           참여한 오픈채팅방을 확인하고, 원하는 방을 검색해보세요.
         </p>
       </div>
+
+      <div className="flex items-center justify-end">
+        <button
+          className="inline-flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-semibold transition hover:bg-muted/40"
+          onClick={toggleCreateForm}
+          type="button"
+        >
+          {isCreateOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+          {isCreateOpen ? '생성 닫기' : '방 만들기'}
+        </button>
+      </div>
+
+      {isCreateOpen ? (
+        <div className="rounded-2xl border border-border bg-card p-3">
+          <form className="space-y-3" onSubmit={handleCreateSubmit}>
+            <div className="space-y-1">
+              <label className="text-xs font-semibold" htmlFor="create-chat-room-title">
+                오픈채팅방 제목
+              </label>
+              <input
+                id="create-chat-room-title"
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-info"
+                maxLength={MAX_TITLE_LENGTH}
+                onChange={(event) => setCreateTitle(event.target.value)}
+                placeholder="예) 백준 실버 문제 풀이방"
+                value={createTitle}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-semibold" htmlFor="create-chat-room-password">
+                비밀번호 (선택)
+              </label>
+              <input
+                id="create-chat-room-password"
+                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-info"
+                maxLength={MAX_PASSWORD_LENGTH}
+                onChange={(event) => setCreatePassword(event.target.value)}
+                placeholder="비워두면 공개방으로 생성됩니다"
+                value={createPassword}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                비밀번호를 입력하면 비공개 오픈채팅방으로 생성됩니다.
+              </p>
+            </div>
+
+            <button
+              className="h-10 w-full rounded-xl bg-info text-sm font-semibold text-white transition hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={isCreating}
+              type="submit"
+            >
+              {isCreating ? '생성 중...' : '오픈채팅방 생성'}
+            </button>
+          </form>
+        </div>
+      ) : null}
+
+      {createError ? <StatusMessage tone="error">{createError}</StatusMessage> : null}
 
       <div className="rounded-2xl border border-border bg-card p-3">
         <form className="flex items-center gap-2" onSubmit={handleSearchSubmit}>
