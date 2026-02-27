@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, BookOpen, Home, User } from 'lucide-react'
+import { ArrowLeft, Bell, BookOpen, Home, MessageCircle, User } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
@@ -14,6 +14,7 @@ import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 const navItems = [
   { to: '/', label: '홈', Icon: Home, end: true },
   { to: '/problems', label: '문제집', Icon: BookOpen },
+  { to: '/chat', label: '오픈채팅', Icon: MessageCircle },
   { to: '/my', label: '마이', Icon: User },
 ]
 
@@ -200,7 +201,7 @@ export default function MainLayout() {
             style={{ left: `${shellRect.left}px`, width: `${shellRect.width}px` }}
           >
             <div className="pb-[env(safe-area-inset-bottom)]">
-              <nav className="grid grid-cols-3 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
+              <nav className="grid grid-cols-4 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
                 {navItems.map(({ to, label, Icon, end }) => (
                   <NavLink
                     key={to}
