@@ -1,6 +1,6 @@
 import { Lock, Plus, Search, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
 import { createChatRoom, getChatRoomList, joinChatRoom } from '@/services/chat/chatService'
@@ -154,6 +154,7 @@ const SearchChatRoomCard = ({ room, isOpening, onOpen }) => (
 )
 
 export default function ChatRooms() {
+  const location = useLocation()
   const navigate = useNavigate()
 
   const [scope, setScope] = useState('joined')
@@ -175,6 +176,17 @@ export default function ChatRooms() {
   const [createPassword, setCreatePassword] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+
+  useEffect(() => {
+    const redirectedError = location.state?.chatRedirectError
+
+    if (typeof redirectedError !== 'string' || !redirectedError.trim()) {
+      return
+    }
+
+    setJoinError(redirectedError.trim())
+    navigate('/chat', { replace: true, state: null })
+  }, [location.state, navigate])
 
   const fetchRooms = useCallback(
     async ({ cursor = null, append = false } = {}) => {
