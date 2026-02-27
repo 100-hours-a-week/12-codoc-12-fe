@@ -1,5 +1,6 @@
 import {
   requestChatMessages,
+  requestCreateChatRoom,
   requestJoinChatRoom,
   requestSearchChatRooms,
   requestSearchUserChatRooms,
@@ -12,6 +13,7 @@ import {
 } from './chatDto'
 import {
   toChatMessageListParams,
+  toChatRoomCreateRequest,
   toChatRoomJoinRequest,
   toChatRoomListParams,
   toChatRoomSearchParams,
@@ -73,6 +75,19 @@ export const getChatRoomList = async (params = {}) => {
     cursor: params.cursor,
     limit: params.limit,
   })
+}
+
+export const createChatRoom = async (params = {}) => {
+  const payload = toChatRoomCreateRequest(params)
+  const response = await requestCreateChatRoom(payload)
+
+  const roomId = Number(response?.data?.roomId)
+
+  if (!Number.isInteger(roomId) || roomId <= 0) {
+    throw new Error('Invalid chat room create response')
+  }
+
+  return { roomId }
 }
 
 export const joinChatRoom = async (params = {}) => {

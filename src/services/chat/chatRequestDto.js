@@ -48,6 +48,20 @@ export const toChatRoomSearchParams = (params = {}) => {
   return nextParams
 }
 
+export const toChatRoomCreateRequest = (params = {}) => {
+  const title = String(params.title ?? '').trim()
+  const password = normalizePassword(params.password)
+
+  if (!password) {
+    return { title }
+  }
+
+  return {
+    title,
+    password,
+  }
+}
+
 export const toChatRoomJoinRequest = (password) => {
   const normalizedPassword = normalizePassword(password)
 
