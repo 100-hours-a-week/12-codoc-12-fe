@@ -7,7 +7,7 @@ export const submitQuiz = async (quizId, payload = {}) => {
   return toQuizSubmissionResponse(response)
 }
 
-export const submitProblem = async (problemId) => {
-  const response = await requestProblemSubmission(problemId)
+export const submitProblem = async (problemId, payload = {}) => {
+  const response = await requestProblemSubmission(problemId, payload)
   return toProblemSubmissionResponse(response)
 }
