@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { isSessionRequiredError } from '@/lib/session'
 import { submitSummaryCards } from '@/services/summaryCards/summaryCardsService'
-import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
 const SUMMARY_CARD_LABELS = {
@@ -31,15 +29,10 @@ export default function ProblemSummaryCards({
   onClose,
   onStatusChange,
   onQuizStart,
-  onSessionRequired,
 }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(null)
   const { sessions, updateSession, resetSession } = useSummaryCardStore()
   const session = problemId ? sessions[String(problemId)] : null
-  const { sessions: problemSessions } = useProblemSessionStore()
-  const problemSession = problemId ? problemSessions[String(problemId)] : null
-  const sessionId = problemSession?.sessionId ?? null
   const selectedChoices = useMemo(() => session?.selectedChoices ?? {}, [session?.selectedChoices])
   const gradingResults = useMemo(() => session?.gradingResults ?? [], [session?.gradingResults])
   const [activeCardKey, setActiveCardKey] = useState(null)
@@ -96,7 +89,6 @@ export default function ProblemSummaryCards({
       return
     }
 
-    setSubmitError(null)
     const choiceIds = summaryCards.map((card, index) => {
       const cardKey = getCardKey(card, index)
       return selectedChoices[cardKey]
@@ -104,17 +96,11 @@ export default function ProblemSummaryCards({
 
     setIsSubmitting(true)
     try {
-      const response = await submitSummaryCards({ problemId, choiceIds, sessionId })
+      const response = await submitSummaryCards({ problemId, choiceIds })
       updateSession(problemId, { gradingResults: response.results ?? [] })
       if (response.status && onStatusChange) {
         onStatusChange(response.status)
       }
-    } catch (error) {
-      if (isSessionRequiredError(error)) {
-        onSessionRequired?.()
-        return
-      }
-      setSubmitError('답안을 제출하지 못했습니다. 다시 시도해주세요.')
     } finally {
       setIsSubmitting(false)
     }
@@ -277,7 +263,6 @@ export default function ProblemSummaryCards({
       >
         {isGraded ? (allCorrect ? '퀴즈 풀기' : '다시 풀기') : '제출하기'}
       </Button>
-      {submitError ? <p className="text-xs text-danger">{submitError}</p> : null}
 
       <div className="mb-4 rounded-xl bg-muted/60 px-4 py-3 text-xs text-muted-foreground">
         문제의 핵심을 파악하면 해결 방법이 명확해집니다. 요약 카드를 완성하고 알고리즘 퀴즈로
