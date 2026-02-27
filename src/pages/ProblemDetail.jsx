@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 
-import SessionTimer from '@/components/SessionTimer'
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -13,16 +12,11 @@ import { formatDifficultyLabel } from '@/constants/difficulty'
 import { STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { trackEvent } from '@/lib/ga4'
-import { isSessionExpired } from '@/lib/session'
 import {
-  closeProblemSession,
   getProblemDetail,
   registerProblemBookmark,
   removeProblemBookmark,
-  startProblemSession,
 } from '@/services/problems/problemsService'
-import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
-import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import remarkGfm from 'remark-gfm'
 
 const TAB_ITEMS = [
@@ -81,19 +75,6 @@ export default function ProblemDetail() {
   const [helpStepIndex, setHelpStepIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
   const [helpModalStyle, setHelpModalStyle] = useState({ top: 0, left: 0 })
-  const [isSessionStarting, setIsSessionStarting] = useState(false)
-  const [isSessionEnding, setIsSessionEnding] = useState(false)
-  const [sessionError, setSessionError] = useState(null)
-  const [isAbandonOpen, setIsAbandonOpen] = useState(false)
-  const { sessions, setSession, clearSession } = useProblemSessionStore()
-  const {
-    fetchProblem: fetchProblemDetail,
-    setProblem: setCachedProblem,
-    clearProblem,
-  } = useProblemDetailStore()
-  const problemSession = problemId ? sessions[String(problemId)] : null
-  const isExpired = isSessionExpired(problemSession?.expiresAt)
-  const hasActiveSession = Boolean(problemSession?.sessionId) && !isExpired
   const summaryButtonRef = useRef(null)
   const chatbotTabRef = useRef(null)
   const quizTabRef = useRef(null)
@@ -109,7 +90,7 @@ export default function ProblemDetail() {
   useEffect(() => {
     let isActive = true
 
-    const loadProblem = async () => {
+    const fetchProblem = async () => {
       if (!problemId) {
         if (isActive) {
           setLoadError('문제 정보를 찾을 수 없습니다.')
@@ -123,10 +104,7 @@ export default function ProblemDetail() {
       setLoadError(null)
 
       try {
-        if (reloadKey > 0) {
-          clearProblem(problemId)
-        }
-        const data = await fetchProblemDetail(problemId, getProblemDetail)
+        const data = await getProblemDetail(problemId)
         if (isActive) {
           setProblem(data)
         }
@@ -149,12 +127,12 @@ export default function ProblemDetail() {
       }
     }
 
-    loadProblem()
+    fetchProblem()
 
     return () => {
       isActive = false
     }
-  }, [clearProblem, fetchProblemDetail, navigate, problemId, reloadKey])
+  }, [navigate, problemId, reloadKey])
 
   const statusOption = useMemo(() => {
     if (!problem) {
@@ -178,12 +156,6 @@ export default function ProblemDetail() {
         : await removeProblemBookmark(problem.id)
 
       setProblem((prev) => (prev ? { ...prev, bookmarked: response.bookmarked } : prev))
-      if (problem?.id) {
-        setCachedProblem(problem.id, {
-          ...(problem ?? {}),
-          bookmarked: response.bookmarked,
-        })
-      }
       queueProblemListUpdate({
         id: problem.id,
         bookmarked: response.bookmarked,
@@ -196,53 +168,8 @@ export default function ProblemDetail() {
     }
   }
 
-  const handleStartSession = async () => {
-    if (!problemId || isSessionStarting) {
-      return null
-    }
-    setIsSessionStarting(true)
-    setSessionError(null)
-
-    try {
-      const response = await startProblemSession(problemId)
-      setSession(problemId, response)
-      return response
-    } catch {
-      setSessionError('세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
-      return null
-    } finally {
-      setIsSessionStarting(false)
-    }
-  }
-
-  const handleEndSession = async () => {
-    if (!problemId || isSessionEnding) {
-      return
-    }
-    setIsSessionEnding(true)
-    setSessionError(null)
-    try {
-      await closeProblemSession()
-      clearSession(problemId)
-    } catch {
-      setSessionError('세션을 종료하지 못했습니다. 잠시 후 다시 시도해주세요.')
-    } finally {
-      setIsSessionEnding(false)
-    }
-  }
-
-  const handleConfirmAbandon = async () => {
-    await handleEndSession()
-    setIsAbandonOpen(false)
-  }
-
-  const summaryCards = useMemo(() => problemSession?.summaryCards ?? [], [problemSession])
+  const summaryCards = useMemo(() => problem?.summaryCards ?? [], [problem])
   const hasSummaryCards = summaryCards.length > 0
-  const summaryButtonLabel = !hasActiveSession
-    ? '문제 풀이 시작 후 이용하세요'
-    : hasSummaryCards
-      ? '문제 요약 카드 만들기'
-      : '요약 카드가 없습니다'
 
   const handleRetry = () => {
     setReloadKey((prev) => prev + 1)
@@ -414,8 +341,6 @@ export default function ProblemDetail() {
               const isQuizTab = tab.id === 'quiz'
               const isQuizEnabled =
                 !isQuizTab || ['summary_card_passed', 'solved'].includes(problem?.status ?? '')
-              const isSessionEnabled = tab.id === 'problem' || hasActiveSession
-              const isEnabled = isSessionEnabled && isQuizEnabled
               const tabRef =
                 tab.id === 'chatbot' ? chatbotTabRef : tab.id === 'quiz' ? quizTabRef : null
 
@@ -425,10 +350,10 @@ export default function ProblemDetail() {
                   ref={tabRef}
                   className={`flex w-full flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
                     tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
-                  } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                  disabled={!isEnabled}
+                  } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                  disabled={!isQuizEnabled}
                   onClick={() => {
-                    if (!problemId || !isEnabled) {
+                    if (!problemId) {
                       return
                     }
                     if (tab.id === 'quiz') {
@@ -516,19 +441,18 @@ export default function ProblemDetail() {
 
           <Button
             className="w-full gap-2 rounded-xl py-6"
-            disabled={!hasActiveSession || !hasSummaryCards}
-            onClick={async () => {
-              if (!problemId) {
-                return
+            disabled={!hasSummaryCards}
+            onClick={() => {
+              if (problemId) {
+                navigate(`/problems/${problemId}/summary`)
               }
-              navigate(`/problems/${problemId}/summary`)
             }}
             ref={summaryButtonRef}
             type="button"
             variant="secondary"
           >
             {hasSummaryCards ? <Sparkles className="h-5 w-5" /> : null}
-            {summaryButtonLabel}
+            {hasSummaryCards ? '문제 요약 카드 만들기' : '요약 카드가 없습니다'}
           </Button>
 
           <section className="space-y-3">
@@ -644,72 +568,6 @@ export default function ProblemDetail() {
             )}
           </section>
           <p className="!mt-10 text-sm text-neutral-500">※ 본 문제는 AI로 생성한 콘텐츠입니다.</p>
-        </div>
-      ) : null}
-
-      <div
-        className="fixed z-30"
-        style={{
-          left: 'var(--app-shell-left)',
-          width: 'var(--app-shell-width)',
-          bottom: 'calc(var(--chatbot-input-bottom) + 16px)',
-        }}
-      >
-        <div className="flex flex-col items-end gap-2 px-4">
-          {hasActiveSession ? <SessionTimer expiresAt={problemSession?.expiresAt} /> : null}
-          <Button
-            className={`rounded-full px-5 shadow-md ${
-              hasActiveSession ? 'bg-danger text-danger-foreground hover:bg-danger/90' : ''
-            }`}
-            disabled={isSessionStarting || isSessionEnding}
-            onClick={() => {
-              if (hasActiveSession) {
-                setIsAbandonOpen(true)
-                return
-              }
-              handleStartSession()
-            }}
-            type="button"
-          >
-            {hasActiveSession ? '풀이 포기' : '풀이 시작'}
-          </Button>
-          {sessionError ? <p className="text-xs text-danger">{sessionError}</p> : null}
-        </div>
-      </div>
-
-      {isAbandonOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
-          <div
-            className="absolute inset-0 bg-black/50"
-            aria-hidden
-            onClick={() => setIsAbandonOpen(false)}
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            className="relative w-full max-w-[320px] rounded-2xl bg-background p-5 shadow-xl"
-          >
-            <h3 className="text-base font-semibold text-foreground">풀이를 포기할까요?</h3>
-            <p className="mt-2 text-sm text-muted-foreground">정말 포기하겠습니까?</p>
-            <div className="mt-5 flex items-center gap-3">
-              <Button
-                className="flex-1 rounded-xl"
-                onClick={() => setIsAbandonOpen(false)}
-                type="button"
-                variant="secondary"
-              >
-                취소
-              </Button>
-              <Button
-                className="flex-1 rounded-xl bg-danger text-danger-foreground hover:bg-danger/90"
-                disabled={isSessionEnding}
-                onClick={handleConfirmAbandon}
-                type="button"
-              >
-                확인
-              </Button>
-            </div>
-          </div>
         </div>
       ) : null}
 

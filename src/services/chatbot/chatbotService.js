@@ -4,7 +4,6 @@ import {
   applyRateLimitFromResponse,
   getRetryAfterSeconds,
 } from '@/lib/rateLimit'
-import { isSessionRequiredCode } from '@/lib/session'
 
 import { requestChatbotConversations } from './chatbotApi'
 import {
@@ -18,7 +17,7 @@ const CHATBOT_CONVERSATIONS_PAGE_LIMIT = 50
 const CHATBOT_CONVERSATIONS_MAX_PAGES = 20
 
 export const createChatbotStream = (payload = {}, handlers = {}) => {
-  const { onToken, onFinal, onError, onStatus, onRateLimit, onSessionRequired } = handlers
+  const { onToken, onFinal, onError, onStatus, onRateLimit } = handlers
   const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const url = `${baseUrl}/api/chatbot/messages/stream`
@@ -178,19 +177,6 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
           return
         }
 
-        if (response.status === 400) {
-          try {
-            const errorPayload = await response.clone().json()
-            const errorCode = errorPayload?.code ?? errorPayload?.data?.code
-            if (isSessionRequiredCode(errorCode)) {
-              onSessionRequired?.(errorPayload)
-              return
-            }
-          } catch {
-            // ignore parse errors
-          }
-        }
-
         if (applyRateLimitFromResponse(response)) {
           return
         }
@@ -248,7 +234,6 @@ export const getAllChatbotConversations = async (problemId, options = {}) => {
     return { items: [], nextCursor: null, hasNextPage: false }
   }
 
-  const sessionId = options.sessionId ?? null
   const requestedLimit = Number(options.limit)
   const pageLimit =
     Number.isInteger(requestedLimit) && requestedLimit > 0
@@ -265,7 +250,6 @@ export const getAllChatbotConversations = async (problemId, options = {}) => {
 
     const page = await getChatbotConversations({
       problemId: normalizedProblemId,
-      sessionId,
       cursor,
       limit: pageLimit,
     })
