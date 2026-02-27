@@ -5,13 +5,17 @@ import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 
+import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { trackEvent } from '@/lib/ga4'
+import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
 import { createChatbotStream, getAllChatbotConversations } from '@/services/chatbot/chatbotService'
-import { getProblemDetail } from '@/services/problems/problemsService'
+import { getProblemDetail, startProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
+import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
+import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -208,9 +212,18 @@ export default function Chatbot() {
   const [loadError, setLoadError] = useState(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [isSessionStarting, setIsSessionStarting] = useState(false)
+  const [sessionError, setSessionError] = useState(null)
+  const [isSessionRequired, setIsSessionRequired] = useState(false)
 
   const { sessions, initSession, updateSession } = useChatbotStore()
   const session = problemId ? sessions[String(problemId)] : null
+  const { sessions: problemSessions, setSession: setProblemSession } = useProblemSessionStore()
+  const { fetchProblem: fetchProblemDetail } = useProblemDetailStore()
+  const problemSession = problemId ? problemSessions[String(problemId)] : null
+  const sessionId = problemSession?.sessionId ?? null
+  const isExpired = isSessionExpired(problemSession?.expiresAt)
+  const hasActiveSession = Boolean(sessionId) && !isExpired
   const messages = useMemo(() => session?.messages ?? [INITIAL_MESSAGE], [session?.messages])
   const inputValue = session?.inputValue ?? ''
   const assistantMessageId = session?.assistantMessageId ?? null
@@ -506,19 +519,28 @@ export default function Chatbot() {
 
       setIsLoading(true)
       setLoadError(null)
+      setIsSessionRequired(false)
 
       try {
         const existingSession = useChatbotStore.getState().sessions[String(problemId)]
-        const [data, history] = await Promise.all([
-          getProblemDetail(problemId),
-          existingSession ? Promise.resolve({ items: [] }) : getAllChatbotConversations(problemId),
-        ])
+        const data = await fetchProblemDetail(problemId, getProblemDetail)
+        let history = { items: [] }
+        if (sessionId && !existingSession) {
+          history = await getAllChatbotConversations(problemId, { sessionId })
+        }
         if (isActive) {
           setProblemStatus(data.status)
-          initSession(problemId, toHistoryMessages(history?.items))
+          if (sessionId) {
+            initSession(problemId, toHistoryMessages(history?.items))
+          }
         }
       } catch (error) {
         if (isActive) {
+          if (isSessionRequiredError(error)) {
+            setIsSessionRequired(true)
+            setProblemStatus(null)
+            return
+          }
           const status = error?.response?.status
           if (status === 404) {
             setLoadError('존재하지 않는 문제입니다.')
@@ -542,7 +564,7 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [initSession, navigate, problemId])
+  }, [fetchProblemDetail, initSession, navigate, problemId, sessionId])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -652,6 +674,10 @@ export default function Chatbot() {
             },
           })
         },
+        onSessionRequired: () => {
+          handleStopStreaming()
+          setIsSessionRequired(true)
+        },
       })
       streamPayloadRef.current = null
     }
@@ -703,7 +729,7 @@ export default function Chatbot() {
       isStreaming: true,
     })
 
-    streamPayloadRef.current = { problemId, message: trimmed }
+    streamPayloadRef.current = { problemId, message: trimmed, sessionId }
   }
 
   const handleScrollBottom = () => {
@@ -722,6 +748,36 @@ export default function Chatbot() {
     }
   }, [navigate, problemId])
 
+  const handleStartSession = async () => {
+    if (!problemId || isSessionStarting) {
+      return
+    }
+    setIsSessionStarting(true)
+    setSessionError(null)
+    try {
+      const response = await startProblemSession(problemId)
+      setProblemSession(problemId, response)
+      updateSession(problemId, {
+        messages: [INITIAL_MESSAGE],
+        inputValue: '',
+        conversationId: null,
+        assistantMessageId: null,
+        isStreaming: false,
+        isInputBlocked: false,
+        sendError: null,
+      })
+      setIsSessionRequired(false)
+    } catch (error) {
+      if (isSessionRequiredError(error)) {
+        setIsSessionRequired(true)
+        return
+      }
+      setSessionError('세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsSessionStarting(false)
+    }
+  }
+
   const isQuizEnabled = useMemo(
     () => ['summary_card_passed', 'solved'].includes(problemStatus ?? ''),
     [problemStatus],
@@ -734,7 +790,8 @@ export default function Chatbot() {
           <div className="grid grid-cols-3">
             {TAB_ITEMS.map((tab) => {
               const isQuizTab = tab.id === 'quiz'
-              const isEnabled = !isQuizTab || isQuizEnabled
+              const isSessionEnabled = tab.id === 'problem' || hasActiveSession
+              const isEnabled = isSessionEnabled && (!isQuizTab || isQuizEnabled)
 
               return (
                 <button
@@ -744,7 +801,7 @@ export default function Chatbot() {
                   } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                   disabled={!isEnabled}
                   onClick={() => {
-                    if (!problemId) {
+                    if (!problemId || !isEnabled) {
                       return
                     }
                     if (tab.id === 'problem') {
@@ -774,6 +831,12 @@ export default function Chatbot() {
         ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
       </p>
 
+      {hasActiveSession ? (
+        <div className="flex justify-end">
+          <SessionTimer expiresAt={problemSession?.expiresAt} />
+        </div>
+      ) : null}
+
       {isLoading ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
           <p className="text-sm text-muted-foreground">챗봇을 준비하는 중입니다.</p>
@@ -783,6 +846,23 @@ export default function Chatbot() {
           <p className="text-sm text-red-500">{loadError}</p>
           <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
             다시 시도
+          </Button>
+        </Card>
+      ) : isSessionRequired || !hasActiveSession ? (
+        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {isExpired || isSessionRequired
+              ? '세션이 만료되었습니다. 다시 시작해주세요.'
+              : '문제 풀이를 시작해야 챗봇을 사용할 수 있어요.'}
+          </p>
+          {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
+          <Button
+            className="mt-4 w-full rounded-xl"
+            disabled={isSessionStarting}
+            onClick={handleStartSession}
+            type="button"
+          >
+            문제 풀이 시작
           </Button>
         </Card>
       ) : (
