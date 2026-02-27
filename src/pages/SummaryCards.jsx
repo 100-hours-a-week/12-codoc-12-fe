@@ -3,12 +3,16 @@ import { motion } from 'framer-motion'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import ProblemSummaryCards from '@/components/ProblemSummaryCards'
+import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { trackEvent } from '@/lib/ga4'
-import { getProblemDetail } from '@/services/problems/problemsService'
+import { getProblemDetail, startProblemSession } from '@/services/problems/problemsService'
+import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
+import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -25,7 +29,15 @@ export default function SummaryCards() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState(null)
   const [isExiting, setIsExiting] = useState(false)
+  const [isSessionStarting, setIsSessionStarting] = useState(false)
+  const [sessionError, setSessionError] = useState(null)
+  const [isSessionRequired, setIsSessionRequired] = useState(false)
   const hasTrackedSummaryCompleteRef = useRef(false)
+  const { sessions, setSession } = useProblemSessionStore()
+  const { fetchProblem: fetchProblemDetail, setProblem: setCachedProblem } = useProblemDetailStore()
+  const session = problemId ? sessions[String(problemId)] : null
+  const isExpired = isSessionExpired(session?.expiresAt)
+  const hasActiveSession = Boolean(session?.sessionId) && !isExpired
 
   useEffect(() => {
     if (!problemId) {
@@ -38,7 +50,7 @@ export default function SummaryCards() {
   useEffect(() => {
     let isActive = true
 
-    const fetchProblem = async () => {
+    const loadProblem = async () => {
       if (!problemId) {
         if (isActive) {
           setLoadError('문제 정보를 찾을 수 없습니다.')
@@ -52,7 +64,7 @@ export default function SummaryCards() {
       setLoadError(null)
 
       try {
-        const data = await getProblemDetail(problemId)
+        const data = await fetchProblemDetail(problemId, getProblemDetail)
         if (isActive) {
           setProblem(data)
         }
@@ -75,14 +87,14 @@ export default function SummaryCards() {
       }
     }
 
-    fetchProblem()
+    loadProblem()
 
     return () => {
       isActive = false
     }
-  }, [navigate, problemId])
+  }, [fetchProblemDetail, navigate, problemId])
 
-  const summaryCards = useMemo(() => problem?.summaryCards ?? [], [problem])
+  const summaryCards = useMemo(() => session?.summaryCards ?? [], [session])
   const problemStatus = problem?.status ?? null
 
   const handleQuizStart = () => {
@@ -96,6 +108,27 @@ export default function SummaryCards() {
       return
     }
     setIsExiting(true)
+  }
+
+  const handleStartSession = async () => {
+    if (!problemId || isSessionStarting) {
+      return
+    }
+    setIsSessionStarting(true)
+    setSessionError(null)
+    try {
+      const response = await startProblemSession(problemId)
+      setSession(problemId, response)
+      setIsSessionRequired(false)
+    } catch (error) {
+      if (isSessionRequiredError(error)) {
+        setIsSessionRequired(true)
+        return
+      }
+      setSessionError('세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsSessionStarting(false)
+    }
   }
 
   const handleStatusChange = (status) => {
@@ -116,6 +149,7 @@ export default function SummaryCards() {
         difficulty: problem.difficulty,
         title: problem.title,
       })
+      setCachedProblem(problem.id, { ...problem, status })
     }
   }
 
@@ -127,14 +161,20 @@ export default function SummaryCards() {
             const isQuizTab = tab.id === 'quiz'
             const isQuizEnabled =
               !isQuizTab || ['summary_card_passed', 'solved'].includes(problemStatus ?? '')
+            const isSessionEnabled = tab.id === 'problem' || hasActiveSession
+            const isEnabled = isSessionEnabled && (!isQuizTab || isQuizEnabled)
 
             return (
               <button
                 key={tab.id}
                 className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                  tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
-                } ${!isQuizEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
-                disabled={!isQuizEnabled}
+                  tab.id === ACTIVE_TAB_ID
+                    ? 'text-info'
+                    : isEnabled
+                      ? 'text-foreground/80'
+                      : 'text-neutral-500'
+                } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                disabled={!isEnabled}
                 onClick={() => {
                   if (!problemId) {
                     return
@@ -163,6 +203,12 @@ export default function SummaryCards() {
           })}
         </div>
       </div>
+
+      {hasActiveSession ? (
+        <div className="flex justify-end">
+          <SessionTimer expiresAt={session?.expiresAt} />
+        </div>
+      ) : null}
 
       <motion.div
         style={{
@@ -219,6 +265,23 @@ export default function SummaryCards() {
               다시 시도
             </Button>
           </Card>
+        ) : isSessionRequired || !hasActiveSession ? (
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {isExpired || isSessionRequired
+                ? '세션이 만료되었습니다. 다시 시작해주세요.'
+                : '문제 풀이를 시작해야 요약 카드를 풀 수 있어요.'}
+            </p>
+            {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
+            <Button
+              className="mt-4 w-full rounded-xl"
+              disabled={isSessionStarting}
+              onClick={handleStartSession}
+              type="button"
+            >
+              문제 풀이 시작
+            </Button>
+          </Card>
         ) : (
           <ProblemSummaryCards
             problemId={problem?.id ?? problemId}
@@ -226,6 +289,7 @@ export default function SummaryCards() {
             onClose={handleClose}
             onQuizStart={handleQuizStart}
             onStatusChange={handleStatusChange}
+            onSessionRequired={() => setIsSessionRequired(true)}
           />
         )}
       </motion.div>

@@ -3,12 +3,16 @@ import {
   requestProblemBookmarkRemoval,
   requestProblemDetail,
   requestProblemList,
+  requestActiveProblemSession,
+  requestProblemSessionClose,
+  requestProblemSession,
   requestProblemSearch,
 } from './problemsApi'
 import {
   toProblemBookmarkResponse,
   toProblemDetailResponse,
   toProblemListResponse,
+  toProblemSessionResponse,
 } from './problemsDto'
 import { toProblemListParams } from './problemsRequestDto'
 
@@ -23,6 +27,20 @@ export const getProblemList = async (params = {}) => {
 export const getProblemDetail = async (problemId) => {
   const response = await requestProblemDetail(problemId)
   return toProblemDetailResponse(response)
+}
+
+export const startProblemSession = async (problemId) => {
+  const response = await requestProblemSession(problemId)
+  return toProblemSessionResponse(response)
+}
+
+export const getActiveProblemSession = async () => {
+  const response = await requestActiveProblemSession()
+  return toProblemSessionResponse(response)
+}
+
+export const closeProblemSession = async () => {
+  await requestProblemSessionClose()
 }
 
 export const registerProblemBookmark = async (problemId) => {
