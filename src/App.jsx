@@ -6,6 +6,7 @@ import RateLimitGate from '@/components/RateLimitGate'
 import MainLayout from '@/layouts/MainLayout'
 import { initGa4, trackPageView } from '@/lib/ga4'
 import Chatbot from '@/pages/Chatbot'
+import ChatRooms from '@/pages/ChatRooms'
 import Home from '@/pages/Home'
 import Leaderboards from '@/pages/Leaderboards'
 import Login from '@/pages/Login'
@@ -56,6 +57,7 @@ function App() {
           <Route element={<Chatbot />} path="problems/:problemId/chatbot" />
           <Route element={<Quiz />} path="problems/:problemId/quiz" />
           <Route element={<Notifications />} path="notifications" />
+          <Route element={<ChatRooms />} path="chat" />
           <Route element={<NotificationSettings />} path="notifications/settings" />
           <Route element={<Leaderboards />} path="leaderboard" />
           <Route element={<MyPage />} path="my" />
