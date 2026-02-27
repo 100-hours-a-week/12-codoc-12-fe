@@ -40,21 +40,6 @@ export const requestProblemDetail = async (problemId) => {
   return response.data
 }
 
-export const requestProblemSession = async (problemId) => {
-  const response = await api.post(`/api/problems/${problemId}/session`)
-  return response.data
-}
-
-export const requestActiveProblemSession = async () => {
-  const response = await api.get('/api/problems/session')
-  return response.data
-}
-
-export const requestProblemSessionClose = async () => {
-  const response = await api.delete('/api/problems/session')
-  return response.data
-}
-
 export const requestProblemBookmark = async (problemId) => {
   const response = await api.put(`/api/problems/${problemId}/bookmark`)
   return response.data

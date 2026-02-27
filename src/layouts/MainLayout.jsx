@@ -4,10 +4,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useNotificationBootstrap } from '@/hooks/useNotificationBootstrap'
 import { cn } from '@/lib/utils'
-import { getActiveProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
-import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import { useQuizStore } from '@/stores/useQuizStore'
 import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
@@ -24,10 +22,7 @@ export default function MainLayout() {
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
   const hasUnread = useNotificationStore((state) => state.hasUnread)
-  const setProblemSession = useProblemSessionStore((state) => state.setSession)
-  const clearProblemSessions = useProblemSessionStore((state) => state.clearAllSessions)
   const previousPathRef = useRef(location.pathname)
-  const sessionCheckRef = useRef(false)
   const shellRef = useRef(null)
   const [shellRect, setShellRect] = useState({ left: 0, width: 0 })
 
@@ -42,51 +37,6 @@ export default function MainLayout() {
       clearSummarySessions()
     }
   }, [clearChatbotSessions, clearQuizSessions, clearSummarySessions, location.pathname])
-
-  useEffect(() => {
-    let isActive = true
-
-    const checkActiveSession = async () => {
-      if (sessionCheckRef.current) {
-        return
-      }
-      sessionCheckRef.current = true
-      try {
-        const activeSession = await getActiveProblemSession()
-        if (!isActive || !activeSession?.problemId) {
-          return
-        }
-        const expectedPath = `/problems/${activeSession.problemId}`
-        const isProblemFlow =
-          location.pathname === expectedPath || location.pathname.startsWith(`${expectedPath}/`)
-        clearProblemSessions()
-        setProblemSession(activeSession.problemId, activeSession)
-        if (!isProblemFlow) {
-          navigate(expectedPath, { replace: true })
-        }
-      } catch (error) {
-        if (!isActive) {
-          return
-        }
-        const status = error?.response?.status
-        if (status === 404) {
-          clearProblemSessions()
-          return
-        }
-        if (status) {
-          // Ignore non-404 errors for now to avoid blocking navigation.
-        }
-      } finally {
-        sessionCheckRef.current = false
-      }
-    }
-
-    checkActiveSession()
-
-    return () => {
-      isActive = false
-    }
-  }, [clearProblemSessions, location.pathname, navigate, setProblemSession])
 
   useEffect(() => {
     const path = location.pathname
@@ -143,8 +93,6 @@ export default function MainLayout() {
         data-shell="app"
         style={{
           '--chatbot-input-bottom': isNavHidden ? '16px' : '72px',
-          '--app-shell-left': `${shellRect.left}px`,
-          '--app-shell-width': `${shellRect.width}px`,
         }}
       >
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur">
