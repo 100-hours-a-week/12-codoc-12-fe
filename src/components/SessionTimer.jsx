@@ -1,5 +1,3 @@
-import { Clock } from 'lucide-react'
-
 import { useSessionCountdown } from '@/hooks/useSessionCountdown'
 
 export default function SessionTimer({ expiresAt, className = '' }) {
@@ -11,12 +9,11 @@ export default function SessionTimer({ expiresAt, className = '' }) {
 
   return (
     <div
-      className={`inline-flex items-center gap-1.5 rounded-full border border-info/40 bg-background/90 px-3 py-1 text-xs font-semibold text-foreground shadow-sm backdrop-blur ${
+      className={`rounded-full border border-info/20 bg-info/10 px-3 py-1 text-xs font-semibold text-info ${
         className ?? ''
       }`}
     >
-      <Clock className="h-3.5 w-3.5" />
-      <span>{isExpired ? '00:00' : formatted}</span>
+      {isExpired ? '세션 만료' : `남은 시간 ${formatted}`}
     </div>
   )
 }
