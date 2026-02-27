@@ -1,6 +1,31 @@
-import { requestSearchChatRooms, requestSearchUserChatRooms, requestUserChatRooms } from './chatApi'
-import { toJoinedChatRoomListResponse, toSearchChatRoomListResponse } from './chatDto'
-import { toChatRoomListParams, toChatRoomSearchParams } from './chatRequestDto'
+import {
+  requestChatMessages,
+  requestJoinChatRoom,
+  requestSearchChatRooms,
+  requestSearchUserChatRooms,
+  requestUserChatRooms,
+} from './chatApi'
+import {
+  toChatMessageListResponse,
+  toJoinedChatRoomListResponse,
+  toSearchChatRoomListResponse,
+} from './chatDto'
+import {
+  toChatMessageListParams,
+  toChatRoomJoinRequest,
+  toChatRoomListParams,
+  toChatRoomSearchParams,
+} from './chatRequestDto'
+
+const normalizeRoomId = (roomId) => {
+  const parsed = Number(roomId)
+
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error('Invalid roomId')
+  }
+
+  return parsed
+}
 
 export const getUserChatRooms = async (params = {}) => {
   const normalizedParams = toChatRoomListParams(params)
@@ -48,4 +73,19 @@ export const getChatRoomList = async (params = {}) => {
     cursor: params.cursor,
     limit: params.limit,
   })
+}
+
+export const joinChatRoom = async (params = {}) => {
+  const normalizedRoomId = normalizeRoomId(params.roomId)
+  const payload = toChatRoomJoinRequest(params.password)
+
+  await requestJoinChatRoom(normalizedRoomId, Object.keys(payload).length > 0 ? payload : undefined)
+}
+
+export const getChatRoomMessages = async (params = {}) => {
+  const normalizedRoomId = normalizeRoomId(params.roomId)
+  const normalizedParams = toChatMessageListParams(params)
+  const response = await requestChatMessages(normalizedRoomId, normalizedParams)
+
+  return toChatMessageListResponse(response)
 }
