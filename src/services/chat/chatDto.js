@@ -72,7 +72,7 @@ const toSearchChatRoomItem = (item = {}) => {
   }
 }
 
-const toChatMessageItem = (item = {}) => {
+export const toChatMessageItem = (item = {}) => {
   const createdAt = item.createdAt ?? null
   const senderId = Number(item.senderId)
 
