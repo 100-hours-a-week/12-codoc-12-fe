@@ -129,9 +129,6 @@ const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
                       {room.participantsCount}
                     </span>
                   </div>
-                  <span className="ml-auto shrink-0 text-[11px] text-neutral-600">
-                    {room.lastMessageAtLabel || '메시지 없음'}
-                  </span>
                 </div>
 
                 <p className="mt-1 line-clamp-2 text-sm text-neutral-600">
@@ -139,11 +136,16 @@ const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
                 </p>
               </div>
 
-              {room.unreadCount > 0 ? (
-                <Badge className="mt-6 shrink-0 rounded-full bg-[hsl(var(--warning))] px-2.5 py-0.5 text-sm text-warning-foreground">
-                  {room.unreadCount}
-                </Badge>
-              ) : null}
+              <div className="flex w-16 shrink-0 flex-col items-end gap-2">
+                <span className="shrink-0 text-[11px] text-neutral-600">
+                  {room.lastMessageAtLabel || '메시지 없음'}
+                </span>
+                {room.unreadCount > 0 ? (
+                  <Badge className="shrink-0 rounded-full bg-[hsl(var(--warning))] px-2.5 py-0.5 text-sm text-warning-foreground">
+                    {room.unreadCount}
+                  </Badge>
+                ) : null}
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -233,7 +235,7 @@ export default function ChatRooms() {
   }, [hasSearchKeyword, scope])
 
   const fetchRooms = useCallback(
-    async ({ cursor = null, append = false } = {}) => {
+    async ({ cursor = null, append = false, background = false } = {}) => {
       if (scope === 'all' && !keyword) {
         setRooms([])
         setNextCursor(null)
@@ -246,11 +248,13 @@ export default function ChatRooms() {
 
       if (append) {
         setIsLoadingMore(true)
-      } else {
+      } else if (!background) {
         setIsLoading(true)
       }
-      setLoadError('')
-      setJoinError('')
+      if (!background) {
+        setLoadError('')
+        setJoinError('')
+      }
 
       try {
         const response = await getChatRoomList({
@@ -275,15 +279,20 @@ export default function ChatRooms() {
           }
         }
       } catch {
-        if (!append) {
+        if (!append && !background) {
           setRooms([])
           setNextCursor(null)
           setHasNextPage(false)
         }
-        setLoadError('채팅방 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+        if (!background) {
+          setLoadError('채팅방 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+        }
       } finally {
-        setIsLoading(false)
-        setIsLoadingMore(false)
+        if (append) {
+          setIsLoadingMore(false)
+        } else if (!background) {
+          setIsLoading(false)
+        }
       }
     },
     [keyword, scope, setHasUnreadChat],
@@ -304,7 +313,7 @@ export default function ChatRooms() {
     }
 
     const timer = window.setTimeout(() => {
-      fetchRooms()
+      fetchRooms({ background: true })
     }, 120)
 
     return () => {
