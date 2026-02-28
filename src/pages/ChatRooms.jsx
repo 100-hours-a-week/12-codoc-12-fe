@@ -1,8 +1,19 @@
-import { Lock, Plus, Search, Users, X } from 'lucide-react'
+import { Lock, Plus, Search, UserRound, Users, X } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { createChatRoom, getChatRoomList, joinChatRoom } from '@/services/chat/chatService'
 
 const PAGE_LIMIT = 20
@@ -12,23 +23,26 @@ const MAX_PASSWORD_LENGTH = 72
 const ASCII_PASSWORD_PATTERN = /^[\x20-\x7E]+$/
 
 const SCOPE_OPTIONS = [
-  { value: 'joined', label: '참여한 방' },
-  { value: 'all', label: '전체 방' },
+  { value: 'joined', label: '채팅방' },
+  { value: 'all', label: '전체' },
 ]
+
+const normalizeChatRoomLabel = (value = '') =>
+  String(value).replaceAll('오픈채팅방', '채팅방').replaceAll('오픈채팅', '채팅')
 
 const getEmptyMessage = (scope, keyword) => {
   if (scope === 'all') {
     if (!keyword) {
-      return '전체 오픈채팅방은 검색어를 입력하면 확인할 수 있습니다.'
+      return '전체 채팅방은 검색어를 입력하면 확인할 수 있습니다.'
     }
     return '검색 결과가 없습니다.'
   }
 
   if (keyword) {
-    return '참여한 오픈채팅방 검색 결과가 없습니다.'
+    return '참여한 채팅방 검색 결과가 없습니다.'
   }
 
-  return '참여 중인 오픈채팅방이 없습니다.'
+  return '참여 중인 채팅방이 없습니다.'
 }
 
 const toJoinErrorMessage = (error) => {
@@ -38,13 +52,13 @@ const toJoinErrorMessage = (error) => {
     return '비밀번호가 올바르지 않습니다.'
   }
   if (code === 'CHAT_ROOM_FULL') {
-    return '정원이 가득 찬 오픈채팅방입니다.'
+    return '정원이 가득 찬 채팅방입니다.'
   }
   if (code === 'CHAT_ROOM_NOT_FOUND') {
-    return '오픈채팅방을 찾을 수 없습니다.'
+    return '채팅방을 찾을 수 없습니다.'
   }
 
-  return '오픈채팅방 입장에 실패했습니다. 잠시 후 다시 시도해주세요.'
+  return '채팅방 입장에 실패했습니다. 잠시 후 다시 시도해주세요.'
 }
 
 const toCreateErrorMessage = (error) => {
@@ -54,7 +68,7 @@ const toCreateErrorMessage = (error) => {
     return '입력값을 확인해주세요.'
   }
 
-  return '오픈채팅방 생성에 실패했습니다. 잠시 후 다시 시도해주세요.'
+  return '채팅방 생성에 실패했습니다. 잠시 후 다시 시도해주세요.'
 }
 
 const validateCreateForm = ({ title, password }) => {
@@ -62,11 +76,11 @@ const validateCreateForm = ({ title, password }) => {
   const normalizedPassword = password.trim()
 
   if (!normalizedTitle) {
-    return '오픈채팅방 제목을 입력해주세요.'
+    return '채팅방 제목을 입력해주세요.'
   }
 
   if (normalizedTitle.length > MAX_TITLE_LENGTH) {
-    return `오픈채팅방 제목은 최대 ${MAX_TITLE_LENGTH}자까지 입력할 수 있습니다.`
+    return `채팅방 제목은 최대 ${MAX_TITLE_LENGTH}자까지 입력할 수 있습니다.`
   }
 
   if (!normalizedPassword) {
@@ -93,30 +107,45 @@ const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
   return (
     <li>
       <button
-        className="w-full rounded-2xl border border-border bg-card p-4 text-left shadow-[0_6px_16px_rgba(15,23,42,0.05)] transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-70"
+        className="block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 disabled:cursor-not-allowed disabled:opacity-70"
         disabled={isOpening}
         onClick={() => onOpen(room)}
         type="button"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold">{room.title}</p>
-            <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{preview}</p>
-          </div>
-          {room.unreadCount > 0 ? (
-            <span className="rounded-full bg-info px-2 py-0.5 text-[11px] font-semibold text-white">
-              {room.unreadCount}
-            </span>
-          ) : null}
-        </div>
+        <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  {room.hasPassword ? (
+                    <Lock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                  ) : null}
+                  <div className="min-w-0 flex shrink items-baseline gap-2">
+                    <h3 className="min-w-0 shrink truncate text-[1.05rem] font-semibold text-foreground">
+                      {room.title}
+                    </h3>
+                    <span className="shrink-0 text-[1.00rem] text-neutral-600">
+                      {room.participantsCount}
+                    </span>
+                  </div>
+                  <span className="ml-auto shrink-0 text-[11px] text-neutral-600">
+                    {room.lastMessageAtLabel || '메시지 없음'}
+                  </span>
+                </div>
 
-        <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-          <span className="inline-flex items-center gap-1">
-            <Users className="h-3.5 w-3.5" />
-            {room.participantsCount}명
-          </span>
-          <span>{isOpening ? '입장 중...' : room.lastMessageAtLabel || '메시지 없음'}</span>
-        </div>
+                <p className="mt-1 line-clamp-2 text-sm text-neutral-600">
+                  {isOpening ? '입장 중...' : preview}
+                </p>
+              </div>
+
+              {room.unreadCount > 0 ? (
+                <Badge className="mt-6 shrink-0 rounded-full bg-[hsl(var(--warning))] px-2.5 py-0.5 text-sm text-warning-foreground">
+                  {room.unreadCount}
+                </Badge>
+              ) : null}
+            </div>
+          </CardContent>
+        </Card>
       </button>
     </li>
   )
@@ -125,30 +154,33 @@ const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
 const SearchChatRoomCard = ({ room, isOpening, onOpen }) => (
   <li>
     <button
-      className="w-full rounded-2xl border border-border bg-card p-4 text-left shadow-[0_6px_16px_rgba(15,23,42,0.05)] transition hover:bg-muted/40 disabled:cursor-not-allowed disabled:opacity-70"
+      className="block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20 disabled:cursor-not-allowed disabled:opacity-70"
       disabled={isOpening}
       onClick={() => onOpen(room)}
       type="button"
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="min-w-0 flex-1 truncate text-sm font-semibold">{room.title}</p>
-        <span
-          className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-            room.hasPassword ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
-          }`}
-        >
-          {room.hasPassword ? <Lock className="h-3 w-3" /> : null}
-          {room.hasPassword ? '비공개' : '공개'}
-        </span>
-      </div>
+      <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2">
+            {room.hasPassword ? <Lock className="h-4 w-4 shrink-0 text-muted-foreground" /> : null}
+            <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
+              {room.title}
+            </h3>
+          </div>
 
-      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <Users className="h-3.5 w-3.5" />
-          {room.participantCount}/{room.maxParticipants}
-        </span>
-        <span>{isOpening ? '입장 중...' : room.lastMessageAtLabel || '메시지 없음'}</span>
-      </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+            <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
+              <span className="inline-flex items-center gap-1">
+                <Users className="h-3.5 w-3.5" />
+                {room.participantCount}/{room.maxParticipants}
+              </span>
+            </Badge>
+            <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
+              {room.lastMessageAtLabel || '메시지 없음'}
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
     </button>
   </li>
 )
@@ -176,6 +208,8 @@ export default function ChatRooms() {
   const [createPassword, setCreatePassword] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   const [createError, setCreateError] = useState('')
+  const hasSearchKeyword = keyword.length > 0
+  const isCreateFormComplete = createTitle.trim().length > 0
 
   useEffect(() => {
     const redirectedError = location.state?.chatRedirectError
@@ -184,9 +218,15 @@ export default function ChatRooms() {
       return
     }
 
-    setJoinError(redirectedError.trim())
+    setJoinError(normalizeChatRoomLabel(redirectedError.trim()))
     navigate('/chat', { replace: true, state: null })
   }, [location.state, navigate])
+
+  useEffect(() => {
+    if (!hasSearchKeyword && scope !== 'joined') {
+      setScope('joined')
+    }
+  }, [hasSearchKeyword, scope])
 
   const fetchRooms = useCallback(
     async ({ cursor = null, append = false } = {}) => {
@@ -225,7 +265,7 @@ export default function ChatRooms() {
           setNextCursor(null)
           setHasNextPage(false)
         }
-        setLoadError('오픈채팅방 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+        setLoadError('채팅방 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
       } finally {
         setIsLoading(false)
         setIsLoadingMore(false)
@@ -250,8 +290,13 @@ export default function ChatRooms() {
     fetchRooms({ cursor: nextCursor, append: true })
   }
 
-  const toggleCreateForm = () => {
-    setIsCreateOpen((previous) => !previous)
+  const openCreateModal = () => {
+    setIsCreateOpen(true)
+    setCreateError('')
+  }
+
+  const closeCreateModal = () => {
+    setIsCreateOpen(false)
     setCreateError('')
   }
 
@@ -259,6 +304,11 @@ export default function ChatRooms() {
     event.preventDefault()
 
     if (isCreating) {
+      return
+    }
+
+    if (!isCreateFormComplete) {
+      setCreateError('채팅방 제목을 입력해주세요.')
       return
     }
 
@@ -295,7 +345,7 @@ export default function ChatRooms() {
     const roomId = Number(room.roomId)
 
     if (!Number.isInteger(roomId) || roomId <= 0) {
-      setJoinError('유효하지 않은 오픈채팅방입니다.')
+      setJoinError('유효하지 않은 채팅방입니다.')
       return
     }
 
@@ -343,38 +393,108 @@ export default function ChatRooms() {
   const emptyMessage = useMemo(() => getEmptyMessage(scope, keyword), [scope, keyword])
 
   return (
-    <section className="space-y-4">
-      <div className="min-h-9">
-        <h2 className="text-lg font-semibold">오픈채팅</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          참여한 오픈채팅방을 확인하고, 원하는 방을 검색해보세요.
-        </p>
-      </div>
+    <Dialog
+      open={isCreateOpen}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen) {
+          setIsCreateOpen(true)
+        }
+      }}
+    >
+      <div className="space-y-5">
+        <Card className="bg-muted/70">
+          <CardHeader className="pb-0">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle>오픈채팅</CardTitle>
+              </div>
+              <Button
+                aria-label="채팅방 생성"
+                className="h-8 w-8 rounded-md border-foreground/20 p-0"
+                onClick={openCreateModal}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardHeader>
 
-      <div className="flex items-center justify-end">
-        <button
-          className="inline-flex h-9 items-center gap-1 rounded-lg border border-border bg-background px-3 text-xs font-semibold transition hover:bg-muted/40"
-          onClick={toggleCreateForm}
-          type="button"
+          <CardContent className="space-y-3 pt-4">
+            <form onSubmit={handleSearchSubmit}>
+              <label className="relative block" htmlFor="chat-room-keyword">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="chat-room-keyword"
+                  className="rounded-full border-0 pl-9 shadow-sm placeholder:text-muted-foreground/40 focus-visible:border focus-visible:border-black focus-visible:ring-0"
+                  maxLength={100}
+                  onChange={(event) => setInputKeyword(event.target.value)}
+                  placeholder="찾으시는 채팅방 제목을 적어주세요"
+                  type="text"
+                  value={inputKeyword}
+                />
+              </label>
+            </form>
+
+            {hasSearchKeyword ? (
+              <div className="grid grid-cols-2 gap-2">
+                {SCOPE_OPTIONS.map((option) => {
+                  const isActive = scope === option.value
+
+                  return (
+                    <Button
+                      key={option.value}
+                      className={`h-9 rounded-full ${
+                        isActive
+                          ? 'border-info bg-info/10 text-info hover:bg-info/15 hover:text-info'
+                          : ''
+                      }`}
+                      onClick={() => setScope(option.value)}
+                      type="button"
+                      variant="outline"
+                    >
+                      {option.label}
+                    </Button>
+                  )
+                })}
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <DialogContent
+          className="p-5"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
         >
-          {isCreateOpen ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-          {isCreateOpen ? '생성 닫기' : '방 만들기'}
-        </button>
-      </div>
+          <form className="space-y-4" onSubmit={handleCreateSubmit}>
+            <DialogHeader className="relative pr-10">
+              <DialogTitle>채팅방 생성</DialogTitle>
+              <Button
+                aria-label="채팅방 생성 모달 닫기"
+                className="absolute right-0 top-0 h-8 w-8 p-0"
+                onClick={closeCreateModal}
+                size="icon"
+                type="button"
+                variant="ghost"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </DialogHeader>
 
-      {isCreateOpen ? (
-        <div className="rounded-2xl border border-border bg-card p-3">
-          <form className="space-y-3" onSubmit={handleCreateSubmit}>
             <div className="space-y-1">
               <label className="text-xs font-semibold" htmlFor="create-chat-room-title">
-                오픈채팅방 제목
+                채팅방 제목
               </label>
-              <input
+              <Input
+                className="placeholder:text-muted-foreground/40"
                 id="create-chat-room-title"
-                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-info"
                 maxLength={MAX_TITLE_LENGTH}
                 onChange={(event) => setCreateTitle(event.target.value)}
                 placeholder="예) 백준 실버 문제 풀이방"
+                type="text"
                 value={createTitle}
               />
             </div>
@@ -383,134 +503,90 @@ export default function ChatRooms() {
               <label className="text-xs font-semibold" htmlFor="create-chat-room-password">
                 비밀번호 (선택)
               </label>
-              <input
+              <Input
+                className="placeholder:text-muted-foreground/40"
                 id="create-chat-room-password"
-                className="h-10 w-full rounded-xl border border-border bg-background px-3 text-sm outline-none transition focus:border-info"
                 maxLength={MAX_PASSWORD_LENGTH}
                 onChange={(event) => setCreatePassword(event.target.value)}
-                placeholder="비워두면 공개방으로 생성됩니다"
+                placeholder="비밀번호를 입력하면 비공개 채팅방으로 생성됩니다."
+                type="text"
                 value={createPassword}
               />
-              <p className="text-[11px] text-muted-foreground">
-                비밀번호를 입력하면 비공개 오픈채팅방으로 생성됩니다.
-              </p>
             </div>
 
-            <button
-              className="h-10 w-full rounded-xl bg-info text-sm font-semibold text-white transition hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={isCreating}
-              type="submit"
-            >
-              {isCreating ? '생성 중...' : '오픈채팅방 생성'}
-            </button>
+            {createError ? <StatusMessage tone="error">{createError}</StatusMessage> : null}
+
+            <DialogFooter>
+              <Button disabled={isCreating || !isCreateFormComplete} type="submit">
+                {isCreating ? '생성 중...' : '생성'}
+              </Button>
+            </DialogFooter>
           </form>
-        </div>
-      ) : null}
+        </DialogContent>
 
-      {createError ? <StatusMessage tone="error">{createError}</StatusMessage> : null}
+        {loadError ? (
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-4 text-center">
+            <StatusMessage tone="error">{loadError}</StatusMessage>
+          </Card>
+        ) : null}
 
-      <div className="rounded-2xl border border-border bg-card p-3">
-        <form className="flex items-center gap-2" onSubmit={handleSearchSubmit}>
-          <label className="relative flex-1" htmlFor="chat-room-keyword">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              id="chat-room-keyword"
-              className="h-10 w-full rounded-xl border border-border bg-background pl-9 pr-3 text-sm outline-none transition focus:border-info"
-              maxLength={100}
-              onChange={(event) => setInputKeyword(event.target.value)}
-              placeholder="오픈채팅방 제목 검색"
-              value={inputKeyword}
-            />
-          </label>
-          <button
-            className="h-10 shrink-0 rounded-xl bg-info px-4 text-sm font-semibold text-white transition hover:bg-info/90"
-            type="submit"
-          >
-            검색
-          </button>
-        </form>
+        {joinError ? (
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-4 text-center">
+            <StatusMessage tone="error">{joinError}</StatusMessage>
+          </Card>
+        ) : null}
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {SCOPE_OPTIONS.map((option) => {
-            const isActive = scope === option.value
+        <section className="space-y-4">
+          {isLoading ? (
+            <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+              <StatusMessage>채팅방을 불러오는 중입니다.</StatusMessage>
+            </Card>
+          ) : null}
 
-            return (
-              <button
-                key={option.value}
-                className={`h-9 rounded-lg border text-xs font-semibold transition ${
-                  isActive
-                    ? 'border-info bg-info-soft text-info'
-                    : 'border-border bg-background text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => setScope(option.value)}
-                type="button"
-              >
-                {option.label}
-              </button>
-            )
-          })}
-        </div>
+          {!isLoading && rooms.length === 0 ? (
+            <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+              <StatusMessage>{emptyMessage}</StatusMessage>
+            </Card>
+          ) : null}
+
+          {!isLoading && rooms.length > 0 ? (
+            <ul className="space-y-3">
+              {rooms.map((room) => {
+                const roomId = Number(room.roomId)
+                const isOpening = Number.isInteger(roomId) && pendingRoomId === roomId
+
+                return scope === 'joined' ? (
+                  <JoinedChatRoomCard
+                    key={room.roomId}
+                    isOpening={isOpening}
+                    onOpen={handleOpenRoom}
+                    room={room}
+                  />
+                ) : (
+                  <SearchChatRoomCard
+                    key={room.roomId}
+                    isOpening={isOpening}
+                    onOpen={handleOpenRoom}
+                    room={room}
+                  />
+                )
+              })}
+            </ul>
+          ) : null}
+
+          {!isLoading && hasNextPage ? (
+            <Button
+              className="w-full"
+              disabled={isLoadingMore}
+              onClick={handleLoadMore}
+              type="button"
+              variant="outline"
+            >
+              {isLoadingMore ? '불러오는 중...' : '더 불러오기'}
+            </Button>
+          ) : null}
+        </section>
       </div>
-
-      {scope === 'all' && !keyword ? (
-        <StatusMessage>전체 오픈채팅방은 검색어를 입력해야 조회할 수 있습니다.</StatusMessage>
-      ) : null}
-
-      {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
-      {joinError ? <StatusMessage tone="error">{joinError}</StatusMessage> : null}
-
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 4 }).map((_, index) => (
-            <div
-              key={`chat-room-skeleton-${index}`}
-              className="h-24 animate-pulse rounded-2xl bg-muted/60"
-            />
-          ))}
-        </div>
-      ) : null}
-
-      {!isLoading && rooms.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-          <p className="text-sm font-semibold">{emptyMessage}</p>
-        </div>
-      ) : null}
-
-      {!isLoading && rooms.length > 0 ? (
-        <ul className="space-y-2">
-          {rooms.map((room) => {
-            const roomId = Number(room.roomId)
-            const isOpening = Number.isInteger(roomId) && pendingRoomId === roomId
-
-            return scope === 'joined' ? (
-              <JoinedChatRoomCard
-                key={room.roomId}
-                isOpening={isOpening}
-                onOpen={handleOpenRoom}
-                room={room}
-              />
-            ) : (
-              <SearchChatRoomCard
-                key={room.roomId}
-                isOpening={isOpening}
-                onOpen={handleOpenRoom}
-                room={room}
-              />
-            )
-          })}
-        </ul>
-      ) : null}
-
-      {!isLoading && hasNextPage ? (
-        <button
-          className="w-full rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-muted/40 disabled:opacity-60"
-          disabled={isLoadingMore}
-          onClick={handleLoadMore}
-          type="button"
-        >
-          {isLoadingMore ? '불러오는 중...' : '더 보기'}
-        </button>
-      ) : null}
-    </section>
+    </Dialog>
   )
 }
