@@ -1,5 +1,5 @@
-import { Lock, Plus, Search, UserRound, Users, X } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Lock, Plus, Search, Users, X } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { createChatRoom, getChatRoomList, joinChatRoom } from '@/services/chat/chatService'
+import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 
 const PAGE_LIMIT = 20
 const MAX_TITLE_LENGTH = 100
@@ -210,6 +211,9 @@ export default function ChatRooms() {
   const [createError, setCreateError] = useState('')
   const hasSearchKeyword = keyword.length > 0
   const isCreateFormComplete = createTitle.trim().length > 0
+  const roomUpdateVersion = useChatRealtimeStore((state) => state.roomUpdateVersion)
+  const setHasUnreadChat = useChatRealtimeStore((state) => state.setHasUnreadChat)
+  const hasRealtimeInitializedRef = useRef(false)
 
   useEffect(() => {
     const redirectedError = location.state?.chatRedirectError
@@ -259,6 +263,17 @@ export default function ChatRooms() {
         setRooms((previous) => (append ? [...previous, ...response.items] : response.items))
         setNextCursor(response.nextCursor)
         setHasNextPage(Boolean(response.hasNextPage))
+
+        if (scope === 'joined' && !keyword && !append) {
+          const hasUnreadInFirstPage = response.items.some(
+            (item) => Number(item.unreadCount ?? 0) > 0,
+          )
+          if (hasUnreadInFirstPage) {
+            setHasUnreadChat(true)
+          } else if (!response.hasNextPage) {
+            setHasUnreadChat(false)
+          }
+        }
       } catch {
         if (!append) {
           setRooms([])
@@ -271,12 +286,31 @@ export default function ChatRooms() {
         setIsLoadingMore(false)
       }
     },
-    [keyword, scope],
+    [keyword, scope, setHasUnreadChat],
   )
 
   useEffect(() => {
     fetchRooms()
   }, [fetchRooms])
+
+  useEffect(() => {
+    if (scope !== 'joined') {
+      return
+    }
+
+    if (!hasRealtimeInitializedRef.current) {
+      hasRealtimeInitializedRef.current = true
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      fetchRooms()
+    }, 120)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [fetchRooms, roomUpdateVersion, scope])
 
   const handleSearchSubmit = (event) => {
     event.preventDefault()
@@ -332,7 +366,7 @@ export default function ChatRooms() {
       })
 
       navigate(`/chat/${roomId}`, {
-        state: { roomTitle: createTitle.trim() },
+        state: { roomTitle: createTitle.trim(), participantsCount: 1 },
       })
     } catch (error) {
       setCreateError(toCreateErrorMessage(error))
@@ -356,7 +390,9 @@ export default function ChatRooms() {
     setJoinError('')
 
     if (scope === 'joined') {
-      navigate(`/chat/${roomId}`, { state: { roomTitle: room.title } })
+      navigate(`/chat/${roomId}`, {
+        state: { roomTitle: room.title, participantsCount: room.participantsCount },
+      })
       return
     }
 
@@ -377,11 +413,15 @@ export default function ChatRooms() {
 
     try {
       await joinChatRoom({ roomId, password })
-      navigate(`/chat/${roomId}`, { state: { roomTitle: room.title } })
+      navigate(`/chat/${roomId}`, {
+        state: { roomTitle: room.title, participantsCount: room.participantCount },
+      })
     } catch (error) {
       const code = error?.response?.data?.code
       if (code === 'CHAT_ROOM_ALREADY_JOINED') {
-        navigate(`/chat/${roomId}`, { state: { roomTitle: room.title } })
+        navigate(`/chat/${roomId}`, {
+          state: { roomTitle: room.title, participantsCount: room.participantCount },
+        })
         return
       }
       setJoinError(toJoinErrorMessage(error))

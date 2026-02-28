@@ -50,6 +50,8 @@ const safeParseJson = (value = '') => {
 
 export const toChatRoomTopic = (roomId) => `/sub/chat/rooms/${roomId}`
 
+export const toUserChatRoomsTopic = (userId) => `/sub/users/${userId}/chat-rooms`
+
 export const toChatMessageSendDestination = (roomId) => `/pub/chat/messages/${roomId}`
 
 export const createChatStompConnection = (options = {}) => {

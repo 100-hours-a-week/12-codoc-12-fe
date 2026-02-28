@@ -1,8 +1,18 @@
-import { ChevronLeft, SendHorizontal } from 'lucide-react'
+import { ArrowDown, LogOut, Send } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 import { getAccessTokenPayload } from '@/lib/auth'
 import { toChatMessageItem } from '@/services/chat/chatDto'
 import {
@@ -10,18 +20,12 @@ import {
   toChatMessageSendDestination,
   toChatRoomTopic,
 } from '@/services/chat/chatRealtime'
-import { getChatRoomMessages } from '@/services/chat/chatService'
+import { getChatRoomMessages, leaveChatRoom } from '@/services/chat/chatService'
+import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 
 const PAGE_LIMIT = 30
 const MAX_INPUT_LENGTH = 500
 const SEND_RETRY_DELAY_MS = 700
-
-const CONNECTION_STATUS_META = {
-  connecting: { label: '연결 중', className: 'bg-muted text-muted-foreground' },
-  connected: { label: '연결됨', className: 'bg-emerald-100 text-emerald-700' },
-  reconnecting: { label: '재연결 중', className: 'bg-amber-100 text-amber-700' },
-  disconnected: { label: '연결 종료', className: 'bg-red-100 text-red-600' },
-}
 
 const toCurrentUserId = () => {
   const payload = getAccessTokenPayload()
@@ -38,13 +42,60 @@ const toMessageLoadError = (error) => {
   const code = error?.response?.data?.code
 
   if (code === 'CHAT_ROOM_NOT_FOUND') {
-    return '오픈채팅방을 찾을 수 없습니다.'
+    return '채팅방을 찾을 수 없습니다.'
   }
 
   return '메시지를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.'
 }
 
+const toLeaveErrorMessage = (error) => {
+  const code = error?.response?.data?.code
+
+  if (code === 'CHAT_ROOM_NOT_FOUND') {
+    return '채팅방을 찾을 수 없습니다.'
+  }
+  if (code === 'NO_CHAT_ROOM_PARTICIPANT') {
+    return '이미 퇴장한 채팅방입니다.'
+  }
+
+  return '채팅방 퇴장에 실패했습니다. 잠시 후 다시 시도해주세요.'
+}
+
 const SYSTEM_MESSAGE_TYPES = new Set(['SYSTEM', 'INIT'])
+
+const pad2 = (value) => String(value).padStart(2, '0')
+
+const toValidDate = (value) => {
+  const date = new Date(value ?? '')
+  return Number.isNaN(date.getTime()) ? null : date
+}
+
+const toMessageTimeLabel = (message) => {
+  const date = toValidDate(message?.createdAt)
+  if (!date) {
+    return ''
+  }
+
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+const toMessageDateKey = (message) => {
+  const date = toValidDate(message?.createdAt)
+  if (!date) {
+    return null
+  }
+
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`
+}
+
+const toMessageDateLabel = (message) => {
+  const date = toValidDate(message?.createdAt)
+  if (!date) {
+    return ''
+  }
+
+  return `${date.getFullYear()}년 ${date.getMonth() + 1}월 ${date.getDate()}일`
+}
 
 const toCreatedAtTime = (message) => {
   const value = Date.parse(message?.createdAt ?? '')
@@ -90,30 +141,68 @@ const mergeMessages = (items = []) => {
   return [...byId.values(), ...withoutId].sort(compareMessagesDesc)
 }
 
-function ChatMessageItem({ isMine, message }) {
+const toSenderLabel = (message, currentUserId) => {
+  if (typeof message?.senderNickname === 'string' && message.senderNickname.trim()) {
+    return message.senderNickname.trim()
+  }
+
+  if (typeof message?.senderName === 'string' && message.senderName.trim()) {
+    return message.senderName.trim()
+  }
+
+  if (Number.isInteger(message?.senderId)) {
+    if (message.senderId === currentUserId) {
+      return '나'
+    }
+    return `참여자 ${message.senderId}`
+  }
+
+  return '참여자'
+}
+
+function ChatMessageItem({ currentUserId, isMine, message }) {
   const isSystemMessage = SYSTEM_MESSAGE_TYPES.has(message.type)
+  const timeLabel = toMessageTimeLabel(message)
 
   if (isSystemMessage) {
     return (
       <li className="flex justify-center">
-        <div className="max-w-[88%] rounded-full bg-muted px-3 py-1.5 text-[11px] text-muted-foreground">
+        <div className="max-w-[85%] rounded-xl bg-neutral-300 px-3 py-2 text-[11px] text-neutral-700">
           {message.content}
         </div>
       </li>
     )
   }
 
-  return (
-    <li className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[82%] ${isMine ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
-        <div
-          className={`rounded-2xl px-3 py-2.5 text-sm leading-6 ${
-            isMine ? 'bg-info-soft text-foreground' : 'bg-muted text-foreground'
-          }`}
-        >
-          <p className="whitespace-pre-line">{message.content}</p>
+  if (isMine) {
+    return (
+      <li className="flex justify-end">
+        <div className="flex max-w-[82%] items-end gap-1.5">
+          {timeLabel ? (
+            <p className="shrink-0 text-[11px] leading-none text-neutral-500">{timeLabel}</p>
+          ) : null}
+          <div className="inline-block max-w-full rounded-xl bg-info-soft px-3 py-2 text-md text-foreground">
+            <p className="whitespace-pre-line break-words">{message.content}</p>
+          </div>
         </div>
-        <span className="text-[10px] text-muted-foreground">{message.createdAtLabel}</span>
+      </li>
+    )
+  }
+
+  return (
+    <li className="flex justify-start">
+      <div className="min-w-0 max-w-[82%]">
+        <p className="mb-1 max-w-full truncate text-[0.85rem] leading-tight text-foreground">
+          {toSenderLabel(message, currentUserId)}
+        </p>
+        <div className="flex items-end gap-1.5">
+          <div className="inline-block max-w-full rounded-xl bg-neutral-300 px-3 py-2 text-md text-foreground">
+            <p className="whitespace-pre-line break-words">{message.content}</p>
+          </div>
+          {timeLabel ? (
+            <p className="shrink-0 text-[11px] leading-none text-neutral-500">{timeLabel}</p>
+          ) : null}
+        </div>
       </div>
     </li>
   )
@@ -136,6 +225,11 @@ export default function ChatRoomDetail() {
   const [inputValue, setInputValue] = useState('')
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [pendingCount, setPendingCount] = useState(0)
+  const [isAtBottom, setIsAtBottom] = useState(true)
+  const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
+  const [isLeaving, setIsLeaving] = useState(false)
+  const [leaveError, setLeaveError] = useState('')
+  const refreshUnreadChatStatus = useChatRealtimeStore((state) => state.refreshUnreadChatStatus)
 
   const currentUserId = useMemo(() => toCurrentUserId(), [])
   const connectionRef = useRef(null)
@@ -144,6 +238,8 @@ export default function ChatRoomDetail() {
   const pendingMessagesRef = useRef([])
   const flushTimeoutRef = useRef(null)
   const isFlushingRef = useRef(false)
+  const messagesViewportRef = useRef(null)
+  const previousMessageCountRef = useRef(0)
 
   const normalizedRoomId = useMemo(() => {
     const parsed = Number(roomId)
@@ -162,13 +258,48 @@ export default function ChatRoomDetail() {
     }
 
     if (normalizedRoomId == null) {
-      return '오픈채팅방'
+      return '채팅방'
     }
 
-    return `오픈채팅방 #${normalizedRoomId}`
+    return `채팅방 #${normalizedRoomId}`
   }, [normalizedRoomId, titleFromState])
 
-  const statusMeta = CONNECTION_STATUS_META[connectionStatus] ?? CONNECTION_STATUS_META.connecting
+  const participantCount = useMemo(() => {
+    const fromState = Number(location.state?.participantsCount ?? location.state?.participantCount)
+
+    if (!Number.isInteger(fromState) || fromState <= 0) {
+      return null
+    }
+
+    return fromState
+  }, [location.state])
+
+  const orderedMessages = useMemo(() => [...messages].reverse(), [messages])
+  const messageRenderItems = useMemo(() => {
+    const items = []
+    let lastDateKey = null
+
+    orderedMessages.forEach((message) => {
+      const dateKey = toMessageDateKey(message)
+
+      if (dateKey && dateKey !== lastDateKey) {
+        items.push({
+          key: `date-${dateKey}`,
+          type: 'date',
+          label: toMessageDateLabel(message),
+        })
+        lastDateKey = dateKey
+      }
+
+      items.push({
+        key: message.messageId ?? `${message.type}-${message.createdAt}`,
+        type: 'message',
+        message,
+      })
+    })
+
+    return items
+  }, [orderedMessages])
 
   const clearFlushTimeout = useCallback(() => {
     if (flushTimeoutRef.current) {
@@ -237,7 +368,7 @@ export default function ChatRoomDetail() {
   const fetchMessages = useCallback(
     async ({ cursor = null, append = false } = {}) => {
       if (normalizedRoomId == null) {
-        setLoadError('유효하지 않은 오픈채팅방입니다.')
+        setLoadError('유효하지 않은 채팅방입니다.')
         setIsLoading(false)
         setIsLoadingMore(false)
         setMessages([])
@@ -271,7 +402,7 @@ export default function ChatRoomDetail() {
         if (code === 'NO_CHAT_ROOM_PARTICIPANT') {
           navigate('/chat', {
             replace: true,
-            state: { chatRedirectError: '참여 중인 오픈채팅방이 아닙니다.' },
+            state: { chatRedirectError: '참여 중인 채팅방이 아닙니다.' },
           })
           return
         }
@@ -293,6 +424,20 @@ export default function ChatRoomDetail() {
   useEffect(() => {
     fetchMessages()
   }, [fetchMessages])
+
+  useEffect(() => {
+    if (normalizedRoomId == null || isLoading) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      void refreshUnreadChatStatus()
+    }, 120)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [isLoading, messages.length, normalizedRoomId, refreshUnreadChatStatus])
 
   useEffect(() => {
     if (normalizedRoomId == null) {
@@ -391,6 +536,61 @@ export default function ChatRoomDetail() {
     }
   }, [clearFlushTimeout, flushPendingMessages, normalizedRoomId])
 
+  const updateBottomState = useCallback(() => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    setIsAtBottom(remaining < 32)
+  }, [])
+
+  const scrollToBottom = useCallback((behavior = 'auto') => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior })
+  }, [])
+
+  useEffect(() => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const handleScroll = () => updateBottomState()
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true })
+    updateBottomState()
+
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll)
+    }
+  }, [updateBottomState])
+
+  useEffect(() => {
+    const previousCount = previousMessageCountRef.current
+    const currentCount = messages.length
+    const increased = currentCount > previousCount
+
+    previousMessageCountRef.current = currentCount
+
+    if (!increased) {
+      updateBottomState()
+      return
+    }
+
+    if (previousCount === 0 || isAtBottom) {
+      requestAnimationFrame(() => {
+        scrollToBottom(previousCount === 0 ? 'auto' : 'smooth')
+        updateBottomState()
+      })
+    }
+  }, [isAtBottom, messages.length, scrollToBottom, updateBottomState])
+
   const handleLoadMore = () => {
     if (!hasNextPage || !nextCursor || isLoadingMore) {
       return
@@ -436,118 +636,263 @@ export default function ChatRoomDetail() {
     }
   }
 
+  const handleLeaveClick = () => {
+    setLeaveError('')
+    setIsLeaveDialogOpen(true)
+  }
+
+  const handleLeaveCancel = () => {
+    if (isLeaving) {
+      return
+    }
+
+    setIsLeaveDialogOpen(false)
+    setLeaveError('')
+  }
+
+  const handleLeaveConfirm = async () => {
+    if (isLeaving || normalizedRoomId == null) {
+      return
+    }
+
+    setLeaveError('')
+    setIsLeaving(true)
+
+    try {
+      await leaveChatRoom({ roomId: normalizedRoomId })
+      navigate('/chat', { replace: true })
+    } catch (error) {
+      const code = error?.response?.data?.code
+      if (code === 'NO_CHAT_ROOM_PARTICIPANT') {
+        navigate('/chat', { replace: true })
+        return
+      }
+      setLeaveError(toLeaveErrorMessage(error))
+    } finally {
+      setIsLeaving(false)
+    }
+  }
+
   return (
-    <section className="space-y-4">
-      <div className="rounded-2xl border border-border bg-card p-3">
-        <button
-          className="inline-flex items-center gap-1 rounded-lg px-1 py-1 text-xs font-semibold text-muted-foreground transition hover:text-foreground"
-          onClick={() => navigate('/chat')}
-          type="button"
+    <Dialog
+      open={isLeaveDialogOpen}
+      onOpenChange={(nextOpen) => {
+        if (isLeaving) {
+          return
+        }
+        setIsLeaveDialogOpen(nextOpen)
+        if (!nextOpen) {
+          setLeaveError('')
+        }
+      }}
+    >
+      <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4">
+        <header className="shrink-0 border-b border-neutral-300 bg-background py-2.5">
+          <div className="flex items-center gap-2">
+            <div className="min-w-0 flex flex-1 items-baseline gap-2">
+              <h2 className="min-w-0 shrink truncate text-[1.3rem] font-semibold text-foreground">
+                {roomTitle}
+              </h2>
+              <span className="shrink-0 text-[1.3rem] text-neutral-600">
+                {participantCount ?? '-'}
+              </span>
+            </div>
+
+            <div className="ml-auto flex shrink-0 items-center gap-3">
+              <button
+                aria-label="채팅방 나가기"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-foreground transition hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={isLeaving}
+                onClick={handleLeaveClick}
+                type="button"
+              >
+                <LogOut className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <div
+          className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 pt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          ref={messagesViewportRef}
         >
-          <ChevronLeft className="h-4 w-4" />
-          오픈채팅 목록으로
-        </button>
+          <p aria-live="polite" className="sr-only">
+            연결 상태: {connectionStatus}
+          </p>
+          {loadError ? (
+            <div className="pb-2">
+              <StatusMessage tone="error">{loadError}</StatusMessage>
+            </div>
+          ) : null}
+          {realtimeError ? (
+            <div className="pb-2">
+              <StatusMessage tone="muted">{realtimeError}</StatusMessage>
+            </div>
+          ) : null}
 
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <h2 className="min-w-0 truncate text-base font-semibold">{roomTitle}</h2>
-          <span
-            className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-semibold ${statusMeta.className}`}
-          >
-            {statusMeta.label}
-          </span>
+          {!isLoading && hasNextPage ? (
+            <button
+              className="mb-4 w-full rounded-md border border-neutral-300 bg-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-250 disabled:opacity-60"
+              disabled={isLoadingMore}
+              onClick={handleLoadMore}
+              type="button"
+            >
+              {isLoadingMore ? '불러오는 중...' : '이전 메시지 더 보기'}
+            </button>
+          ) : null}
+
+          {isLoading ? (
+            <div className="space-y-5">
+              {Array.from({ length: 6 }).map((_, index) => (
+                <div
+                  key={`chat-message-skeleton-${index}`}
+                  className={`h-16 w-[44%] animate-pulse bg-neutral-300 ${index % 2 ? 'ml-auto' : ''}`}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {!isLoading && orderedMessages.length === 0 ? (
+            <div className="py-16 text-center">
+              <p className="text-sm font-semibold text-neutral-600">표시할 메시지가 없습니다.</p>
+            </div>
+          ) : null}
+
+          {!isLoading && orderedMessages.length > 0 ? (
+            <ul className="space-y-4">
+              {messageRenderItems.map((item) => {
+                if (item.type === 'date') {
+                  return (
+                    <li key={item.key} className="flex justify-center">
+                      <div className="max-w-[85%] rounded-xl bg-neutral-300 px-3 py-2 text-[11px] text-neutral-700">
+                        {item.label}
+                      </div>
+                    </li>
+                  )
+                }
+
+                const { message } = item
+                const isMine =
+                  !SYSTEM_MESSAGE_TYPES.has(message.type) &&
+                  currentUserId != null &&
+                  Number(message.senderId) === currentUserId
+
+                return (
+                  <ChatMessageItem
+                    key={item.key}
+                    currentUserId={currentUserId}
+                    isMine={isMine}
+                    message={message}
+                  />
+                )
+              })}
+            </ul>
+          ) : null}
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">최신 메시지 순으로 표시됩니다.</p>
-      </div>
 
-      {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
-      {realtimeError ? <StatusMessage tone="muted">{realtimeError}</StatusMessage> : null}
+        {!isAtBottom && !isLoading && orderedMessages.length > 0 ? (
+          <div className="pointer-events-none absolute bottom-[calc(var(--chatbot-input-bottom)+env(safe-area-inset-bottom)+5.5rem)] left-4 right-4 z-20">
+            <div className="flex justify-end">
+              <Button
+                aria-label="최신 메시지로 이동"
+                className="pointer-events-auto h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+                onClick={() => scrollToBottom('smooth')}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, index) => (
-            <div
-              key={`chat-message-skeleton-${index}`}
-              className="h-14 animate-pulse rounded-2xl bg-muted/60"
+        <div className="shrink-0 bg-background/95 pb-[calc(var(--chatbot-input-bottom)+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+          <p className="m-2 text-right text-[12px] text-neutral-500">
+            {inputValue.length} / {MAX_INPUT_LENGTH}
+          </p>
+          <form
+            className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
+            onSubmit={handleSubmit}
+          >
+            <label className="sr-only" htmlFor="chat-room-message-input">
+              메시지 입력
+            </label>
+            <Input
+              id="chat-room-message-input"
+              className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              maxLength={MAX_INPUT_LENGTH}
+              onChange={(event) => {
+                setInputValue(event.target.value)
+                if (sendError) {
+                  setSendError('')
+                }
+              }}
+              placeholder="메시지를 입력하세요"
+              value={inputValue}
             />
-          ))}
+            <Button
+              className={`h-10 rounded-xl ${
+                inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
+              }`}
+              disabled={inputValue.trim().length === 0}
+              size="sm"
+              type="submit"
+              variant="secondary"
+            >
+              <Send className="h-4 w-4" />
+              전송
+            </Button>
+          </form>
+
+          {pendingCount > 0 ? (
+            <StatusMessage className="mt-2" tone="muted">
+              대기 중인 메시지 {pendingCount}개가 연결 복구 후 자동 전송됩니다.
+            </StatusMessage>
+          ) : null}
+          {sendError ? (
+            <StatusMessage className="mt-2" tone="error">
+              {sendError}
+            </StatusMessage>
+          ) : null}
         </div>
-      ) : null}
+      </section>
 
-      {!isLoading && messages.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border bg-muted/20 px-4 py-8 text-center">
-          <p className="text-sm font-semibold">표시할 메시지가 없습니다.</p>
-        </div>
-      ) : null}
+      <DialogContent className="max-w-[320px] rounded-2xl border border-black/10 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
+        <DialogHeader className="items-center text-center">
+          <DialogTitle className="text-xl font-bold">채팅방 나가기</DialogTitle>
+          <DialogDescription className="mt-3 text-sm text-muted-foreground">
+            나가면 대화 내용을 더 이상 볼 수 없습니다.
+            <br />
+            계속 진행하시겠어요?
+          </DialogDescription>
+        </DialogHeader>
 
-      {!isLoading && messages.length > 0 ? (
-        <ul className="space-y-2">
-          {messages.map((message) => {
-            const key = message.messageId ?? `${message.type}-${message.createdAt}`
-            const isMine =
-              !SYSTEM_MESSAGE_TYPES.has(message.type) &&
-              currentUserId != null &&
-              message.senderId === currentUserId
+        {leaveError ? (
+          <StatusMessage className="mt-4" tone="error">
+            {leaveError}
+          </StatusMessage>
+        ) : null}
 
-            return <ChatMessageItem key={key} isMine={isMine} message={message} />
-          })}
-        </ul>
-      ) : null}
-
-      {!isLoading && hasNextPage ? (
-        <button
-          className="w-full rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold transition hover:bg-muted/40 disabled:opacity-60"
-          disabled={isLoadingMore}
-          onClick={handleLoadMore}
-          type="button"
-        >
-          {isLoadingMore ? '불러오는 중...' : '이전 메시지 더 보기'}
-        </button>
-      ) : null}
-
-      <form className="rounded-2xl border border-border bg-card p-3" onSubmit={handleSubmit}>
-        <label className="sr-only" htmlFor="chat-room-message-input">
-          메시지 입력
-        </label>
-        <textarea
-          id="chat-room-message-input"
-          className="min-h-20 w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition focus:border-info"
-          maxLength={MAX_INPUT_LENGTH}
-          onChange={(event) => {
-            setInputValue(event.target.value)
-            if (sendError) {
-              setSendError('')
-            }
-          }}
-          placeholder="메시지를 입력하세요"
-          value={inputValue}
-        />
-
-        <div className="mt-2 flex items-center justify-between gap-3">
-          <span className="text-[11px] text-muted-foreground">
-            {inputValue.length}/{MAX_INPUT_LENGTH}
-          </span>
-
+        <DialogFooter className="mt-5 flex-row items-center justify-center gap-3">
           <button
-            className="inline-flex h-9 items-center gap-1 rounded-xl bg-info px-3 text-xs font-semibold text-white transition hover:bg-info/90 disabled:cursor-not-allowed disabled:opacity-60"
-            disabled={!inputValue.trim()}
-            type="submit"
+            className="min-w-[96px] rounded-md bg-foreground px-4 py-3 text-sm font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
+            disabled={isLeaving}
+            onClick={handleLeaveCancel}
+            type="button"
           >
-            <SendHorizontal className="h-4 w-4" />
-            전송
+            취소
           </button>
-        </div>
-
-        {pendingCount > 0 ? (
-          <StatusMessage className="mt-2" tone="muted">
-            대기 중인 메시지 {pendingCount}개가 연결 복구 후 자동 전송됩니다.
-          </StatusMessage>
-        ) : null}
-        {sendError ? (
-          <StatusMessage className="mt-2" tone="error">
-            {sendError}
-          </StatusMessage>
-        ) : null}
-      </form>
-    </section>
+          <button
+            className="min-w-[96px] rounded-md border border-black/60 px-4 py-3 text-sm font-semibold text-foreground transition hover:bg-neutral-100 disabled:opacity-50"
+            disabled={isLeaving}
+            onClick={handleLeaveConfirm}
+            type="button"
+          >
+            {isLeaving ? '처리 중...' : '나가기'}
+          </button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

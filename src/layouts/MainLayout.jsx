@@ -2,10 +2,12 @@ import { ArrowLeft, Bell, BookOpen, Home, MessageCircle, User } from 'lucide-rea
 import { useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import { useChatRealtimeBootstrap } from '@/hooks/useChatRealtimeBootstrap'
 import { useNotificationBootstrap } from '@/hooks/useNotificationBootstrap'
 import { cn } from '@/lib/utils'
 import { getActiveProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
+import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import { useQuizStore } from '@/stores/useQuizStore'
@@ -25,6 +27,7 @@ export default function MainLayout() {
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
   const hasUnread = useNotificationStore((state) => state.hasUnread)
+  const hasUnreadChat = useChatRealtimeStore((state) => state.hasUnreadChat)
   const setProblemSession = useProblemSessionStore((state) => state.setSession)
   const clearProblemSessions = useProblemSessionStore((state) => state.clearAllSessions)
   const previousPathRef = useRef(location.pathname)
@@ -33,6 +36,7 @@ export default function MainLayout() {
   const [shellRect, setShellRect] = useState({ left: 0, width: 0 })
 
   useNotificationBootstrap()
+  useChatRealtimeBootstrap()
 
   useEffect(() => {
     const path = location.pathname
@@ -133,7 +137,7 @@ export default function MainLayout() {
   const isChatRoomDetailPath = /^\/chat\/[^/]+$/.test(location.pathname)
 
   const showBackButton = isProblemPath || isChatRoomDetailPath
-  const isNavHidden = isProblemFlowPath
+  const isNavHidden = isProblemFlowPath || isChatRoomDetailPath
   const showNotificationButton = !showBackButton
 
   const handleBack = () => {
@@ -149,7 +153,9 @@ export default function MainLayout() {
     <div className="min-h-screen bg-muted/40 text-foreground">
       <div
         ref={shellRef}
-        className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col bg-background shadow-sm"
+        className={`mx-auto flex w-full max-w-[430px] flex-col bg-background shadow-sm ${
+          isChatRoomDetailPath ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'
+        }`}
         data-shell="app"
         style={{
           '--chatbot-input-bottom': isNavHidden ? '16px' : '72px',
@@ -202,7 +208,13 @@ export default function MainLayout() {
           </div>
         </header>
 
-        <main className={`flex-1 px-4 py-5 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`}>
+        <main
+          className={
+            isChatRoomDetailPath
+              ? 'min-h-0 flex flex-1 overflow-hidden p-0'
+              : `flex-1 px-4 py-5 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`
+          }
+        >
           {content}
         </main>
 
@@ -227,7 +239,12 @@ export default function MainLayout() {
                   >
                     {({ isActive: _isActive }) => (
                       <>
-                        <Icon className="h-6 w-6" />
+                        <span className="relative inline-flex">
+                          <Icon className="h-6 w-6" />
+                          {to === '/chat' && hasUnreadChat ? (
+                            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[hsl(var(--danger))]" />
+                          ) : null}
+                        </span>
                         <span>{label}</span>
                         <span
                           className={`h-[3px] w-6 rounded-full ${
