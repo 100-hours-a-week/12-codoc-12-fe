@@ -2,6 +2,7 @@ import {
   requestChatMessages,
   requestCreateChatRoom,
   requestJoinChatRoom,
+  requestLeaveChatRoom,
   requestSearchChatRooms,
   requestSearchUserChatRooms,
   requestUserChatRooms,
@@ -28,6 +29,8 @@ const normalizeRoomId = (roomId) => {
 
   return parsed
 }
+
+const UNREAD_STATUS_SCAN_LIMIT = 100
 
 export const getUserChatRooms = async (params = {}) => {
   const normalizedParams = toChatRoomListParams(params)
@@ -77,6 +80,28 @@ export const getChatRoomList = async (params = {}) => {
   })
 }
 
+export const getChatUnreadStatus = async () => {
+  let cursor = null
+
+  while (true) {
+    const response = await getUserChatRooms({
+      cursor,
+      limit: UNREAD_STATUS_SCAN_LIMIT,
+    })
+
+    const hasUnreadInPage = response.items.some((item) => Number(item.unreadCount ?? 0) > 0)
+    if (hasUnreadInPage) {
+      return { hasUnread: true }
+    }
+
+    if (!response.hasNextPage || !response.nextCursor) {
+      return { hasUnread: false }
+    }
+
+    cursor = response.nextCursor
+  }
+}
+
 export const createChatRoom = async (params = {}) => {
   const payload = toChatRoomCreateRequest(params)
   const response = await requestCreateChatRoom(payload)
@@ -95,6 +120,12 @@ export const joinChatRoom = async (params = {}) => {
   const payload = toChatRoomJoinRequest(params.password)
 
   await requestJoinChatRoom(normalizedRoomId, Object.keys(payload).length > 0 ? payload : undefined)
+}
+
+export const leaveChatRoom = async (params = {}) => {
+  const normalizedRoomId = normalizeRoomId(params.roomId)
+
+  await requestLeaveChatRoom(normalizedRoomId)
 }
 
 export const getChatRoomMessages = async (params = {}) => {

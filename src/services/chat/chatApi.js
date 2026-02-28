@@ -47,6 +47,11 @@ export const requestJoinChatRoom = async (roomId, payload) => {
   return response.data
 }
 
+export const requestLeaveChatRoom = async (roomId) => {
+  const response = await api.post(`/api/chat-rooms/${roomId}/leave`)
+  return response.data
+}
+
 export const requestChatMessages = async (roomId, params = {}) => {
   const response = await api.get(`/api/chat-rooms/${roomId}/messages`, {
     params,

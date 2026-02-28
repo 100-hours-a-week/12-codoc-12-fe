@@ -75,10 +75,18 @@ const toSearchChatRoomItem = (item = {}) => {
 export const toChatMessageItem = (item = {}) => {
   const createdAt = item.createdAt ?? null
   const senderId = Number(item.senderId)
+  const rawSenderNickname =
+    typeof item.senderNickname === 'string'
+      ? item.senderNickname
+      : typeof item.senderName === 'string'
+        ? item.senderName
+        : ''
+  const senderNickname = rawSenderNickname.trim()
 
   return {
     messageId: item.messageId ?? null,
     senderId: Number.isInteger(senderId) ? senderId : null,
+    senderNickname,
     type: String(item.type ?? 'TEXT').toUpperCase(),
     content: item.content ?? '',
     createdAt,
