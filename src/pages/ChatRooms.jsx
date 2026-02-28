@@ -141,7 +141,7 @@ const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
                   {room.lastMessageAtLabel || '메시지 없음'}
                 </span>
                 {room.unreadCount > 0 ? (
-                  <Badge className="shrink-0 rounded-full bg-[hsl(var(--warning))] px-2.5 py-0.5 text-sm text-warning-foreground">
+                  <Badge className="shrink-0 rounded-full bg-red-500 px-2.5 py-0.5 text-sm text-white">
                     {room.unreadCount}
                   </Badge>
                 ) : null}
