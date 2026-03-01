@@ -137,7 +137,7 @@ function StatCard({ label, value }) {
 
 export default function MyPage() {
   const [isEditing, setIsEditing] = useState(false)
-  const [nickname, setNickname] = useState('코딩 마스터')
+  const [nickname, setNickname] = useState('')
   const [draftNickname, setDraftNickname] = useState(nickname)
   const [year, setYear] = useState('recent')
   const [isYearMenuOpen, setIsYearMenuOpen] = useState(false)
@@ -235,7 +235,7 @@ export default function MyPage() {
           return
         }
         const profile = data?.data
-        const nextNickname = profile?.nickname ?? '코딩 마스터'
+        const nextNickname = profile?.nickname ?? ''
         setNickname(nextNickname)
         setDraftNickname(nextNickname)
         const nextAvatarId = profile?.avatarId ?? null

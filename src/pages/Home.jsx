@@ -420,32 +420,9 @@ export default function Home() {
   const recommendedStatus =
     STATUS_OPTIONS.find((option) => option.value === normalizedRecommendStatus) ?? null
 
-  const questItems =
-    quests.length > 0
-      ? quests
-      : [
-          {
-            userQuestId: null,
-            title: '퀘스트를 준비 중입니다',
-            reward: 0,
-            variant: 'pending',
-            disabled: true,
-          },
-          {
-            userQuestId: null,
-            title: '곧 새로운 퀘스트가 도착해요',
-            reward: 0,
-            variant: 'pending',
-            disabled: true,
-          },
-          {
-            userQuestId: null,
-            title: '조금만 기다려주세요',
-            reward: 0,
-            variant: 'pending',
-            disabled: true,
-          },
-        ]
+  const questItems = quests
+  const hasQuestItems = questItems.length > 0
+  const completedQuestCount = quests.filter((quest) => quest.variant === 'done').length
   const questPages = Math.max(1, Math.ceil(questItems.length / 3))
   const isQuestPaged = questItems.length > 3
   const questOffsetPct = Math.min(questPages - 1, questPage) * (100 / questPages)
@@ -491,85 +468,91 @@ export default function Home() {
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
               <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-                {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
+                {hasQuestItems ? `${completedQuestCount} / ${questItems.length}` : '-'}
               </span>
             </div>
           </div>
           {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
           <div className="relative">
-            <div
-              className="overflow-hidden"
-              style={{ touchAction: 'pan-y' }}
-              onTouchStart={(event) => {
-                if (!isQuestPaged) {
-                  return
-                }
-                const startX = event.touches[0]?.clientX ?? null
-                questTouchStartX.current = startX
-                questTouchLastX.current = startX
-              }}
-              onTouchMove={(event) => {
-                if (!isQuestPaged) {
-                  return
-                }
-                questTouchLastX.current = event.touches[0]?.clientX ?? questTouchLastX.current
-              }}
-              onTouchEnd={(event) => {
-                if (!isQuestPaged || questTouchStartX.current == null) {
-                  return
-                }
-                const endX = questTouchLastX.current ?? event.changedTouches[0]?.clientX ?? null
-                if (endX == null) {
+            {hasQuestItems ? (
+              <div
+                className="overflow-hidden"
+                style={{ touchAction: 'pan-y' }}
+                onTouchStart={(event) => {
+                  if (!isQuestPaged) {
+                    return
+                  }
+                  const startX = event.touches[0]?.clientX ?? null
+                  questTouchStartX.current = startX
+                  questTouchLastX.current = startX
+                }}
+                onTouchMove={(event) => {
+                  if (!isQuestPaged) {
+                    return
+                  }
+                  questTouchLastX.current = event.touches[0]?.clientX ?? questTouchLastX.current
+                }}
+                onTouchEnd={(event) => {
+                  if (!isQuestPaged || questTouchStartX.current == null) {
+                    return
+                  }
+                  const endX = questTouchLastX.current ?? event.changedTouches[0]?.clientX ?? null
+                  if (endX == null) {
+                    questTouchStartX.current = null
+                    questTouchLastX.current = null
+                    return
+                  }
+                  const delta = questTouchStartX.current - endX
                   questTouchStartX.current = null
                   questTouchLastX.current = null
-                  return
-                }
-                const delta = questTouchStartX.current - endX
-                questTouchStartX.current = null
-                questTouchLastX.current = null
-                if (Math.abs(delta) < 40) {
-                  return
-                }
-                if (delta > 0) {
-                  setQuestPage((prev) => Math.min(questPages - 1, prev + 1))
-                } else {
-                  setQuestPage((prev) => Math.max(0, prev - 1))
-                }
-              }}
-              onTouchCancel={() => {
-                questTouchStartX.current = null
-                questTouchLastX.current = null
-              }}
-            >
-              <div
-                className="flex w-full transition-transform duration-300 ease-out"
-                style={{
-                  width: `${questPages * 100}%`,
-                  transform: `translateX(-${questOffsetPct}%)`,
+                  if (Math.abs(delta) < 40) {
+                    return
+                  }
+                  if (delta > 0) {
+                    setQuestPage((prev) => Math.min(questPages - 1, prev + 1))
+                  } else {
+                    setQuestPage((prev) => Math.max(0, prev - 1))
+                  }
+                }}
+                onTouchCancel={() => {
+                  questTouchStartX.current = null
+                  questTouchLastX.current = null
                 }}
               >
-                {Array.from({ length: questPages }).map((_, pageIndex) => {
-                  const sliceStart = pageIndex * 3
-                  const sliceEnd = sliceStart + 3
-                  const pageItems = questItems.slice(sliceStart, sliceEnd)
-                  return (
-                    <div
-                      key={`quest-page-${pageIndex}`}
-                      className="grid flex-none grid-cols-3 gap-1 px-0.5"
-                      style={{ width: `${100 / questPages}%` }}
-                    >
-                      {pageItems.map((quest) => (
-                        <QuestCard
-                          key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}-${pageIndex}`}
-                          quest={quest}
-                          onClaim={handleClaim}
-                        />
-                      ))}
-                    </div>
-                  )
-                })}
+                <div
+                  className="flex w-full transition-transform duration-300 ease-out"
+                  style={{
+                    width: `${questPages * 100}%`,
+                    transform: `translateX(-${questOffsetPct}%)`,
+                  }}
+                >
+                  {Array.from({ length: questPages }).map((_, pageIndex) => {
+                    const sliceStart = pageIndex * 3
+                    const sliceEnd = sliceStart + 3
+                    const pageItems = questItems.slice(sliceStart, sliceEnd)
+                    return (
+                      <div
+                        key={`quest-page-${pageIndex}`}
+                        className="grid flex-none grid-cols-3 gap-1 px-0.5"
+                        style={{ width: `${100 / questPages}%` }}
+                      >
+                        {pageItems.map((quest) => (
+                          <QuestCard
+                            key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}-${pageIndex}`}
+                            quest={quest}
+                            onClaim={handleClaim}
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            ) : !isLoading ? (
+              <div className="py-6 text-center">
+                <StatusMessage>오늘의 퀘스트가 없습니다.</StatusMessage>
+              </div>
+            ) : null}
           </div>
           {isLoading ? <StatusMessage>불러오는 중...</StatusMessage> : null}
         </div>
