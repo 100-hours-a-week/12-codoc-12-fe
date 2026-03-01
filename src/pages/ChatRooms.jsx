@@ -455,6 +455,7 @@ export default function ChatRooms() {
 
   const handleOpenRoom = async (room) => {
     const roomId = Number(room.roomId)
+    const participantsCount = Number(room.participantsCount ?? room.participantCount)
 
     if (!Number.isInteger(roomId) || roomId <= 0) {
       setJoinError('유효하지 않은 채팅방입니다.')
@@ -467,9 +468,12 @@ export default function ChatRooms() {
 
     setJoinError('')
 
-    if (scope === 'joined') {
+    if (scope === 'joined' || Boolean(room.isJoined)) {
       navigate(`/chat/${roomId}`, {
-        state: { roomTitle: room.title, participantsCount: room.participantsCount },
+        state: {
+          roomTitle: room.title,
+          participantsCount: Number.isInteger(participantsCount) ? participantsCount : undefined,
+        },
       })
       return
     }
