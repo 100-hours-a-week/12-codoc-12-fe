@@ -154,7 +154,7 @@ export default function MainLayout() {
       <div
         ref={shellRef}
         className={`mx-auto flex w-full max-w-[430px] flex-col bg-background shadow-sm ${
-          isChatRoomDetailPath ? 'h-[100dvh] overflow-hidden' : 'min-h-screen'
+          isChatRoomDetailPath ? 'h-[100svh] overflow-hidden' : 'min-h-screen'
         }`}
         data-shell="app"
         style={{
