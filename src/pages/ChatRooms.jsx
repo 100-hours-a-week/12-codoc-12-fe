@@ -216,6 +216,8 @@ export default function ChatRooms() {
   const [passwordInput, setPasswordInput] = useState('')
   const [passwordError, setPasswordError] = useState('')
   const [passwordRoom, setPasswordRoom] = useState(null)
+  const [isPublicJoinDialogOpen, setIsPublicJoinDialogOpen] = useState(false)
+  const [publicJoinRoom, setPublicJoinRoom] = useState(null)
   const hasSearchKeyword = keyword.length > 0
   const isCreateFormComplete = createTitle.trim().length > 0
   const roomUpdateVersion = useChatRealtimeStore((state) => state.roomUpdateVersion)
@@ -370,6 +372,24 @@ export default function ChatRooms() {
     setPasswordError('')
   }
 
+  const openPublicJoinDialog = (room) => {
+    setPublicJoinRoom({
+      roomId: room.roomId,
+      title: room.title,
+      participantCount: room.participantCount,
+    })
+    setIsPublicJoinDialogOpen(true)
+  }
+
+  const closePublicJoinDialog = () => {
+    if (pendingRoomId != null) {
+      return
+    }
+
+    setIsPublicJoinDialogOpen(false)
+    setPublicJoinRoom(null)
+  }
+
   const handleCreateSubmit = async (event) => {
     event.preventDefault()
 
@@ -459,25 +479,7 @@ export default function ChatRooms() {
       return
     }
 
-    setPendingRoomId(roomId)
-
-    try {
-      await joinChatRoom({ roomId })
-      navigate(`/chat/${roomId}`, {
-        state: { roomTitle: room.title, participantsCount: room.participantCount },
-      })
-    } catch (error) {
-      const code = error?.response?.data?.code
-      if (code === 'CHAT_ROOM_ALREADY_JOINED') {
-        navigate(`/chat/${roomId}`, {
-          state: { roomTitle: room.title, participantsCount: room.participantCount },
-        })
-        return
-      }
-      setJoinError(toJoinErrorMessage(error))
-    } finally {
-      setPendingRoomId(null)
-    }
+    openPublicJoinDialog(room)
   }
 
   const handlePasswordJoinSubmit = async (event) => {
@@ -529,6 +531,49 @@ export default function ChatRooms() {
         return
       }
       setPasswordError(toJoinErrorMessage(error))
+    } finally {
+      setPendingRoomId(null)
+    }
+  }
+
+  const handlePublicJoinConfirm = async () => {
+    const roomId = Number(publicJoinRoom?.roomId)
+    if (!Number.isInteger(roomId) || roomId <= 0) {
+      setJoinError('유효하지 않은 채팅방입니다.')
+      return
+    }
+
+    if (pendingRoomId === roomId) {
+      return
+    }
+
+    setJoinError('')
+    setPendingRoomId(roomId)
+
+    try {
+      await joinChatRoom({ roomId })
+      setIsPublicJoinDialogOpen(false)
+      setPublicJoinRoom(null)
+      navigate(`/chat/${roomId}`, {
+        state: {
+          roomTitle: publicJoinRoom?.title ?? `채팅방 #${roomId}`,
+          participantsCount: publicJoinRoom?.participantCount,
+        },
+      })
+    } catch (error) {
+      const code = error?.response?.data?.code
+      if (code === 'CHAT_ROOM_ALREADY_JOINED') {
+        setIsPublicJoinDialogOpen(false)
+        setPublicJoinRoom(null)
+        navigate(`/chat/${roomId}`, {
+          state: {
+            roomTitle: publicJoinRoom?.title ?? `채팅방 #${roomId}`,
+            participantsCount: publicJoinRoom?.participantCount,
+          },
+        })
+        return
+      }
+      setJoinError(toJoinErrorMessage(error))
     } finally {
       setPendingRoomId(null)
     }
@@ -789,6 +834,49 @@ export default function ChatRooms() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isPublicJoinDialogOpen}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setIsPublicJoinDialogOpen(true)
+          }
+        }}
+      >
+        <DialogContent
+          className="p-5"
+          onEscapeKeyDown={(event) => event.preventDefault()}
+          onInteractOutside={(event) => event.preventDefault()}
+          onPointerDownOutside={(event) => event.preventDefault()}
+        >
+          <div className="flex flex-col gap-5">
+            <DialogHeader className="space-y-2 text-left">
+              <DialogTitle>채팅방 입장</DialogTitle>
+              <DialogDescription className="text-muted-foreground/60">
+                {publicJoinRoom?.title ?? '선택한 채팅방'}에 입장하시겠습니까?
+              </DialogDescription>
+            </DialogHeader>
+
+            <DialogFooter className="flex-row justify-end gap-2">
+              <Button
+                disabled={pendingRoomId != null}
+                onClick={closePublicJoinDialog}
+                type="button"
+                variant="outline"
+              >
+                취소
+              </Button>
+              <Button
+                disabled={pendingRoomId != null}
+                onClick={handlePublicJoinConfirm}
+                type="button"
+              >
+                {pendingRoomId != null ? '입장 중...' : '입장'}
+              </Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </>
