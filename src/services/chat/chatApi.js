@@ -29,6 +29,11 @@ export const requestSearchUserChatRooms = async (params = {}) => {
   return response.data
 }
 
+export const requestUserChatUnreadStatus = async () => {
+  const response = await api.get('/api/user/chat-rooms/unread-status')
+  return response.data
+}
+
 export const requestSearchChatRooms = async (params = {}) => {
   const response = await api.get('/api/chat-rooms/search', {
     params,
