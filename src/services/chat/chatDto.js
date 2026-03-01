@@ -92,6 +92,10 @@ export const toChatMessageItem = (item = {}) => {
 
   return {
     messageId: item.messageId ?? null,
+    clientMessageId:
+      typeof item.clientMessageId === 'string' && item.clientMessageId.trim()
+        ? item.clientMessageId.trim()
+        : null,
     senderId: Number.isInteger(senderId) ? senderId : null,
     senderNickname,
     senderAvatarImageUrl,
@@ -99,6 +103,10 @@ export const toChatMessageItem = (item = {}) => {
     content: item.content ?? '',
     createdAt,
     createdAtLabel: toMessageDateTimeLabel(createdAt),
+    deliveryStatus:
+      item.deliveryStatus === 'sending' || item.deliveryStatus === 'failed'
+        ? item.deliveryStatus
+        : 'sent',
   }
 }
 

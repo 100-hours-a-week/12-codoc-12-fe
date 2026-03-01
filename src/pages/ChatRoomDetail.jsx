@@ -24,9 +24,16 @@ import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 
 const PAGE_LIMIT = 30
 const MAX_INPUT_LENGTH = 500
-const SEND_RETRY_DELAY_MS = 700
 const TOP_LOAD_THRESHOLD_PX = 72
 const LOAD_MORE_COOLDOWN_MS = 420
+
+const toIsNetworkOnline = () => {
+  if (typeof navigator === 'undefined') {
+    return true
+  }
+
+  return navigator.onLine !== false
+}
 
 const toCurrentUserId = () => {
   const payload = getAccessTokenPayload()
@@ -126,10 +133,20 @@ const compareMessagesDesc = (a, b) => {
 
 const mergeMessages = (items = []) => {
   const byId = new Map()
+  const byClientMessageId = new Map()
   const withoutId = []
 
   items.forEach((item) => {
     if (item?.messageId == null) {
+      if (
+        typeof item?.clientMessageId === 'string' &&
+        item.clientMessageId.trim() &&
+        !byClientMessageId.has(item.clientMessageId)
+      ) {
+        byClientMessageId.set(item.clientMessageId, item)
+        return
+      }
+
       withoutId.push(item)
       return
     }
@@ -139,7 +156,7 @@ const mergeMessages = (items = []) => {
     }
   })
 
-  return [...byId.values(), ...withoutId].sort(compareMessagesDesc)
+  return [...byId.values(), ...byClientMessageId.values(), ...withoutId].sort(compareMessagesDesc)
 }
 
 const toSenderLabel = (message, currentUserId) => {
@@ -256,6 +273,7 @@ export default function ChatRoomDetail() {
   const [loadError, setLoadError] = useState('')
   const [inputValue, setInputValue] = useState('')
   const [isInputFocused, setIsInputFocused] = useState(false)
+  const [isNetworkOnline, setIsNetworkOnline] = useState(() => toIsNetworkOnline())
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -268,9 +286,7 @@ export default function ChatRoomDetail() {
   const connectionRef = useRef(null)
   const subscriptionRef = useRef(null)
   const connectionTokenRef = useRef(0)
-  const pendingMessagesRef = useRef([])
-  const flushTimeoutRef = useRef(null)
-  const isFlushingRef = useRef(false)
+  const isNetworkOnlineRef = useRef(toIsNetworkOnline())
   const messagesViewportRef = useRef(null)
   const messageInputRef = useRef(null)
   const previousMessageCountRef = useRef(0)
@@ -376,6 +392,10 @@ export default function ChatRoomDetail() {
     orderedMessages.length > 0 &&
     !isInputFocused &&
     keyboardOffset <= 0
+  const canSend = useMemo(
+    () => inputValue.trim().length > 0 && isNetworkOnline && connectionStatus === 'connected',
+    [connectionStatus, inputValue, isNetworkOnline],
+  )
   const messageRenderItems = useMemo(() => {
     const items = []
     let lastDateKey = null
@@ -393,7 +413,7 @@ export default function ChatRoomDetail() {
       }
 
       items.push({
-        key: message.messageId ?? `${message.type}-${message.createdAt}`,
+        key: message.clientMessageId ?? message.messageId ?? `${message.type}-${message.createdAt}`,
         type: 'message',
         message,
       })
@@ -402,63 +422,25 @@ export default function ChatRoomDetail() {
     return items
   }, [orderedMessages])
 
-  const clearFlushTimeout = useCallback(() => {
-    if (flushTimeoutRef.current) {
-      clearTimeout(flushTimeoutRef.current)
-      flushTimeoutRef.current = null
+  useEffect(() => {
+    const handleOnline = () => {
+      isNetworkOnlineRef.current = true
+      setIsNetworkOnline(true)
+    }
+
+    const handleOffline = () => {
+      isNetworkOnlineRef.current = false
+      setIsNetworkOnline(false)
+    }
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
     }
   }, [])
-
-  const enqueuePendingMessage = useCallback((content, retriesLeft = 1) => {
-    pendingMessagesRef.current.push({ content, retriesLeft })
-  }, [])
-
-  const flushPendingMessages = useCallback(() => {
-    const connection = connectionRef.current
-
-    if (!connection || !connection.isConnected() || normalizedRoomId == null) {
-      return
-    }
-
-    if (isFlushingRef.current) {
-      return
-    }
-
-    isFlushingRef.current = true
-    clearFlushTimeout()
-
-    try {
-      while (pendingMessagesRef.current.length > 0) {
-        if (!connectionRef.current?.isConnected()) {
-          break
-        }
-
-        const queued = pendingMessagesRef.current[0]
-
-        try {
-          connection.publishJson(toChatMessageSendDestination(normalizedRoomId), {
-            content: queued.content,
-          })
-          pendingMessagesRef.current.shift()
-        } catch {
-          if (queued.retriesLeft > 0) {
-            queued.retriesLeft -= 1
-            flushTimeoutRef.current = setTimeout(() => {
-              isFlushingRef.current = false
-              flushPendingMessages()
-            }, SEND_RETRY_DELAY_MS)
-            return
-          }
-
-          pendingMessagesRef.current.shift()
-        }
-      }
-    } finally {
-      if (!flushTimeoutRef.current) {
-        isFlushingRef.current = false
-      }
-    }
-  }, [clearFlushTimeout, normalizedRoomId])
 
   const fetchMessages = useCallback(
     async ({ cursor = null, append = false } = {}) => {
@@ -487,7 +469,7 @@ export default function ChatRoomDetail() {
         })
 
         setMessages((previous) =>
-          mergeMessages(append ? [...previous, ...response.items] : response.items),
+          mergeMessages(append ? [...previous, ...response.items] : [...response.items]),
         )
         setNextCursor(response.nextCursor)
         setHasNextPage(Boolean(response.hasNextPage))
@@ -571,12 +553,9 @@ export default function ChatRoomDetail() {
             }
 
             const nextMessage = toChatMessageItem(payload)
-
             setMessages((previous) => mergeMessages([nextMessage, ...previous]))
           },
         )
-
-        flushPendingMessages()
       },
       onStompError: () => {
         if (connectionTokenRef.current !== connectionToken) {
@@ -608,8 +587,6 @@ export default function ChatRoomDetail() {
 
     return () => {
       connectionTokenRef.current += 1
-      clearFlushTimeout()
-      isFlushingRef.current = false
 
       subscriptionRef.current?.unsubscribe()
       subscriptionRef.current = null
@@ -617,10 +594,9 @@ export default function ChatRoomDetail() {
       connectionRef.current = null
       connection.deactivate()
 
-      pendingMessagesRef.current = []
       setConnectionStatus('disconnected')
     }
-  }, [clearFlushTimeout, flushPendingMessages, normalizedRoomId])
+  }, [normalizedRoomId])
 
   const updateBottomState = useCallback(() => {
     const viewport = messagesViewportRef.current
@@ -761,11 +737,8 @@ export default function ChatRoomDetail() {
     }
 
     const connection = connectionRef.current
-
-    if (!connection || !connection.isConnected()) {
-      enqueuePendingMessage(content)
-      setInputValue('')
-      focusMessageInput()
+    const isSendBlocked = !isNetworkOnline || !connection || !connection.isConnected()
+    if (isSendBlocked) {
       return
     }
 
@@ -774,10 +747,7 @@ export default function ChatRoomDetail() {
       setInputValue('')
       focusMessageInput()
     } catch {
-      enqueuePendingMessage(content)
-      setInputValue('')
-      flushPendingMessages()
-      focusMessageInput()
+      return
     }
   }
 
@@ -861,7 +831,7 @@ export default function ChatRoomDetail() {
           ref={messagesViewportRef}
         >
           <p aria-live="polite" className="sr-only">
-            연결 상태: {connectionStatus}
+            연결 상태: {isNetworkOnline ? connectionStatus : 'offline'}
           </p>
           {loadError ? (
             <div className="pb-2">
@@ -971,10 +941,8 @@ export default function ChatRoomDetail() {
               value={inputValue}
             />
             <Button
-              className={`h-10 rounded-xl ${
-                inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
-              }`}
-              disabled={inputValue.trim().length === 0}
+              className={`h-10 rounded-xl ${canSend ? 'bg-info text-white hover:bg-info/90' : ''}`}
+              disabled={!canSend}
               onPointerDown={(event) => event.preventDefault()}
               size="sm"
               type="submit"
