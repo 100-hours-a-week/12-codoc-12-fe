@@ -60,11 +60,14 @@ const toJoinedChatRoomItem = (item = {}) => {
 
 const toSearchChatRoomItem = (item = {}) => {
   const lastMessageAt = item.lastMessageAt ?? null
+  const rawJoinedState =
+    item.isJoined ?? item.joined ?? item.isParticipant ?? item.isParticipating ?? item.alreadyJoined
 
   return {
     roomId: item.roomId ?? null,
     title: item.title ?? '',
     hasPassword: Boolean(item.hasPassword),
+    isJoined: Boolean(rawJoinedState),
     participantCount: Number(item.participantCount ?? 0),
     maxParticipants: Number(item.maxParticipants ?? 0),
     lastMessageAt,

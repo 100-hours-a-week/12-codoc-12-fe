@@ -170,6 +170,11 @@ const SearchChatRoomCard = ({ room, isOpening, onOpen }) => (
             <h3 className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">
               {room.title}
             </h3>
+            {room.isJoined ? (
+              <Badge className="rounded-full border border-info/30 bg-info/10 px-2.5 py-0.5 text-[11px] font-semibold text-info">
+                참가중
+              </Badge>
+            ) : null}
           </div>
 
           <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
@@ -198,6 +203,7 @@ export default function ChatRooms() {
   const [keyword, setKeyword] = useState('')
 
   const [rooms, setRooms] = useState([])
+  const [joinedRoomIds, setJoinedRoomIds] = useState(() => new Set())
   const [nextCursor, setNextCursor] = useState(null)
   const [hasNextPage, setHasNextPage] = useState(false)
 
@@ -272,6 +278,22 @@ export default function ChatRooms() {
         })
 
         setRooms((previous) => (append ? [...previous, ...response.items] : response.items))
+        if (scope === 'joined') {
+          setJoinedRoomIds((previous) => {
+            const next = new Set(previous)
+            let changed = false
+
+            response.items.forEach((item) => {
+              const roomId = Number(item?.roomId)
+              if (Number.isInteger(roomId) && roomId > 0 && !next.has(roomId)) {
+                next.add(roomId)
+                changed = true
+              }
+            })
+
+            return changed ? next : previous
+          })
+        }
         setNextCursor(response.nextCursor)
         setHasNextPage(Boolean(response.hasNextPage))
 
@@ -758,7 +780,12 @@ export default function ChatRooms() {
                       key={room.roomId}
                       isOpening={isOpening}
                       onOpen={handleOpenRoom}
-                      room={room}
+                      room={{
+                        ...room,
+                        isJoined:
+                          Boolean(room.isJoined) ||
+                          (Number.isInteger(roomId) && joinedRoomIds.has(roomId)),
+                      }}
                     />
                   )
                 })}
