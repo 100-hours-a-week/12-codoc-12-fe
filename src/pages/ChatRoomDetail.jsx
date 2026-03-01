@@ -751,6 +751,23 @@ export default function ChatRoomDetail() {
     }
   }
 
+  const handleMessageInputKeyDown = (event) => {
+    if (event.key !== 'Enter') {
+      return
+    }
+
+    if (event.nativeEvent?.isComposing) {
+      return
+    }
+
+    if (event.shiftKey) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
+
   const handleLeaveClick = () => {
     setLeaveError('')
     setIsLeaveDialogOpen(true)
@@ -934,6 +951,7 @@ export default function ChatRoomDetail() {
               maxLength={MAX_INPUT_LENGTH}
               ref={messageInputRef}
               onChange={(event) => setInputValue(event.target.value)}
+              onKeyDown={handleMessageInputKeyDown}
               onFocus={() => setIsInputFocused(true)}
               onBlur={() => setIsInputFocused(false)}
               placeholder="메시지를 입력하세요"
