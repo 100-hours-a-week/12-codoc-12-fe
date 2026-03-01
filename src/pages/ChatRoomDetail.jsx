@@ -12,7 +12,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { getAccessTokenPayload } from '@/lib/auth'
 import { toChatMessageItem } from '@/services/chat/chatDto'
 import {
@@ -26,6 +25,8 @@ import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 const PAGE_LIMIT = 30
 const MAX_INPUT_LENGTH = 500
 const SEND_RETRY_DELAY_MS = 700
+const TOP_LOAD_THRESHOLD_PX = 72
+const LOAD_MORE_COOLDOWN_MS = 420
 
 const toCurrentUserId = () => {
   const payload = getAccessTokenPayload()
@@ -253,11 +254,10 @@ export default function ChatRoomDetail() {
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [loadError, setLoadError] = useState('')
-  const [realtimeError, setRealtimeError] = useState('')
-  const [sendError, setSendError] = useState('')
   const [inputValue, setInputValue] = useState('')
+  const [isInputFocused, setIsInputFocused] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('connecting')
-  const [pendingCount, setPendingCount] = useState(0)
+  const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
@@ -272,7 +272,61 @@ export default function ChatRoomDetail() {
   const flushTimeoutRef = useRef(null)
   const isFlushingRef = useRef(false)
   const messagesViewportRef = useRef(null)
+  const messageInputRef = useRef(null)
   const previousMessageCountRef = useRef(0)
+  const prependScrollRestoreRef = useRef(null)
+  const lastLoadMoreAtRef = useRef(0)
+
+  useEffect(() => {
+    const previousBodyOverflow = document.body.style.overflow
+    const previousHtmlOverflow = document.documentElement.style.overflow
+    const previousBodyOverscrollBehaviorY = document.body.style.overscrollBehaviorY
+    const previousHtmlOverscrollBehaviorY = document.documentElement.style.overscrollBehaviorY
+
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overscrollBehaviorY = 'none'
+    document.documentElement.style.overscrollBehaviorY = 'none'
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousHtmlOverflow
+      document.body.style.overscrollBehaviorY = previousBodyOverscrollBehaviorY
+      document.documentElement.style.overscrollBehaviorY = previousHtmlOverscrollBehaviorY
+    }
+  }, [])
+
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) {
+      setKeyboardOffset(0)
+      return
+    }
+
+    let raf = null
+    const syncKeyboardOffset = () => {
+      if (raf) {
+        cancelAnimationFrame(raf)
+      }
+
+      raf = requestAnimationFrame(() => {
+        const offset = Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)
+        setKeyboardOffset(offset)
+      })
+    }
+
+    viewport.addEventListener('resize', syncKeyboardOffset)
+    viewport.addEventListener('scroll', syncKeyboardOffset)
+    syncKeyboardOffset()
+
+    return () => {
+      viewport.removeEventListener('resize', syncKeyboardOffset)
+      viewport.removeEventListener('scroll', syncKeyboardOffset)
+      if (raf) {
+        cancelAnimationFrame(raf)
+      }
+    }
+  }, [])
 
   const normalizedRoomId = useMemo(() => {
     const parsed = Number(roomId)
@@ -306,8 +360,22 @@ export default function ChatRoomDetail() {
 
     return fromState
   }, [location.state])
+  const inputBottomOffset = useMemo(
+    () => `calc(var(--chatbot-input-bottom) + env(safe-area-inset-bottom) + ${keyboardOffset}px)`,
+    [keyboardOffset],
+  )
+  const scrollToBottomButtonOffset = useMemo(
+    () => `calc(${inputBottomOffset} + 5.5rem)`,
+    [inputBottomOffset],
+  )
 
   const orderedMessages = useMemo(() => [...messages].reverse(), [messages])
+  const shouldShowScrollDownButton =
+    !isAtBottom &&
+    !isLoading &&
+    orderedMessages.length > 0 &&
+    !isInputFocused &&
+    keyboardOffset <= 0
   const messageRenderItems = useMemo(() => {
     const items = []
     let lastDateKey = null
@@ -343,7 +411,6 @@ export default function ChatRoomDetail() {
 
   const enqueuePendingMessage = useCallback((content, retriesLeft = 1) => {
     pendingMessagesRef.current.push({ content, retriesLeft })
-    setPendingCount(pendingMessagesRef.current.length)
   }, [])
 
   const flushPendingMessages = useCallback(() => {
@@ -373,12 +440,9 @@ export default function ChatRoomDetail() {
             content: queued.content,
           })
           pendingMessagesRef.current.shift()
-          setPendingCount(pendingMessagesRef.current.length)
-          setSendError('')
         } catch {
           if (queued.retriesLeft > 0) {
             queued.retriesLeft -= 1
-            setSendError('메시지 전송을 재시도하고 있습니다.')
             flushTimeoutRef.current = setTimeout(() => {
               isFlushingRef.current = false
               flushPendingMessages()
@@ -387,8 +451,6 @@ export default function ChatRoomDetail() {
           }
 
           pendingMessagesRef.current.shift()
-          setPendingCount(pendingMessagesRef.current.length)
-          setSendError('일부 메시지 전송에 실패했습니다. 다시 시도해주세요.')
         }
       }
     } finally {
@@ -481,7 +543,6 @@ export default function ChatRoomDetail() {
     const connectionToken = connectionTokenRef.current + 1
     connectionTokenRef.current = connectionToken
 
-    setRealtimeError('')
     setConnectionStatus('connecting')
 
     const connection = createChatStompConnection({
@@ -500,7 +561,6 @@ export default function ChatRoomDetail() {
         }
 
         setConnectionStatus('connected')
-        setRealtimeError('')
 
         subscriptionRef.current?.unsubscribe()
         subscriptionRef.current = connectionRef.current?.subscribe(
@@ -524,7 +584,6 @@ export default function ChatRoomDetail() {
         }
 
         setConnectionStatus('reconnecting')
-        setRealtimeError('실시간 연결 오류가 발생했습니다. 자동 재연결 중입니다.')
       },
       onWebSocketClose: () => {
         if (connectionTokenRef.current !== connectionToken) {
@@ -534,10 +593,6 @@ export default function ChatRoomDetail() {
         const shouldReconnect = connectionRef.current?.isActive()
 
         setConnectionStatus(shouldReconnect ? 'reconnecting' : 'disconnected')
-
-        if (shouldReconnect) {
-          setRealtimeError('실시간 연결이 끊어졌습니다. 자동 재연결 중입니다.')
-        }
       },
       onWebSocketError: () => {
         if (connectionTokenRef.current !== connectionToken) {
@@ -545,7 +600,6 @@ export default function ChatRoomDetail() {
         }
 
         setConnectionStatus('reconnecting')
-        setRealtimeError('실시간 연결 오류가 발생했습니다. 자동 재연결 중입니다.')
       },
     })
 
@@ -564,7 +618,6 @@ export default function ChatRoomDetail() {
       connection.deactivate()
 
       pendingMessagesRef.current = []
-      setPendingCount(0)
       setConnectionStatus('disconnected')
     }
   }, [clearFlushTimeout, flushPendingMessages, normalizedRoomId])
@@ -588,21 +641,47 @@ export default function ChatRoomDetail() {
     viewport.scrollTo({ top: viewport.scrollHeight, behavior })
   }, [])
 
+  const handleLoadMore = useCallback(() => {
+    const viewport = messagesViewportRef.current
+    if (!viewport || !hasNextPage || !nextCursor || isLoadingMore || isLoading) {
+      return
+    }
+
+    const now = Date.now()
+    if (now - lastLoadMoreAtRef.current < LOAD_MORE_COOLDOWN_MS) {
+      return
+    }
+
+    lastLoadMoreAtRef.current = now
+    prependScrollRestoreRef.current = {
+      scrollTop: viewport.scrollTop,
+      scrollHeight: viewport.scrollHeight,
+    }
+
+    fetchMessages({ cursor: nextCursor, append: true })
+  }, [fetchMessages, hasNextPage, isLoading, isLoadingMore, nextCursor])
+
   useEffect(() => {
     const viewport = messagesViewportRef.current
     if (!viewport) {
       return
     }
 
-    const handleScroll = () => updateBottomState()
+    const handleScroll = () => {
+      updateBottomState()
+
+      if (viewport.scrollTop <= TOP_LOAD_THRESHOLD_PX) {
+        handleLoadMore()
+      }
+    }
 
     viewport.addEventListener('scroll', handleScroll, { passive: true })
-    updateBottomState()
+    handleScroll()
 
     return () => {
       viewport.removeEventListener('scroll', handleScroll)
     }
-  }, [updateBottomState])
+  }, [handleLoadMore, updateBottomState])
 
   useEffect(() => {
     const previousCount = previousMessageCountRef.current
@@ -624,12 +703,46 @@ export default function ChatRoomDetail() {
     }
   }, [isAtBottom, messages.length, scrollToBottom, updateBottomState])
 
-  const handleLoadMore = () => {
-    if (!hasNextPage || !nextCursor || isLoadingMore) {
+  useEffect(() => {
+    const restore = prependScrollRestoreRef.current
+    const viewport = messagesViewportRef.current
+    if (!restore || !viewport) {
       return
     }
-    fetchMessages({ cursor: nextCursor, append: true })
+
+    const nextScrollTop = restore.scrollTop + (viewport.scrollHeight - restore.scrollHeight)
+    viewport.scrollTop = Math.max(0, nextScrollTop)
+    prependScrollRestoreRef.current = null
+  }, [messages.length])
+
+  useEffect(() => {
+    if (keyboardOffset <= 0) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      scrollToBottom('auto')
+      updateBottomState()
+    })
+  }, [keyboardOffset, scrollToBottom, updateBottomState])
+
+  const focusMessageInput = () => {
+    requestAnimationFrame(() => {
+      messageInputRef.current?.focus({ preventScroll: true })
+    })
   }
+
+  useEffect(() => {
+    const inputEl = messageInputRef.current
+    if (!inputEl) {
+      return
+    }
+
+    inputEl.style.height = '0px'
+    const nextHeight = Math.min(inputEl.scrollHeight, 120)
+    inputEl.style.height = `${nextHeight}px`
+    inputEl.style.overflowY = inputEl.scrollHeight > 120 ? 'auto' : 'hidden'
+  }, [inputValue])
 
   const handleSubmit = (event) => {
     event.preventDefault()
@@ -644,7 +757,6 @@ export default function ChatRoomDetail() {
     }
 
     if (content.length > MAX_INPUT_LENGTH) {
-      setSendError(`메시지는 최대 ${MAX_INPUT_LENGTH}자까지 입력할 수 있습니다.`)
       return
     }
 
@@ -653,19 +765,19 @@ export default function ChatRoomDetail() {
     if (!connection || !connection.isConnected()) {
       enqueuePendingMessage(content)
       setInputValue('')
-      setSendError('연결이 복구되면 자동으로 전송됩니다.')
+      focusMessageInput()
       return
     }
 
     try {
       connection.publishJson(toChatMessageSendDestination(normalizedRoomId), { content })
       setInputValue('')
-      setSendError('')
+      focusMessageInput()
     } catch {
       enqueuePendingMessage(content)
       setInputValue('')
-      setSendError('전송 실패로 자동 재시도를 예약했습니다.')
       flushPendingMessages()
+      focusMessageInput()
     }
   }
 
@@ -756,21 +868,11 @@ export default function ChatRoomDetail() {
               <StatusMessage tone="error">{loadError}</StatusMessage>
             </div>
           ) : null}
-          {realtimeError ? (
-            <div className="pb-2">
-              <StatusMessage tone="muted">{realtimeError}</StatusMessage>
-            </div>
-          ) : null}
 
-          {!isLoading && hasNextPage ? (
-            <button
-              className="mb-4 w-full rounded-md border border-neutral-300 bg-neutral-200 px-3 py-1.5 text-xs font-semibold text-neutral-700 transition hover:bg-neutral-250 disabled:opacity-60"
-              disabled={isLoadingMore}
-              onClick={handleLoadMore}
-              type="button"
-            >
-              {isLoadingMore ? '불러오는 중...' : '이전 메시지 더 보기'}
-            </button>
+          {!isLoading && isLoadingMore ? (
+            <div className="pb-3 text-center text-xs font-semibold text-neutral-500">
+              이전 메시지를 불러오는 중...
+            </div>
           ) : null}
 
           {isLoading ? (
@@ -822,8 +924,11 @@ export default function ChatRoomDetail() {
           ) : null}
         </div>
 
-        {!isAtBottom && !isLoading && orderedMessages.length > 0 ? (
-          <div className="pointer-events-none absolute bottom-[calc(var(--chatbot-input-bottom)+env(safe-area-inset-bottom)+5.5rem)] left-4 right-4 z-20">
+        {shouldShowScrollDownButton ? (
+          <div
+            className="pointer-events-none absolute left-4 right-4 z-20"
+            style={{ bottom: scrollToBottomButtonOffset }}
+          >
             <div className="flex justify-end">
               <Button
                 aria-label="최신 메시지로 이동"
@@ -839,7 +944,10 @@ export default function ChatRoomDetail() {
           </div>
         ) : null}
 
-        <div className="shrink-0 bg-background/95 pb-[calc(var(--chatbot-input-bottom)+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+        <div
+          className="shrink-0 bg-background/95 pt-2 backdrop-blur"
+          style={{ paddingBottom: inputBottomOffset }}
+        >
           <p className="m-2 text-right text-[12px] text-neutral-500">
             {inputValue.length} / {MAX_INPUT_LENGTH}
           </p>
@@ -850,17 +958,16 @@ export default function ChatRoomDetail() {
             <label className="sr-only" htmlFor="chat-room-message-input">
               메시지 입력
             </label>
-            <Input
+            <textarea
               id="chat-room-message-input"
-              className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-muted-foreground/40 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="min-h-10 max-h-[120px] flex-1 resize-none border-0 px-2 py-2 text-[16px] leading-6 placeholder:text-muted-foreground/40 shadow-none focus-visible:outline-none"
               maxLength={MAX_INPUT_LENGTH}
-              onChange={(event) => {
-                setInputValue(event.target.value)
-                if (sendError) {
-                  setSendError('')
-                }
-              }}
+              ref={messageInputRef}
+              onChange={(event) => setInputValue(event.target.value)}
+              onFocus={() => setIsInputFocused(true)}
+              onBlur={() => setIsInputFocused(false)}
               placeholder="메시지를 입력하세요"
+              rows={1}
               value={inputValue}
             />
             <Button
@@ -868,6 +975,7 @@ export default function ChatRoomDetail() {
                 inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
               }`}
               disabled={inputValue.trim().length === 0}
+              onPointerDown={(event) => event.preventDefault()}
               size="sm"
               type="submit"
               variant="secondary"
@@ -876,17 +984,6 @@ export default function ChatRoomDetail() {
               전송
             </Button>
           </form>
-
-          {pendingCount > 0 ? (
-            <StatusMessage className="mt-2" tone="muted">
-              대기 중인 메시지 {pendingCount}개가 연결 복구 후 자동 전송됩니다.
-            </StatusMessage>
-          ) : null}
-          {sendError ? (
-            <StatusMessage className="mt-2" tone="error">
-              {sendError}
-            </StatusMessage>
-          ) : null}
         </div>
       </section>
 
