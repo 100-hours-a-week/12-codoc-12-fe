@@ -160,9 +160,25 @@ const toSenderLabel = (message, currentUserId) => {
   return '참여자'
 }
 
+const toSenderAvatarImageUrl = (message) => {
+  if (typeof message?.senderAvatarImageUrl !== 'string') {
+    return ''
+  }
+
+  return message.senderAvatarImageUrl.trim()
+}
+
+const toSenderAvatarFallbackText = (message, currentUserId) => {
+  const senderLabel = toSenderLabel(message, currentUserId)
+  return senderLabel ? senderLabel.slice(0, 1) : '?'
+}
+
 function ChatMessageItem({ currentUserId, isMine, message }) {
   const isSystemMessage = SYSTEM_MESSAGE_TYPES.has(message.type)
   const timeLabel = toMessageTimeLabel(message)
+  const senderLabel = toSenderLabel(message, currentUserId)
+  const avatarImageUrl = toSenderAvatarImageUrl(message)
+  const [isAvatarImageError, setIsAvatarImageError] = useState(false)
 
   if (isSystemMessage) {
     return (
@@ -191,17 +207,34 @@ function ChatMessageItem({ currentUserId, isMine, message }) {
 
   return (
     <li className="flex justify-start">
-      <div className="min-w-0 max-w-[82%]">
-        <p className="mb-1 max-w-full truncate text-[0.85rem] leading-tight text-foreground">
-          {toSenderLabel(message, currentUserId)}
-        </p>
-        <div className="flex items-end gap-1.5">
-          <div className="inline-block max-w-full rounded-xl bg-neutral-300 px-3 py-2 text-md text-foreground">
-            <p className="whitespace-pre-line break-words">{message.content}</p>
+      <div className="flex max-w-[88%] items-start gap-2">
+        <div className="mt-0.5 h-8 w-8 shrink-0 overflow-hidden rounded-full bg-neutral-200">
+          {avatarImageUrl && !isAvatarImageError ? (
+            <img
+              alt={`${senderLabel} 프로필 이미지`}
+              className="h-full w-full object-cover"
+              onError={() => setIsAvatarImageError(true)}
+              src={avatarImageUrl}
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-xs font-semibold text-neutral-700">
+              {toSenderAvatarFallbackText(message, currentUserId)}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <p className="mb-1 max-w-full truncate text-[0.85rem] leading-tight text-foreground">
+            {senderLabel}
+          </p>
+          <div className="flex items-end gap-1.5">
+            <div className="inline-block max-w-full rounded-xl bg-neutral-300 px-3 py-2 text-md text-foreground">
+              <p className="whitespace-pre-line break-words">{message.content}</p>
+            </div>
+            {timeLabel ? (
+              <p className="shrink-0 text-[11px] leading-none text-neutral-500">{timeLabel}</p>
+            ) : null}
           </div>
-          {timeLabel ? (
-            <p className="shrink-0 text-[11px] leading-none text-neutral-500">{timeLabel}</p>
-          ) : null}
         </div>
       </div>
     </li>

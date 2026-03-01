@@ -75,18 +75,26 @@ const toSearchChatRoomItem = (item = {}) => {
 export const toChatMessageItem = (item = {}) => {
   const createdAt = item.createdAt ?? null
   const senderId = Number(item.senderId)
+  const rawSenderAvatarImageUrl =
+    typeof item.senderAvatarImageUrl === 'string'
+      ? item.senderAvatarImageUrl
+      : typeof item.senderAvatarUrl === 'string'
+        ? item.senderAvatarUrl
+        : ''
   const rawSenderNickname =
     typeof item.senderNickname === 'string'
       ? item.senderNickname
       : typeof item.senderName === 'string'
         ? item.senderName
         : ''
+  const senderAvatarImageUrl = rawSenderAvatarImageUrl.trim()
   const senderNickname = rawSenderNickname.trim()
 
   return {
     messageId: item.messageId ?? null,
     senderId: Number.isInteger(senderId) ? senderId : null,
     senderNickname,
+    senderAvatarImageUrl,
     type: String(item.type ?? 'TEXT').toUpperCase(),
     content: item.content ?? '',
     createdAt,
