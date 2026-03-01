@@ -25,7 +25,7 @@ const MAX_PASSWORD_LENGTH = 72
 const ASCII_PASSWORD_PATTERN = /^[\x20-\x7E]+$/
 
 const SCOPE_OPTIONS = [
-  { value: 'joined', label: '채팅방' },
+  { value: 'joined', label: '내 채팅' },
   { value: 'all', label: '전체' },
 ]
 
