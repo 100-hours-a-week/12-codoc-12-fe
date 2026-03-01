@@ -346,7 +346,7 @@ export default function MyPage() {
         if (!mounted) {
           return
         }
-        setReportError('분석 리포트를 불러오지 못했습니다.')
+        setReportError('분석 리포트를 준비중입니다.')
         setReport(null)
       } finally {
         if (mounted) {
@@ -554,7 +554,7 @@ export default function MyPage() {
         )}`
       : report?.periodStart && report?.periodEnd
         ? `${formatShortDate(report.periodStart)} ~ ${formatShortDate(report.periodEnd)}`
-        : '최근 7일'
+        : ''
 
   return (
     <div className="space-y-6">
@@ -813,8 +813,8 @@ export default function MyPage() {
               isLoadingReport ? (
                 <StatusMessage className="mt-4">리포트를 불러오는 중...</StatusMessage>
               ) : reportError ? (
-                <StatusMessage className="mt-4" tone="error">
-                  {reportError}
+                <StatusMessage className="mt-4">
+                  분석 리포트는 매주 월요일 오전 5시에 발급됩니다.
                 </StatusMessage>
               ) : report ? (
                 <div className="mt-4 space-y-4">
