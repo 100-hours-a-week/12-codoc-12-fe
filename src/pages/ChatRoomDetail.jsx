@@ -46,6 +46,30 @@ const toCurrentUserId = () => {
   return parsed
 }
 
+const toParticipantCount = (value) => {
+  const parsed = Number(value)
+
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    return null
+  }
+
+  return parsed
+}
+
+const toParticipantCountFromLocationState = (state) =>
+  toParticipantCount(state?.participantsCount ?? state?.participantCount)
+
+const toLatestParticipantCount = (items = []) => {
+  for (const item of items) {
+    const participantCount = toParticipantCount(item?.participantCount)
+    if (participantCount != null) {
+      return participantCount
+    }
+  }
+
+  return null
+}
+
 const toMessageLoadError = (error) => {
   const code = error?.response?.data?.code
 
@@ -275,6 +299,9 @@ export default function ChatRoomDetail() {
   const [isInputFocused, setIsInputFocused] = useState(false)
   const [isNetworkOnline, setIsNetworkOnline] = useState(() => toIsNetworkOnline())
   const [connectionStatus, setConnectionStatus] = useState('connecting')
+  const [participantCount, setParticipantCount] = useState(() =>
+    toParticipantCountFromLocationState(location.state),
+  )
   const [keyboardOffset, setKeyboardOffset] = useState(0)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
@@ -367,15 +394,6 @@ export default function ChatRoomDetail() {
     return `채팅방 #${normalizedRoomId}`
   }, [normalizedRoomId, titleFromState])
 
-  const participantCount = useMemo(() => {
-    const fromState = Number(location.state?.participantsCount ?? location.state?.participantCount)
-
-    if (!Number.isInteger(fromState) || fromState <= 0) {
-      return null
-    }
-
-    return fromState
-  }, [location.state])
   const inputBottomOffset = useMemo(
     () => `calc(var(--chatbot-input-bottom) + env(safe-area-inset-bottom) + ${keyboardOffset}px)`,
     [keyboardOffset],
@@ -442,6 +460,10 @@ export default function ChatRoomDetail() {
     }
   }, [])
 
+  useEffect(() => {
+    setParticipantCount(toParticipantCountFromLocationState(location.state))
+  }, [location.state, normalizedRoomId])
+
   const fetchMessages = useCallback(
     async ({ cursor = null, append = false } = {}) => {
       if (normalizedRoomId == null) {
@@ -471,6 +493,10 @@ export default function ChatRoomDetail() {
         setMessages((previous) =>
           mergeMessages(append ? [...previous, ...response.items] : [...response.items]),
         )
+        const fetchedParticipantCount = toLatestParticipantCount(response.items)
+        if (fetchedParticipantCount != null) {
+          setParticipantCount(fetchedParticipantCount)
+        }
         setNextCursor(response.nextCursor)
         setHasNextPage(Boolean(response.hasNextPage))
       } catch (error) {
@@ -553,6 +579,12 @@ export default function ChatRoomDetail() {
             }
 
             const nextMessage = toChatMessageItem(payload)
+            const nextParticipantCount = toParticipantCount(
+              nextMessage.participantCount ?? payload.participantCount,
+            )
+            if (nextParticipantCount != null) {
+              setParticipantCount(nextParticipantCount)
+            }
             setMessages((previous) => mergeMessages([nextMessage, ...previous]))
           },
         )
