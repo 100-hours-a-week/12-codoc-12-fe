@@ -75,6 +75,7 @@ const toSearchChatRoomItem = (item = {}) => {
 export const toChatMessageItem = (item = {}) => {
   const createdAt = item.createdAt ?? null
   const senderId = Number(item.senderId)
+  const rawParticipantCount = Number(item.participantCount)
   const rawSenderAvatarImageUrl =
     typeof item.senderAvatarImageUrl === 'string'
       ? item.senderAvatarImageUrl
@@ -101,6 +102,10 @@ export const toChatMessageItem = (item = {}) => {
     senderAvatarImageUrl,
     type: String(item.type ?? 'TEXT').toUpperCase(),
     content: item.content ?? '',
+    participantCount:
+      Number.isInteger(rawParticipantCount) && rawParticipantCount >= 0
+        ? rawParticipantCount
+        : null,
     createdAt,
     createdAtLabel: toMessageDateTimeLabel(createdAt),
     deliveryStatus:
