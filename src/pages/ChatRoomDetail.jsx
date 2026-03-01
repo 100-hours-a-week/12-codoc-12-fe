@@ -680,9 +680,8 @@ export default function ChatRoomDetail() {
         if (isLeaving) {
           return
         }
-        setIsLeaveDialogOpen(nextOpen)
-        if (!nextOpen) {
-          setLeaveError('')
+        if (nextOpen) {
+          setIsLeaveDialogOpen(true)
         }
       }}
     >
@@ -820,7 +819,7 @@ export default function ChatRoomDetail() {
             </label>
             <Input
               id="chat-room-message-input"
-              className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+              className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-muted-foreground/40 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
               maxLength={MAX_INPUT_LENGTH}
               onChange={(event) => {
                 setInputValue(event.target.value)
@@ -858,40 +857,38 @@ export default function ChatRoomDetail() {
         </div>
       </section>
 
-      <DialogContent className="max-w-[320px] rounded-2xl border border-black/10 bg-white p-6 shadow-[0_20px_50px_rgba(15,23,42,0.18)]">
-        <DialogHeader className="items-center text-center">
-          <DialogTitle className="text-xl font-bold">채팅방 나가기</DialogTitle>
-          <DialogDescription className="mt-3 text-sm text-muted-foreground">
-            나가면 대화 내용을 더 이상 볼 수 없습니다.
-            <br />
-            계속 진행하시겠어요?
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent
+        className="p-6"
+        onEscapeKeyDown={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
+        onPointerDownOutside={(event) => event.preventDefault()}
+      >
+        <div className="flex flex-col gap-5">
+          <DialogHeader className="space-y-2 text-left">
+            <DialogTitle>채팅방 나가기</DialogTitle>
+            <DialogDescription>
+              나가면 대화 내용을 더 이상 볼 수 없습니다.
+              <br />
+              계속 진행하시겠어요?
+            </DialogDescription>
+          </DialogHeader>
 
-        {leaveError ? (
-          <StatusMessage className="mt-4" tone="error">
-            {leaveError}
-          </StatusMessage>
-        ) : null}
+          {leaveError ? <StatusMessage tone="error">{leaveError}</StatusMessage> : null}
 
-        <DialogFooter className="mt-5 flex-row items-center justify-center gap-3">
-          <button
-            className="min-w-[96px] rounded-md bg-foreground px-4 py-3 text-sm font-semibold text-background transition hover:opacity-90 disabled:opacity-50"
-            disabled={isLeaving}
-            onClick={handleLeaveCancel}
-            type="button"
-          >
-            취소
-          </button>
-          <button
-            className="min-w-[96px] rounded-md border border-black/60 px-4 py-3 text-sm font-semibold text-foreground transition hover:bg-neutral-100 disabled:opacity-50"
-            disabled={isLeaving}
-            onClick={handleLeaveConfirm}
-            type="button"
-          >
-            {isLeaving ? '처리 중...' : '나가기'}
-          </button>
-        </DialogFooter>
+          <DialogFooter className="flex-row justify-end gap-2">
+            <Button
+              disabled={isLeaving}
+              onClick={handleLeaveCancel}
+              type="button"
+              variant="outline"
+            >
+              취소
+            </Button>
+            <Button disabled={isLeaving} onClick={handleLeaveConfirm} type="button">
+              {isLeaving ? '처리 중...' : '나가기'}
+            </Button>
+          </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   )
