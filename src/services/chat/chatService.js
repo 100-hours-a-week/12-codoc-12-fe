@@ -5,6 +5,7 @@ import {
   requestLeaveChatRoom,
   requestSearchChatRooms,
   requestSearchUserChatRooms,
+  requestUserChatUnreadStatus,
   requestUserChatRooms,
 } from './chatApi'
 import {
@@ -29,8 +30,6 @@ const normalizeRoomId = (roomId) => {
 
   return parsed
 }
-
-const UNREAD_STATUS_SCAN_LIMIT = 100
 
 export const getUserChatRooms = async (params = {}) => {
   const normalizedParams = toChatRoomListParams(params)
@@ -81,25 +80,8 @@ export const getChatRoomList = async (params = {}) => {
 }
 
 export const getChatUnreadStatus = async () => {
-  let cursor = null
-
-  while (true) {
-    const response = await getUserChatRooms({
-      cursor,
-      limit: UNREAD_STATUS_SCAN_LIMIT,
-    })
-
-    const hasUnreadInPage = response.items.some((item) => Number(item.unreadCount ?? 0) > 0)
-    if (hasUnreadInPage) {
-      return { hasUnread: true }
-    }
-
-    if (!response.hasNextPage || !response.nextCursor) {
-      return { hasUnread: false }
-    }
-
-    cursor = response.nextCursor
-  }
+  const response = await requestUserChatUnreadStatus()
+  return { hasUnread: Boolean(response?.data?.hasUnread) }
 }
 
 export const createChatRoom = async (params = {}) => {
