@@ -36,7 +36,7 @@ const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
 const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
 const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
-  CANCELED: '답변 생성이 취소되었습니다.',
+  CANCELED: '답변 생성이 중단되었습니다',
   FAILED: '답변 생성에 실패했습니다.',
 }
 
@@ -850,22 +850,20 @@ export default function Chatbot() {
     const currentConversationId =
       useChatbotStore.getState().sessions[String(problemId)]?.conversationId ?? conversationId
 
-    if (currentConversationId) {
-      try {
-        const cancelResponse = await stopChatbotStream(currentConversationId)
-        if (cancelResponse?.status === 'CANCELED') {
-          handleStopStreaming({
-            failureMessage: resolveHistoryFallbackMessage('CANCELED'),
-            fallbackStatus: 'CANCELED',
-          })
-          return
-        }
-      } catch {
-        // ignore API cancel failures and close local stream
-      }
+    handleStopStreaming({
+      failureMessage: resolveHistoryFallbackMessage('CANCELED'),
+      fallbackStatus: 'CANCELED',
+    })
+
+    if (!currentConversationId) {
+      return
     }
 
-    handleStopStreaming()
+    try {
+      await stopChatbotStream(currentConversationId)
+    } catch {
+      // ignore API cancel failures; UI already switched to canceled
+    }
   }, [conversationId, handleStopStreaming, isStreaming, problemId])
 
   const handleScrollBottom = () => {
