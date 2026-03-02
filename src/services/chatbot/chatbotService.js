@@ -6,19 +6,25 @@ import {
 } from '@/lib/rateLimit'
 import { isSessionRequiredCode } from '@/lib/session'
 
-import { requestChatbotConversations } from './chatbotApi'
+import { requestChatbotConversations, requestChatbotStreamStop } from './chatbotApi'
 import {
   normalizeChatbotStatus,
   parseChatbotStreamEvent,
   toChatbotConversationListResponse,
+  toChatbotStreamStopResponse,
 } from './chatbotDto'
-import { toChatbotConversationListParams, toChatbotMessageRequest } from './chatbotRequestDto'
+import {
+  toChatbotConversationListParams,
+  toChatbotMessageRequest,
+  toChatbotStreamStopRequest,
+} from './chatbotRequestDto'
 
 const CHATBOT_CONVERSATIONS_PAGE_LIMIT = 50
 const CHATBOT_CONVERSATIONS_MAX_PAGES = 20
 
 export const createChatbotStream = (payload = {}, handlers = {}) => {
-  const { onToken, onFinal, onError, onStatus, onRateLimit, onSessionRequired } = handlers
+  const { onToken, onFinal, onError, onStatus, onRateLimit, onSessionRequired, onAccepted } =
+    handlers
   const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const url = `${baseUrl}/api/chatbot/messages/stream`
@@ -76,6 +82,29 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
     return ''
   }
 
+  const resolveConversationId = (payload = {}) => {
+    const result = payload.result ?? payload.data ?? {}
+    const candidates = [
+      result.conversationId,
+      result.conversation_id,
+      result.runId,
+      result.run_id,
+      payload.conversationId,
+      payload.conversation_id,
+      payload.runId,
+      payload.run_id,
+    ]
+
+    for (const candidate of candidates) {
+      const conversationId = Number(candidate)
+      if (Number.isInteger(conversationId) && conversationId > 0) {
+        return conversationId
+      }
+    }
+
+    return null
+  }
+
   const handleParsedEvent = (eventType, data) => {
     const parsed = parseChatbotStreamEvent(data)
     if (!parsed) {
@@ -92,6 +121,12 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
 
     const result = parsed.result ?? {}
     const resolvedStatus = resolveStatus(parsed)
+    if (resolvedStatus === 'ACCEPTED') {
+      const acceptedConversationId = resolveConversationId(parsed)
+      if (acceptedConversationId) {
+        onAccepted?.({ conversationId: acceptedConversationId, payload: parsed })
+      }
+    }
     if (resolvedStatus === 'FAILED') {
       onStatus?.(resolvedStatus, parsed)
       return
@@ -240,6 +275,16 @@ export const getChatbotConversations = async (params = {}) => {
   const normalizedParams = toChatbotConversationListParams(params)
   const response = await requestChatbotConversations(normalizedParams)
   return toChatbotConversationListResponse(response)
+}
+
+export const stopChatbotStream = async (conversationId) => {
+  const request = toChatbotStreamStopRequest(conversationId)
+  if (!request) {
+    return toChatbotStreamStopResponse()
+  }
+
+  const response = await requestChatbotStreamStop(request)
+  return toChatbotStreamStopResponse(response)
 }
 
 export const getAllChatbotConversations = async (problemId, options = {}) => {

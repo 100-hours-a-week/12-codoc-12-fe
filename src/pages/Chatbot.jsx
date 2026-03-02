@@ -11,7 +11,11 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { trackEvent } from '@/lib/ga4'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
-import { createChatbotStream, getAllChatbotConversations } from '@/services/chatbot/chatbotService'
+import {
+  createChatbotStream,
+  getAllChatbotConversations,
+  stopChatbotStream,
+} from '@/services/chatbot/chatbotService'
 import { getProblemDetail, startProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
 import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
@@ -31,6 +35,10 @@ const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 �
 const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
 const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
+const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
+  CANCELED: '답변 생성이 취소되었습니다.',
+  FAILED: '답변 생성에 실패했습니다.',
+}
 
 const INITIAL_MESSAGE = {
   id: 'assistant-intro',
@@ -40,6 +48,12 @@ const INITIAL_MESSAGE = {
 }
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const resolveHistoryFallbackMessage = (status) => {
+  const normalizedStatus = String(status ?? '')
+    .trim()
+    .toUpperCase()
+  return HISTORY_FALLBACK_MESSAGE_BY_STATUS[normalizedStatus] ?? ''
+}
 
 const toHistoryMessages = (items = []) => {
   if (!Array.isArray(items) || items.length === 0) {
@@ -50,16 +64,26 @@ const toHistoryMessages = (items = []) => {
     const conversationId = item?.conversationId ?? buildMessageId()
     const userMessage = String(item?.userMessage ?? '').trim()
     const aiMessage = String(item?.aiMessage ?? '').trim()
+    const status = String(item?.status ?? '')
+      .trim()
+      .toUpperCase()
+    const fallbackMessage = resolveHistoryFallbackMessage(status)
     const nextMessages = []
 
     if (userMessage) {
       nextMessages.push({ id: `conv-${conversationId}-user`, role: 'user', content: userMessage })
     }
-    if (aiMessage) {
+    if (aiMessage || fallbackMessage) {
       nextMessages.push({
         id: `conv-${conversationId}-assistant`,
         role: 'assistant',
-        content: aiMessage,
+        content: aiMessage || fallbackMessage,
+        meta: fallbackMessage
+          ? {
+              isFallback: true,
+              fallbackStatus: status,
+            }
+          : undefined,
       })
     }
 
@@ -179,6 +203,12 @@ const ChatMessage = memo(function ChatMessage({
                   <span aria-hidden="true" />
                 </div>
               </div>
+            ) : message.meta?.isFallback ? (
+              <div className="inline-flex rounded-2xl">
+                <p className="whitespace-pre-line text-[14px] font-semibold leading-6 text-amber-900">
+                  {message.content}
+                </p>
+              </div>
             ) : (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
@@ -226,6 +256,7 @@ export default function Chatbot() {
   const hasActiveSession = Boolean(sessionId) && !isExpired
   const messages = useMemo(() => session?.messages ?? [INITIAL_MESSAGE], [session?.messages])
   const inputValue = session?.inputValue ?? ''
+  const conversationId = session?.conversationId ?? null
   const assistantMessageId = session?.assistantMessageId ?? null
   const isStreaming = session?.isStreaming ?? false
   const sendError = session?.sendError ?? null
@@ -457,7 +488,7 @@ export default function Chatbot() {
   )
 
   const handleStopStreaming = useCallback(
-    ({ failureMessage, patch = {} } = {}) => {
+    ({ failureMessage, fallbackStatus, patch = {} } = {}) => {
       if (!problemId) {
         return
       }
@@ -474,7 +505,19 @@ export default function Chatbot() {
       const nextMessages = targetId
         ? failureMessage
           ? currentMessages.map((message) =>
-              message.id === targetId ? { ...message, content: failureMessage } : message,
+              message.id === targetId
+                ? {
+                    ...message,
+                    content: failureMessage,
+                    meta: fallbackStatus
+                      ? {
+                          ...(message.meta ?? {}),
+                          isFallback: true,
+                          fallbackStatus,
+                        }
+                      : message.meta,
+                  }
+                : message,
             )
           : currentMessages.filter(
               (message) =>
@@ -489,6 +532,7 @@ export default function Chatbot() {
       assistantMessageIdRef.current = null
       updateSession(problemId, {
         messages: nextMessages,
+        conversationId: null,
         isStreaming: false,
         assistantMessageId: null,
         ...patch,
@@ -630,6 +674,16 @@ export default function Chatbot() {
   useEffect(() => {
     if (isStreaming && streamPayloadRef.current && !streamRef.current) {
       streamRef.current = createChatbotStream(streamPayloadRef.current, {
+        onAccepted: ({ conversationId: acceptedConversationId }) => {
+          if (!problemId || !acceptedConversationId) {
+            return
+          }
+          const currentSession = useChatbotStore.getState().sessions[String(problemId)]
+          if (!currentSession?.isStreaming) {
+            return
+          }
+          updateSession(problemId, { conversationId: acceptedConversationId })
+        },
         onToken: (chunk) => {
           if (chunk) {
             handleAppendAssistant(chunk)
@@ -687,6 +741,8 @@ export default function Chatbot() {
     handleMarkSummaryReady,
     handleStopStreaming,
     isStreaming,
+    problemId,
+    updateSession,
   ])
 
   useEffect(() => {
@@ -726,11 +782,38 @@ export default function Chatbot() {
     updateSession(problemId, {
       assistantMessageId: assistantId,
       messages: [...messages, userMessage, { id: assistantId, role: 'assistant', content: '' }],
+      conversationId: null,
       isStreaming: true,
     })
 
     streamPayloadRef.current = { problemId, message: trimmed, sessionId }
   }
+
+  const handleCancelStream = useCallback(async () => {
+    if (!problemId || !isStreaming) {
+      return
+    }
+
+    const currentConversationId =
+      useChatbotStore.getState().sessions[String(problemId)]?.conversationId ?? conversationId
+
+    if (currentConversationId) {
+      try {
+        const cancelResponse = await stopChatbotStream(currentConversationId)
+        if (cancelResponse?.status === 'CANCELED') {
+          handleStopStreaming({
+            failureMessage: resolveHistoryFallbackMessage('CANCELED'),
+            fallbackStatus: 'CANCELED',
+          })
+          return
+        }
+      } catch {
+        // ignore API cancel failures and close local stream
+      }
+    }
+
+    handleStopStreaming()
+  }, [conversationId, handleStopStreaming, isStreaming, problemId])
 
   const handleScrollBottom = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -926,20 +1009,30 @@ export default function Chatbot() {
                 ref={inputRef}
                 value={inputValue}
               />
-              <Button
-                className={`h-10 rounded-xl ${
-                  inputValue.trim().length > 0 && !isStreaming
-                    ? 'bg-info text-white hover:bg-info/90'
-                    : ''
-                }`}
-                disabled={isStreaming || inputValue.trim().length === 0}
-                size="sm"
-                type="submit"
-                variant="secondary"
-              >
-                <Send className="h-4 w-4" />
-                전송
-              </Button>
+              {isStreaming ? (
+                <Button
+                  className="h-10 rounded-xl"
+                  onClick={handleCancelStream}
+                  size="sm"
+                  type="button"
+                  variant="destructive"
+                >
+                  중단
+                </Button>
+              ) : (
+                <Button
+                  className={`h-10 rounded-xl ${
+                    inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
+                  }`}
+                  disabled={inputValue.trim().length === 0}
+                  size="sm"
+                  type="submit"
+                  variant="secondary"
+                >
+                  <Send className="h-4 w-4" />
+                  전송
+                </Button>
+              )}
             </form>
           </div>
         </div>

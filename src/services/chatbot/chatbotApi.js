@@ -25,3 +25,8 @@ export const requestChatbotConversations = async (params = {}) => {
   })
   return response.data
 }
+
+export const requestChatbotStreamStop = async ({ conversationId }) => {
+  const response = await api.delete(`/api/chatbot/messages/${conversationId}`)
+  return response.data
+}
