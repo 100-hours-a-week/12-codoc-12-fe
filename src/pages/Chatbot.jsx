@@ -48,11 +48,34 @@ const INITIAL_MESSAGE = {
 }
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-const resolveHistoryFallbackMessage = (status) => {
-  const normalizedStatus = String(status ?? '')
+const normalizeConversationStatus = (status) =>
+  String(status ?? '')
     .trim()
     .toUpperCase()
+
+const resolveHistoryFallbackMessage = (status) => {
+  const normalizedStatus = normalizeConversationStatus(status)
   return HISTORY_FALLBACK_MESSAGE_BY_STATUS[normalizedStatus] ?? ''
+}
+
+const resolveDisconnectedConversationId = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null
+  }
+
+  const latestConversation = items[items.length - 1]
+  const latestStatus = normalizeConversationStatus(latestConversation?.status)
+  const latestAiMessage = String(latestConversation?.aiMessage ?? '').trim()
+  const conversationId = Number(latestConversation?.conversationId)
+
+  if (latestStatus !== 'DISCONNECTED' || latestAiMessage) {
+    return null
+  }
+  if (!Number.isInteger(conversationId) || conversationId <= 0) {
+    return null
+  }
+
+  return conversationId
 }
 
 const toHistoryMessages = (items = []) => {
@@ -64,9 +87,7 @@ const toHistoryMessages = (items = []) => {
     const conversationId = item?.conversationId ?? buildMessageId()
     const userMessage = String(item?.userMessage ?? '').trim()
     const aiMessage = String(item?.aiMessage ?? '').trim()
-    const status = String(item?.status ?? '')
-      .trim()
-      .toUpperCase()
+    const status = normalizeConversationStatus(item?.status)
     const fallbackMessage = resolveHistoryFallbackMessage(status)
     const nextMessages = []
 
@@ -575,7 +596,39 @@ export default function Chatbot() {
         if (isActive) {
           setProblemStatus(data.status)
           if (sessionId) {
-            initSession(problemId, toHistoryMessages(history?.items))
+            const historyItems = Array.isArray(history?.items) ? history.items : []
+            const historyMessages = toHistoryMessages(historyItems)
+            initSession(problemId, historyMessages)
+
+            if (!existingSession) {
+              const disconnectedConversationId = resolveDisconnectedConversationId(historyItems)
+              if (disconnectedConversationId) {
+                const pendingAssistantId = `conv-${disconnectedConversationId}-assistant`
+                const hasAssistantMessage = historyMessages.some(
+                  (message) => message.id === pendingAssistantId && message.role === 'assistant',
+                )
+                const resumeMessages = hasAssistantMessage
+                  ? historyMessages
+                  : [
+                      ...historyMessages,
+                      {
+                        id: pendingAssistantId,
+                        role: 'assistant',
+                        content: '',
+                      },
+                    ]
+
+                assistantMessageIdRef.current = pendingAssistantId
+                streamPayloadRef.current = { conversationId: disconnectedConversationId }
+                updateSession(problemId, {
+                  messages: resumeMessages,
+                  conversationId: disconnectedConversationId,
+                  assistantMessageId: pendingAssistantId,
+                  isStreaming: true,
+                  sendError: null,
+                })
+              }
+            }
           }
         }
       } catch (error) {
@@ -608,7 +661,7 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [fetchProblemDetail, initSession, navigate, problemId, sessionId])
+  }, [fetchProblemDetail, initSession, navigate, problemId, sessionId, updateSession])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
