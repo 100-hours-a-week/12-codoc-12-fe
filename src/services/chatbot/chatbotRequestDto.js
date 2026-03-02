@@ -29,9 +29,29 @@ export const toChatbotConversationListParams = (params = {}) => {
   return nextParams
 }
 
-export const toChatbotStreamStopRequest = (conversationId) => {
+const normalizeConversationId = (conversationId) => {
   const normalizedConversationId = Number(conversationId)
   if (!Number.isInteger(normalizedConversationId) || normalizedConversationId <= 0) {
+    return null
+  }
+
+  return normalizedConversationId
+}
+
+export const toChatbotStreamStopRequest = (conversationId) => {
+  const normalizedConversationId = normalizeConversationId(conversationId)
+  if (!normalizedConversationId) {
+    return null
+  }
+
+  return {
+    conversationId: normalizedConversationId,
+  }
+}
+
+export const toChatbotStreamResumeRequest = (conversationId) => {
+  const normalizedConversationId = normalizeConversationId(conversationId)
+  if (!normalizedConversationId) {
     return null
   }
 

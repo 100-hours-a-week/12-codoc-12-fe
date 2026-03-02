@@ -16,6 +16,7 @@ import {
 import {
   toChatbotConversationListParams,
   toChatbotMessageRequest,
+  toChatbotStreamResumeRequest,
   toChatbotStreamStopRequest,
 } from './chatbotRequestDto'
 
@@ -27,8 +28,22 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
     handlers
   const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-  const url = `${baseUrl}/api/chatbot/messages/stream`
   const token = getAccessToken()
+
+  const resolveStreamRequest = () => {
+    const resumeRequest = toChatbotStreamResumeRequest(payload.conversationId)
+    if (resumeRequest) {
+      return {
+        url: `${baseUrl}/api/chatbot/messages/${resumeRequest.conversationId}/stream`,
+        body: null,
+      }
+    }
+
+    return {
+      url: `${baseUrl}/api/chatbot/messages/stream`,
+      body: JSON.stringify(toChatbotMessageRequest(payload)),
+    }
+  }
 
   const buildRateLimitMessage = (seconds) => {
     if (!Number.isFinite(seconds)) {
@@ -87,12 +102,8 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
     const candidates = [
       result.conversationId,
       result.conversation_id,
-      result.runId,
-      result.run_id,
       payload.conversationId,
       payload.conversation_id,
-      payload.runId,
-      payload.run_id,
     ]
 
     for (const candidate of candidates) {
@@ -191,16 +202,17 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
 
   const startStream = async () => {
     try {
-      const response = await fetch(url, {
+      const streamRequest = resolveStreamRequest()
+      const response = await fetch(streamRequest.url, {
         method: 'POST',
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          'Content-Type': 'application/json',
+          ...(streamRequest.body ? { 'Content-Type': 'application/json' } : {}),
           Accept: 'text/event-stream',
         },
         credentials: 'include',
         signal: controller.signal,
-        body: JSON.stringify(toChatbotMessageRequest(payload)),
+        ...(streamRequest.body ? { body: streamRequest.body } : {}),
       })
 
       if (!response.ok) {
