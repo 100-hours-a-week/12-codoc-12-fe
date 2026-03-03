@@ -1,9 +1,12 @@
 import { ArrowLeft, Bell, BookOpen, Home, MessageCircle, User } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
+import SessionTimer from '@/components/SessionTimer'
 import { useChatRealtimeBootstrap } from '@/hooks/useChatRealtimeBootstrap'
 import { useNotificationBootstrap } from '@/hooks/useNotificationBootstrap'
+import { isSessionExpired } from '@/lib/session'
+import { useSessionCountdown } from '@/hooks/useSessionCountdown'
 import { cn } from '@/lib/utils'
 import { getActiveProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
@@ -30,6 +33,7 @@ export default function MainLayout() {
   const hasUnreadChat = useChatRealtimeStore((state) => state.hasUnreadChat)
   const setProblemSession = useProblemSessionStore((state) => state.setSession)
   const clearProblemSessions = useProblemSessionStore((state) => state.clearAllSessions)
+  const problemSessions = useProblemSessionStore((state) => state.sessions)
   const previousPathRef = useRef(location.pathname)
   const sessionCheckRef = useRef(false)
   const shellRef = useRef(null)
@@ -61,14 +65,8 @@ export default function MainLayout() {
         if (!isActive || !activeSession?.problemId) {
           return
         }
-        const expectedPath = `/problems/${activeSession.problemId}`
-        const isProblemFlow =
-          location.pathname === expectedPath || location.pathname.startsWith(`${expectedPath}/`)
         clearProblemSessions()
         setProblemSession(activeSession.problemId, activeSession)
-        if (!isProblemFlow) {
-          navigate(expectedPath, { replace: true })
-        }
       } catch (error) {
         if (!isActive) {
           return
@@ -136,11 +134,41 @@ export default function MainLayout() {
   const isProblemFlowPath = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
   const isChatbotPath = /^\/problems\/[^/]+\/chatbot$/.test(location.pathname)
   const isChatRoomDetailPath = /^\/chat\/[^/]+$/.test(location.pathname)
+  const currentProblemIdMatch = location.pathname.match(/^\/problems\/([^/]+)/)
+  const currentProblemId = currentProblemIdMatch?.[1] ?? null
   const isFullHeightPage = isChatRoomDetailPath || isChatbotPath
 
   const showBackButton = isProblemPath || isChatRoomDetailPath
   const isNavHidden = isProblemFlowPath || isChatRoomDetailPath
   const showNotificationButton = !showBackButton
+  const activeSession = useMemo(() => {
+    const items = Object.values(problemSessions)
+    return items.find((entry) => entry?.sessionId) ?? null
+  }, [problemSessions])
+  const isActiveSessionExpired = isSessionExpired(activeSession?.expiresAt)
+  const isSameProblemPath =
+    currentProblemId &&
+    activeSession?.problemId &&
+    String(currentProblemId) === String(activeSession.problemId)
+  const showSessionBar =
+    activeSession?.problemId &&
+    !isActiveSessionExpired &&
+    !isChatRoomDetailPath &&
+    (!isProblemFlowPath || !isSameProblemPath)
+  const { timeLeftMs: sessionTimeLeftMs } = useSessionCountdown(
+    showSessionBar ? activeSession?.expiresAt : null,
+  )
+  const sessionBarStyle = useMemo(() => {
+    let color = 'hsl(217 91% 60% / 0.9)'
+    if (sessionTimeLeftMs !== null && sessionTimeLeftMs !== undefined) {
+      if (sessionTimeLeftMs <= 60_000) {
+        color = 'hsl(0 91% 60% / 0.9)'
+      } else if (sessionTimeLeftMs <= 300_000) {
+        color = 'hsl(28 91% 60% / 0.9)'
+      }
+    }
+    return { backgroundColor: color }
+  }, [sessionTimeLeftMs])
 
   const handleBack = () => {
     if (isChatRoomDetailPath) {
@@ -232,6 +260,34 @@ export default function MainLayout() {
         >
           {content}
         </main>
+
+        {showSessionBar ? (
+          <div
+            className="fixed z-40"
+            style={{
+              left: `${shellRect.left}px`,
+              width: `${shellRect.width}px`,
+              bottom: isNavHidden
+                ? 'calc(env(safe-area-inset-bottom) + 16px)'
+                : 'calc(env(safe-area-inset-bottom) + 84px)',
+            }}
+          >
+            <button
+              className="relative mx-4 flex h-8 w-[calc(100%-2rem)] items-center justify-center rounded-full px-4 text-xs font-semibold text-white shadow-[0_-6px_20px_rgba(0,0,0,0.08)]"
+              style={sessionBarStyle}
+              type="button"
+              onClick={() => navigate(`/problems/${activeSession.problemId}`)}
+            >
+              <span className="truncate text-center -translate-x-3">탭해서 돌아가기</span>
+              {activeSession.expiresAt ? (
+                <SessionTimer
+                  expiresAt={activeSession.expiresAt}
+                  className="absolute right-1 border-white/20 bg-white text-foreground"
+                />
+              ) : null}
+            </button>
+          </div>
+        ) : null}
 
         {!isNavHidden ? (
           <footer

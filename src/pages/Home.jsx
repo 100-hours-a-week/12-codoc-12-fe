@@ -64,6 +64,16 @@ const getKstToday = () => {
   return new Date(`${kstDate}T00:00:00+09:00`)
 }
 
+const formatTitleWithId = (id, title) => {
+  if (!title) {
+    return ''
+  }
+  if (id === null || id === undefined || id === '') {
+    return title
+  }
+  return `${id}. ${title}`
+}
+
 const getContributionRange = (today) => {
   const fromDate = addDays(today, -364)
   return { fromDate, toDate: today, today }
@@ -637,7 +647,10 @@ export default function Home() {
           >
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-2 text-sm font-semibold">
-                {recommendedProblem.title}
+                {formatTitleWithId(
+                  recommendedProblem.problemId ?? recommendedProblem.id,
+                  recommendedProblem.title,
+                )}
                 {recommendedProblem.bookmarked ? (
                   <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
                 ) : null}

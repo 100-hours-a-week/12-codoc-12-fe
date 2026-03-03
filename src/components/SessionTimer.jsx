@@ -1,9 +1,23 @@
 import { Clock } from 'lucide-react'
+import { useEffect, useRef } from 'react'
 
 import { useSessionCountdown } from '@/hooks/useSessionCountdown'
 
 export default function SessionTimer({ expiresAt, className = '' }) {
   const { formatted, isExpired } = useSessionCountdown(expiresAt)
+  const wasExpiredRef = useRef(false)
+  const hasReloadedRef = useRef(false)
+
+  useEffect(() => {
+    if (hasReloadedRef.current) {
+      return
+    }
+    if (!wasExpiredRef.current && isExpired) {
+      hasReloadedRef.current = true
+      window.location.reload()
+    }
+    wasExpiredRef.current = isExpired
+  }, [isExpired])
 
   if (!formatted) {
     return null
