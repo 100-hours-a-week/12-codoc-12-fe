@@ -149,6 +149,19 @@ export default function MainLayout() {
     navigate('/problems')
   }
 
+  const handleNotificationClick = () => {
+    if (location.pathname.startsWith('/notifications')) {
+      if (window.history.length > 1) {
+        navigate(-1)
+      } else {
+        navigate('/')
+      }
+      return
+    }
+
+    navigate('/notifications')
+  }
+
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
       <div
@@ -195,7 +208,7 @@ export default function MainLayout() {
               <button
                 aria-label="알림"
                 className="absolute right-4 inline-flex h-9 w-9 items-center justify-center rounded-full bg-transparent text-foreground transition hover:bg-muted/60"
-                onClick={() => navigate('/notifications')}
+                onClick={handleNotificationClick}
                 type="button"
               >
                 <Bell className="h-6 w-6" />
