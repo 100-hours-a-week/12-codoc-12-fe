@@ -8,7 +8,6 @@ import remarkGfm from 'remark-gfm'
 import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { trackEvent } from '@/lib/ga4'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
 import {
@@ -935,6 +934,30 @@ export default function Chatbot() {
     }, 120)
   }
 
+  useEffect(() => {
+    const inputEl = inputRef.current
+    if (!inputEl) {
+      return
+    }
+
+    inputEl.style.height = '0px'
+    const nextHeight = Math.min(inputEl.scrollHeight, 120)
+    inputEl.style.height = `${nextHeight}px`
+    inputEl.style.overflowY = inputEl.scrollHeight > 120 ? 'auto' : 'hidden'
+  }, [inputValue])
+
+  const handleInputKeyDown = (event) => {
+    if (event.key !== 'Enter') {
+      return
+    }
+    if (event.nativeEvent?.isComposing || event.shiftKey) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
+
   const handleQuizCtaClick = useCallback(() => {
     if (problemId) {
       navigate(`/problems/${problemId}/quiz`)
@@ -1129,17 +1152,23 @@ export default function Chatbot() {
                     handleSend()
                   }}
                 >
-                  <Input
-                    className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                  <label className="sr-only" htmlFor="chatbot-message-input">
+                    메시지 입력
+                  </label>
+                  <textarea
+                    id="chatbot-message-input"
+                    className="min-h-10 max-h-[120px] flex-1 resize-none border-0 px-2 py-2 text-[16px] leading-6 placeholder:text-neutral-500 shadow-none focus-visible:outline-none"
                     disabled={isStreaming}
-                    maxLength={500}
+                    maxLength={MAX_INPUT_LENGTH}
                     onChange={(event) => {
                       const nextValue = event.target.value
-                      updateSession(problemId, { inputValue: nextValue.slice(0, 500) })
+                      updateSession(problemId, { inputValue: nextValue.slice(0, MAX_INPUT_LENGTH) })
                     }}
+                    onKeyDown={handleInputKeyDown}
                     onFocus={handleInputFocus}
                     placeholder="메시지를 입력하세요"
                     ref={inputRef}
+                    rows={1}
                     value={inputValue}
                   />
                   {isStreaming ? (
