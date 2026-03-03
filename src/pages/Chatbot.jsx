@@ -29,7 +29,7 @@ const TAB_ITEMS = [
 const ACTIVE_TAB_ID = 'chatbot'
 
 const MAX_INPUT_LENGTH = 500
-const STREAM_FAILED_MESSAGE = '요청에 실패했습니다. 다시 시도해주세요.'
+const STREAM_FAILED_MESSAGE = '답변 생성에 실패했습니다.'
 const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.'
 const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
@@ -39,7 +39,7 @@ const CHATBOT_COMPLETED_GUIDE_TEXT =
   '챗봇 단계가 모두 완료되었습니다. 이제 요약 카드를 만들고 퀴즈를 풀어보세요!'
 const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
   CANCELED: '답변 생성이 중단되었습니다',
-  FAILED: '답변 생성에 실패했습니다.',
+  FAILED: STREAM_FAILED_MESSAGE,
 }
 
 const INITIAL_MESSAGE = {
@@ -877,17 +877,20 @@ export default function Chatbot() {
           }
 
           if (status === 'FAILED') {
-            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE, fallbackStatus: 'FAILED' })
             return
           }
         },
         onError: () => {
-          handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+          handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE, fallbackStatus: 'FAILED' })
           return
         },
         onConflict: ({ isResumeStreamRequest }) => {
           if (isResumeStreamRequest) {
-            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+            handleStopStreaming({
+              failureMessage: STREAM_FAILED_MESSAGE,
+              fallbackStatus: 'FAILED',
+            })
             return
           }
 
