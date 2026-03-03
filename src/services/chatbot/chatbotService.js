@@ -28,8 +28,16 @@ const RESUME_PREMATURE_CLOSE_RETRY_MAX_COUNT = 6
 const RESUME_PREMATURE_CLOSE_RETRY_DELAY_MS = 300
 
 export const createChatbotStream = (payload = {}, handlers = {}) => {
-  const { onToken, onFinal, onError, onStatus, onRateLimit, onSessionRequired, onAccepted } =
-    handlers
+  const {
+    onToken,
+    onFinal,
+    onError,
+    onStatus,
+    onRateLimit,
+    onSessionRequired,
+    onAccepted,
+    onConflict,
+  } = handlers
   const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const token = getAccessToken()
@@ -250,6 +258,11 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
         }
 
         if (!response.ok) {
+          if (response.status === 409) {
+            onConflict?.({ status: response.status, isResumeStreamRequest })
+            return
+          }
+
           if (response.status === 429) {
             const retryAfterSeconds = getRetryAfterSeconds(response)
             onRateLimit?.({

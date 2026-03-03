@@ -82,6 +82,7 @@ export const toProblemSession = (item = {}) => ({
   sessionId: item.sessionId ?? null,
   problemId: item.problemId ?? null,
   expiresAt: item.expiresAt ?? null,
+  chatbotCompletedAt: item.chatbotCompletedAt ?? item.chatbot_completed_at ?? null,
   summaryCards: mapSummaryCards(item.summaryCards),
   quizzes: mapQuizzes(item.quizzes),
 })

@@ -6,6 +6,7 @@ const createSessionPayload = (payload = {}) => ({
   sessionId: payload.sessionId ?? null,
   problemId: payload.problemId ?? null,
   expiresAt: payload.expiresAt ?? null,
+  chatbotCompletedAt: payload.chatbotCompletedAt ?? null,
   summaryCards: Array.isArray(payload.summaryCards) ? payload.summaryCards : [],
   quizzes: Array.isArray(payload.quizzes) ? payload.quizzes : [],
 })
