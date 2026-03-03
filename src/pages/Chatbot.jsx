@@ -293,6 +293,15 @@ export default function Chatbot() {
   const sessionId = problemSession?.sessionId ?? null
   const isExpired = isSessionExpired(problemSession?.expiresAt)
   const hasActiveSession = Boolean(sessionId) && !isExpired
+  const activeSession = useMemo(() => {
+    const items = Object.values(problemSessions)
+    return items.find((entry) => entry?.sessionId) ?? null
+  }, [problemSessions])
+  const isActiveSessionExpired = isSessionExpired(activeSession?.expiresAt)
+  const hasOtherActiveSession =
+    Boolean(activeSession?.sessionId) &&
+    !isActiveSessionExpired &&
+    String(activeSession?.problemId ?? '') !== String(problemId ?? '')
   const messages = useMemo(() => session?.messages ?? [INITIAL_MESSAGE], [session?.messages])
   const inputValue = session?.inputValue ?? ''
   const conversationId = session?.conversationId ?? null
@@ -1184,8 +1193,8 @@ export default function Chatbot() {
             </p>
             {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
             <Button
-              className="mt-4 w-full rounded-xl"
-              disabled={isSessionStarting}
+              className="mt-4 w-full rounded-xl bg-[hsl(0_91%_60%)] text-white hover:bg-[hsl(0_91%_60%)]/90"
+              disabled={isSessionStarting || hasOtherActiveSession}
               onClick={handleStartSession}
               type="button"
             >

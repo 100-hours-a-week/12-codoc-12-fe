@@ -38,6 +38,15 @@ export default function SummaryCards() {
   const session = problemId ? sessions[String(problemId)] : null
   const isExpired = isSessionExpired(session?.expiresAt)
   const hasActiveSession = Boolean(session?.sessionId) && !isExpired
+  const activeSession = useMemo(() => {
+    const items = Object.values(sessions)
+    return items.find((entry) => entry?.sessionId) ?? null
+  }, [sessions])
+  const isActiveSessionExpired = isSessionExpired(activeSession?.expiresAt)
+  const hasOtherActiveSession =
+    Boolean(activeSession?.sessionId) &&
+    !isActiveSessionExpired &&
+    String(activeSession?.problemId ?? '') !== String(problemId ?? '')
 
   useEffect(() => {
     if (!problemId) {
@@ -274,8 +283,8 @@ export default function SummaryCards() {
             </p>
             {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
             <Button
-              className="mt-4 w-full rounded-xl"
-              disabled={isSessionStarting}
+              className="mt-4 w-full rounded-xl bg-[hsl(0_91%_60%)] text-white hover:bg-[hsl(0_91%_60%)]/90"
+              disabled={isSessionStarting || hasOtherActiveSession}
               onClick={handleStartSession}
               type="button"
             >

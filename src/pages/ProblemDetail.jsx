@@ -74,6 +74,16 @@ const splitWithLineBreaks = (children, keyPrefix = 'br') => {
   })
 }
 
+const formatTitleWithId = (id, title) => {
+  if (!title) {
+    return ''
+  }
+  if (id === null || id === undefined || id === '') {
+    return title
+  }
+  return `${id}. ${title}`
+}
+
 export default function ProblemDetail() {
   const { problemId } = useParams()
   const navigate = useNavigate()
@@ -108,6 +118,11 @@ export default function ProblemDetail() {
       : null)
   const isExpired = isSessionExpired(resolvedSession?.expiresAt)
   const hasActiveSession = Boolean(resolvedSession?.sessionId) && !isExpired
+  const isActiveSessionExpired = isSessionExpired(activeSession?.expiresAt)
+  const hasOtherActiveSession =
+    Boolean(activeSession?.sessionId) &&
+    !isActiveSessionExpired &&
+    String(activeSession?.problemId ?? '') !== String(problemId ?? '')
   const summaryButtonRef = useRef(null)
   const sessionButtonRef = useRef(null)
   const chatbotTabRef = useRef(null)
@@ -519,7 +534,9 @@ export default function ProblemDetail() {
               </Button>
             </div>
             <div className="flex items-center gap-3">
-              <h2 className="text-lg font-semibold text-foreground">{problem.title}</h2>
+              <h2 className="text-lg font-semibold text-foreground">
+                {formatTitleWithId(problem.id, problem.title)}
+              </h2>
               <button
                 aria-label={problem.bookmarked ? '북마크 해제' : '북마크 추가'}
                 className="ml-auto rounded-full transition hover:bg-muted/60 disabled:cursor-not-allowed disabled:opacity-60"
@@ -670,38 +687,42 @@ export default function ProblemDetail() {
         </div>
       ) : null}
 
-      <div
-        className="fixed z-30"
-        style={{
-          left: 'var(--app-shell-left)',
-          width: 'var(--app-shell-width)',
-          bottom: 'calc(var(--chatbot-input-bottom) + 16px)',
-        }}
-      >
-        <div className="flex flex-col items-end px-4">
-          <div className="flex flex-col items-center gap-1.5 self-end">
-            {hasActiveSession ? <SessionTimer expiresAt={resolvedSession?.expiresAt} /> : null}
-            <Button
-              className={`rounded-full px-5 shadow-md ${
-                hasActiveSession ? 'bg-danger text-danger-foreground hover:bg-danger/90' : ''
-              }`}
-              disabled={isSessionStarting || isSessionEnding}
-              ref={sessionButtonRef}
-              onClick={() => {
-                if (hasActiveSession) {
-                  setIsAbandonOpen(true)
-                  return
-                }
-                handleStartSession()
-              }}
-              type="button"
-            >
-              {hasActiveSession ? '풀이 중단' : '풀이 시작'}
-            </Button>
+      {!hasOtherActiveSession ? (
+        <div
+          className="fixed z-30"
+          style={{
+            left: 'var(--app-shell-left)',
+            width: 'var(--app-shell-width)',
+            bottom: 'calc(var(--chatbot-input-bottom) + 16px)',
+          }}
+        >
+          <div className="flex flex-col items-end px-4">
+            <div className="flex flex-col items-center gap-1.5 self-end">
+              {hasActiveSession ? <SessionTimer expiresAt={resolvedSession?.expiresAt} /> : null}
+              <Button
+                className={`rounded-full px-5 shadow-md ${
+                  hasActiveSession
+                    ? 'bg-[hsl(0_91%_60%)] text-white hover:bg-[hsl(0_91%_60%)]/90'
+                    : ''
+                }`}
+                disabled={isSessionStarting || isSessionEnding}
+                ref={sessionButtonRef}
+                onClick={() => {
+                  if (hasActiveSession) {
+                    setIsAbandonOpen(true)
+                    return
+                  }
+                  handleStartSession()
+                }}
+                type="button"
+              >
+                {hasActiveSession ? '풀이 중단' : '풀이 시작'}
+              </Button>
+            </div>
+            {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
           </div>
-          {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
         </div>
-      </div>
+      ) : null}
 
       {isAbandonOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
