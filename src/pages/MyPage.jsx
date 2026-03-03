@@ -687,7 +687,11 @@ export default function MyPage() {
                 <button
                   className="min-w-[96px] rounded-md border border-black/40 px-4 py-2 text-sm font-semibold"
                   type="button"
-                  onClick={() => setIsAvatarPickerOpen(false)}
+                  onClick={() => {
+                    setSelectedAvatarId(profileAvatarId)
+                    setAvatarUrl(profileAvatarUrl)
+                    setIsAvatarPickerOpen(false)
+                  }}
                 >
                   취소
                 </button>
