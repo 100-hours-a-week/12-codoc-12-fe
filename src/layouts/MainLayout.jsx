@@ -134,7 +134,9 @@ export default function MainLayout() {
   const content = <Outlet />
   const isProblemPath = /^\/problems\/[^/]+/.test(location.pathname)
   const isProblemFlowPath = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
+  const isChatbotPath = /^\/problems\/[^/]+\/chatbot$/.test(location.pathname)
   const isChatRoomDetailPath = /^\/chat\/[^/]+$/.test(location.pathname)
+  const isFullHeightPage = isChatRoomDetailPath || isChatbotPath
 
   const showBackButton = isProblemPath || isChatRoomDetailPath
   const isNavHidden = isProblemFlowPath || isChatRoomDetailPath
@@ -167,7 +169,7 @@ export default function MainLayout() {
       <div
         ref={shellRef}
         className={`mx-auto flex w-full max-w-[430px] flex-col bg-background shadow-sm ${
-          isChatRoomDetailPath ? 'h-[100svh] overflow-hidden' : 'min-h-screen'
+          isFullHeightPage ? 'h-[100svh] overflow-hidden' : 'min-h-screen'
         }`}
         data-shell="app"
         style={{
@@ -223,7 +225,7 @@ export default function MainLayout() {
 
         <main
           className={
-            isChatRoomDetailPath
+            isFullHeightPage
               ? 'min-h-0 flex flex-1 overflow-hidden p-0'
               : `flex-1 px-4 py-5 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`
           }

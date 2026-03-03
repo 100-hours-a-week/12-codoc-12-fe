@@ -7,7 +7,7 @@ import remarkGfm from 'remark-gfm'
 
 import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card } from '@/components/ui/card'
 import { trackEvent } from '@/lib/ga4'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
 import {
@@ -303,7 +303,7 @@ export default function Chatbot() {
   const lastDrainTimestampRef = useRef(0)
   const autoScrollRafRef = useRef(null)
   const streamPayloadRef = useRef(null)
-  const bottomRef = useRef(null)
+  const messagesViewportRef = useRef(null)
   const inputRef = useRef(null)
   const isAtBottomRef = useRef(true)
 
@@ -355,7 +355,11 @@ export default function Chatbot() {
     if (isAtBottomRef.current && !autoScrollRafRef.current) {
       autoScrollRafRef.current = requestAnimationFrame(() => {
         autoScrollRafRef.current = null
-        bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+        const viewport = messagesViewportRef.current
+        if (!viewport) {
+          return
+        }
+        viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'auto' })
       })
     }
   }, [])
@@ -467,12 +471,26 @@ export default function Chatbot() {
   )
 
   const checkIsAtBottom = useCallback(() => {
-    const threshold = 160
-    const scrollBottom = window.innerHeight + window.scrollY
-    const pageHeight = document.documentElement.scrollHeight
-    const nextIsAtBottom = scrollBottom >= pageHeight - threshold
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      isAtBottomRef.current = true
+      setIsAtBottom(true)
+      return
+    }
+
+    const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const nextIsAtBottom = remaining < 32
     isAtBottomRef.current = nextIsAtBottom
     setIsAtBottom(nextIsAtBottom)
+  }, [])
+
+  const scrollToBottom = useCallback((behavior = 'auto') => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior })
   }, [])
 
   const handleReplaceAssistant = useCallback(
@@ -711,27 +729,42 @@ export default function Chatbot() {
   ])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isStreaming])
+    if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
+
+    scrollToBottom(messages.length <= 1 ? 'auto' : 'smooth')
+  }, [
+    hasActiveSession,
+    isLoading,
+    isSessionRequired,
+    loadError,
+    messages.length,
+    isStreaming,
+    scrollToBottom,
+  ])
 
   useEffect(() => {
-    checkIsAtBottom()
-  }, [checkIsAtBottom, messages, isStreaming])
+    if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
 
-  useEffect(() => {
-    const handleScroll = () => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const handleViewportScroll = () => {
       checkIsAtBottom()
     }
 
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('resize', handleScroll)
-    handleScroll()
+    viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
+    handleViewportScroll()
 
     return () => {
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', handleScroll)
+      viewport.removeEventListener('scroll', handleViewportScroll)
     }
-  }, [checkIsAtBottom])
+  }, [checkIsAtBottom, hasActiveSession, isLoading, isSessionRequired, loadError])
 
   useEffect(() => {
     const viewport = window.visualViewport
@@ -765,7 +798,7 @@ export default function Chatbot() {
   }, [])
 
   const effectiveKeyboardOffset = keyboardOffset
-  const inputBottomOffset = `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px)`
+  const inputBottomOffset = `calc(var(--chatbot-input-bottom) + env(safe-area-inset-bottom) + ${effectiveKeyboardOffset}px)`
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -925,12 +958,12 @@ export default function Chatbot() {
   }, [conversationId, handleStopStreaming, isStreaming, problemId])
 
   const handleScrollBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollToBottom('smooth')
   }
 
   const handleInputFocus = () => {
     window.setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      scrollToBottom('smooth')
     }, 120)
   }
 
@@ -1008,8 +1041,8 @@ export default function Chatbot() {
   )
 
   return (
-    <div className="flex min-h-full flex-col space-y-5">
-      <div className="sticky top-[52px] z-20 -mx-4 bg-background/95 px-4 pb-3 pt-3 backdrop-blur">
+    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4">
+      <div className="shrink-0 space-y-4 pt-5">
         <div className="rounded-2xl bg-muted/70 px-2 shadow-sm">
           <div className="grid grid-cols-3">
             {TAB_ITEMS.map((tab) => {
@@ -1053,79 +1086,104 @@ export default function Chatbot() {
             })}
           </div>
         </div>
+
+        <p className="text-sm text-neutral-500">
+          ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
+        </p>
+
+        {hasActiveSession ? (
+          <div className="!mt-0 flex justify-end">
+            <SessionTimer expiresAt={problemSession?.expiresAt} />
+          </div>
+        ) : null}
       </div>
 
-      <p className="text-sm text-neutral-500">
-        ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
-      </p>
-
-      {hasActiveSession ? (
-        <div className="flex justify-end">
-          <SessionTimer expiresAt={problemSession?.expiresAt} />
-        </div>
-      ) : null}
-
       {isLoading ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-muted-foreground">챗봇을 준비하는 중입니다.</p>
-        </Card>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-muted-foreground">챗봇을 준비하는 중입니다.</p>
+          </Card>
+        </div>
       ) : loadError ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-red-500">{loadError}</p>
-          <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
-            다시 시도
-          </Button>
-        </Card>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-red-500">{loadError}</p>
+            <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
+              다시 시도
+            </Button>
+          </Card>
+        </div>
       ) : isSessionRequired || !hasActiveSession ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-muted-foreground">
-            {isExpired || isSessionRequired
-              ? '세션이 만료되었습니다. 다시 시작해주세요.'
-              : '문제 풀이를 시작해야 챗봇을 사용할 수 있어요.'}
-          </p>
-          {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
-          <Button
-            className="mt-4 w-full rounded-xl"
-            disabled={isSessionStarting}
-            onClick={handleStartSession}
-            type="button"
-          >
-            문제 풀이 시작
-          </Button>
-        </Card>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {isExpired || isSessionRequired
+                ? '세션이 만료되었습니다. 다시 시작해주세요.'
+                : '문제 풀이를 시작해야 챗봇을 사용할 수 있어요.'}
+            </p>
+            {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
+            <Button
+              className="mt-4 w-full rounded-xl"
+              disabled={isSessionStarting}
+              onClick={handleStartSession}
+              type="button"
+            >
+              문제 풀이 시작
+            </Button>
+          </Card>
+        </div>
       ) : (
-        <div className="flex flex-1 flex-col gap-4">
-          <div className="flex-1 space-y-10 pb-[calc(var(--chatbot-input-bottom)+12rem)]">
-            {messages.map((message) => {
-              const isPending =
-                message.role === 'assistant' &&
-                isStreaming &&
-                message.id === assistantMessageId &&
-                !message.content
-              return (
-                <ChatMessage
-                  key={message.id}
-                  isPending={isPending}
-                  message={message}
-                  setStreamingTextNode={isPending ? setStreamingTextNode : undefined}
-                  setTypingNode={isPending ? setTypingNode : undefined}
-                />
-              )
-            })}
-            <div ref={bottomRef} />
+        <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 pt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            ref={messagesViewportRef}
+          >
+            <div className="space-y-10">
+              {messages.map((message) => {
+                const isPending =
+                  message.role === 'assistant' &&
+                  isStreaming &&
+                  message.id === assistantMessageId &&
+                  !message.content
+                return (
+                  <ChatMessage
+                    key={message.id}
+                    isPending={isPending}
+                    message={message}
+                    setStreamingTextNode={isPending ? setStreamingTextNode : undefined}
+                    setTypingNode={isPending ? setTypingNode : undefined}
+                  />
+                )
+              })}
+            </div>
           </div>
 
-          {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
+          {!isAtBottom ? (
+            <div
+              className="pointer-events-none absolute left-4 right-4 z-20"
+              style={{ bottom: `calc(${inputBottomOffset} + 88px)` }}
+            >
+              <div className="flex justify-end">
+                <Button
+                  aria-label="맨 아래로 이동"
+                  className="pointer-events-auto h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+                  onClick={handleScrollBottom}
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           <div
-            aria-hidden
-            className="fixed left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 bg-background/95 backdrop-blur"
-            style={{ bottom: 0, height: inputBottomOffset }}
-          />
-          <div
-            className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
-            style={{ bottom: inputBottomOffset }}
+            className="shrink-0 bg-background/95 pt-2 backdrop-blur"
+            style={{ paddingBottom: inputBottomOffset }}
           >
+            {sendError ? <p className="m-2 text-xs text-red-500">{sendError}</p> : null}
+
             {isChatbotCompleted ? (
               <div className="space-y-2 rounded-2xl border border-muted-foreground/20 bg-background p-3 shadow-sm">
                 <p className="text-sm text-muted-foreground">
@@ -1162,7 +1220,9 @@ export default function Chatbot() {
                     maxLength={MAX_INPUT_LENGTH}
                     onChange={(event) => {
                       const nextValue = event.target.value
-                      updateSession(problemId, { inputValue: nextValue.slice(0, MAX_INPUT_LENGTH) })
+                      updateSession(problemId, {
+                        inputValue: nextValue.slice(0, MAX_INPUT_LENGTH),
+                      })
                     }}
                     onKeyDown={handleInputKeyDown}
                     onFocus={handleInputFocus}
@@ -1201,22 +1261,6 @@ export default function Chatbot() {
           </div>
         </div>
       )}
-
-      {!isAtBottom ? (
-        <Button
-          aria-label="맨 아래로 이동"
-          className="fixed right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
-          style={{
-            bottom: `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px + 88px)`,
-          }}
-          onClick={handleScrollBottom}
-          size="icon"
-          type="button"
-          variant="outline"
-        >
-          <ArrowDown className="h-4 w-4" />
-        </Button>
-      ) : null}
-    </div>
+    </section>
   )
 }
