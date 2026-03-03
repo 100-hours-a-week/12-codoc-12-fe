@@ -22,6 +22,10 @@ import {
 
 const CHATBOT_CONVERSATIONS_PAGE_LIMIT = 50
 const CHATBOT_CONVERSATIONS_MAX_PAGES = 20
+const RESUME_CONFLICT_RETRY_MAX_COUNT = 8
+const RESUME_CONFLICT_RETRY_DELAY_MS = 250
+const RESUME_PREMATURE_CLOSE_RETRY_MAX_COUNT = 6
+const RESUME_PREMATURE_CLOSE_RETRY_DELAY_MS = 300
 
 export const createChatbotStream = (payload = {}, handlers = {}) => {
   const { onToken, onFinal, onError, onStatus, onRateLimit, onSessionRequired, onAccepted } =
@@ -29,6 +33,7 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
   const controller = new AbortController()
   const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
   const token = getAccessToken()
+  let terminalEventReceived = false
 
   const resolveStreamRequest = () => {
     const resumeRequest = toChatbotStreamResumeRequest(payload.conversationId)
@@ -139,6 +144,7 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
       }
     }
     if (resolvedStatus === 'FAILED') {
+      terminalEventReceived = true
       onStatus?.(resolvedStatus, parsed)
       return
     }
@@ -154,12 +160,16 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
     if (eventType === 'status') {
       const status = resolveStatus(parsed)
       if (status) {
+        if (status === 'COMPLETED' || status === 'FAILED') {
+          terminalEventReceived = true
+        }
         onStatus?.(status, parsed)
       }
       return
     }
 
     if (eventType === 'error') {
+      terminalEventReceived = true
       const status = resolveStatus(parsed)
       if (status) {
         onStatus?.(status, parsed)
@@ -170,6 +180,7 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
     }
 
     if (eventType === 'final') {
+      terminalEventReceived = true
       onFinal?.(parsed, data)
       const status = resolveStatus(parsed)
       if (status) {
@@ -203,70 +214,121 @@ export const createChatbotStream = (payload = {}, handlers = {}) => {
   const startStream = async () => {
     try {
       const streamRequest = resolveStreamRequest()
-      const response = await fetch(streamRequest.url, {
-        method: 'POST',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          ...(streamRequest.body ? { 'Content-Type': 'application/json' } : {}),
-          Accept: 'text/event-stream',
-        },
-        credentials: 'include',
-        signal: controller.signal,
-        ...(streamRequest.body ? { body: streamRequest.body } : {}),
-      })
+      const isResumeStreamRequest = !streamRequest.body
+      let prematureCloseRetryCount = 0
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          const retryAfterSeconds = getRetryAfterSeconds(response)
-          onRateLimit?.({
-            code: CHATBOT_STREAM_RATE_LIMIT_CODE,
-            message: buildRateLimitMessage(retryAfterSeconds),
-          })
-          return
-        }
-
-        if (response.status === 400) {
-          try {
-            const errorPayload = await response.clone().json()
-            const errorCode = errorPayload?.code ?? errorPayload?.data?.code
-            if (isSessionRequiredCode(errorCode)) {
-              onSessionRequired?.(errorPayload)
-              return
-            }
-          } catch {
-            // ignore parse errors
-          }
-        }
-
-        if (applyRateLimitFromResponse(response)) {
-          return
-        }
-        onError?.(new Error(`Stream error: ${response.status}`))
-        return
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) {
-        onError?.(new Error('Stream not supported'))
-        return
-      }
-
-      const decoder = new TextDecoder('utf-8')
-      let buffer = ''
+      const requestStream = () =>
+        fetch(streamRequest.url, {
+          method: 'POST',
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(streamRequest.body ? { 'Content-Type': 'application/json' } : {}),
+            Accept: 'text/event-stream',
+          },
+          credentials: 'include',
+          signal: controller.signal,
+          ...(streamRequest.body ? { body: streamRequest.body } : {}),
+        })
 
       while (true) {
-        const { value, done } = await reader.read()
-        if (done) {
-          break
-        }
-        buffer += decoder.decode(value, { stream: true })
-        const parts = buffer.split(/\r?\n\r?\n/)
-        buffer = parts.pop() ?? ''
-        parts.forEach((part) => {
-          if (part.trim()) {
-            parseEventBlock(part)
+        terminalEventReceived = false
+
+        let response = await requestStream()
+        let retryCount = 0
+
+        while (
+          isResumeStreamRequest &&
+          response.status === 409 &&
+          retryCount < RESUME_CONFLICT_RETRY_MAX_COUNT
+        ) {
+          retryCount += 1
+          await new Promise((resolve) => setTimeout(resolve, RESUME_CONFLICT_RETRY_DELAY_MS))
+          if (controller.signal.aborted) {
+            return
           }
-        })
+          response = await requestStream()
+        }
+
+        if (!response.ok) {
+          if (response.status === 429) {
+            const retryAfterSeconds = getRetryAfterSeconds(response)
+            onRateLimit?.({
+              code: CHATBOT_STREAM_RATE_LIMIT_CODE,
+              message: buildRateLimitMessage(retryAfterSeconds),
+            })
+            return
+          }
+
+          if (response.status === 400) {
+            try {
+              const errorPayload = await response.clone().json()
+              const errorCode = errorPayload?.code ?? errorPayload?.data?.code
+              if (isSessionRequiredCode(errorCode)) {
+                onSessionRequired?.(errorPayload)
+                return
+              }
+            } catch {
+              // ignore parse errors
+            }
+          }
+
+          if (applyRateLimitFromResponse(response)) {
+            return
+          }
+          onError?.(new Error(`Stream error: ${response.status}`))
+          return
+        }
+
+        const reader = response.body?.getReader()
+        if (!reader) {
+          onError?.(new Error('Stream not supported'))
+          return
+        }
+
+        const decoder = new TextDecoder('utf-8')
+        let buffer = ''
+
+        while (true) {
+          const { value, done } = await reader.read()
+          if (done) {
+            break
+          }
+          buffer += decoder.decode(value, { stream: true })
+          const parts = buffer.split(/\r?\n\r?\n/)
+          buffer = parts.pop() ?? ''
+          parts.forEach((part) => {
+            if (part.trim()) {
+              parseEventBlock(part)
+            }
+          })
+        }
+
+        if (buffer.trim()) {
+          parseEventBlock(buffer)
+        }
+
+        if (controller.signal.aborted) {
+          return
+        }
+
+        if (terminalEventReceived) {
+          return
+        }
+
+        if (
+          isResumeStreamRequest &&
+          prematureCloseRetryCount < RESUME_PREMATURE_CLOSE_RETRY_MAX_COUNT
+        ) {
+          prematureCloseRetryCount += 1
+          await new Promise((resolve) => setTimeout(resolve, RESUME_PREMATURE_CLOSE_RETRY_DELAY_MS))
+          if (controller.signal.aborted) {
+            return
+          }
+          continue
+        }
+
+        onError?.(new Error('Stream closed before terminal event'))
+        return
       }
     } catch (error) {
       if (controller.signal.aborted) {

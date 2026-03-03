@@ -58,7 +58,7 @@ const resolveHistoryFallbackMessage = (status) => {
   return HISTORY_FALLBACK_MESSAGE_BY_STATUS[normalizedStatus] ?? ''
 }
 
-const resolveDisconnectedConversationId = (items = []) => {
+const resolveResumableConversationId = (items = []) => {
   if (!Array.isArray(items) || items.length === 0) {
     return null
   }
@@ -68,7 +68,8 @@ const resolveDisconnectedConversationId = (items = []) => {
   const latestAiMessage = String(latestConversation?.aiMessage ?? '').trim()
   const conversationId = Number(latestConversation?.conversationId)
 
-  if (latestStatus !== 'DISCONNECTED' || latestAiMessage) {
+  const isResumableStatus = latestStatus === 'DISCONNECTED' || latestStatus === 'PROCESSING'
+  if (!isResumableStatus || latestAiMessage) {
     return null
   }
   if (!Number.isInteger(conversationId) || conversationId <= 0) {
@@ -601,9 +602,9 @@ export default function Chatbot() {
             initSession(problemId, historyMessages)
 
             if (!existingSession) {
-              const disconnectedConversationId = resolveDisconnectedConversationId(historyItems)
-              if (disconnectedConversationId) {
-                const pendingAssistantId = `conv-${disconnectedConversationId}-assistant`
+              const resumableConversationId = resolveResumableConversationId(historyItems)
+              if (resumableConversationId) {
+                const pendingAssistantId = `conv-${resumableConversationId}-assistant`
                 const hasAssistantMessage = historyMessages.some(
                   (message) => message.id === pendingAssistantId && message.role === 'assistant',
                 )
@@ -619,10 +620,10 @@ export default function Chatbot() {
                     ]
 
                 assistantMessageIdRef.current = pendingAssistantId
-                streamPayloadRef.current = { conversationId: disconnectedConversationId }
+                streamPayloadRef.current = { conversationId: resumableConversationId }
                 updateSession(problemId, {
                   messages: resumeMessages,
-                  conversationId: disconnectedConversationId,
+                  conversationId: resumableConversationId,
                   assistantMessageId: pendingAssistantId,
                   isStreaming: true,
                   sendError: null,
