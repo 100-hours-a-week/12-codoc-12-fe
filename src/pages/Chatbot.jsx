@@ -1,4 +1,4 @@
-import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
+import { ArrowDown, BookOpen, Brain, ChevronRight, Clover, Send } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -35,6 +35,8 @@ const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
 const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
 const FINAL_CHATBOT_NODE = 'INSIGHT'
+const CHATBOT_COMPLETED_GUIDE_TEXT =
+  '챗봇 단계가 모두 완료되었습니다. 이제 요약 카드를 만들고 퀴즈를 풀어보세요!'
 const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
   CANCELED: '답변 생성이 중단되었습니다',
   FAILED: '답변 생성에 실패했습니다.',
@@ -45,6 +47,12 @@ const INITIAL_MESSAGE = {
   role: 'assistant',
   content:
     '안녕하세요! 코독이에요.\n지금부터 문제를 4단계로 쪼개 요약카드를 완성해봅시다.\n1단계는 “문제 배경(상황)”입니다.\n지금 어떤 상황인지 말해주세요.\n(누가/무엇을/얼마나를 잡아내면 좋습니다)',
+}
+
+const CHATBOT_COMPLETED_GUIDE_MESSAGE = {
+  id: 'assistant-chatbot-completed-guide',
+  role: 'assistant',
+  content: CHATBOT_COMPLETED_GUIDE_TEXT,
 }
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -1022,6 +1030,12 @@ export default function Chatbot() {
     }
   }, [navigate, problemId])
 
+  const handleSummaryCtaClick = useCallback(() => {
+    if (problemId) {
+      navigate(`/problems/${problemId}/summary`)
+    }
+  }, [navigate, problemId])
+
   const handleStartSession = async () => {
     if (!problemId || isSessionStarting) {
       return
@@ -1064,6 +1078,25 @@ export default function Chatbot() {
       isQuizEnabled,
     [isQuizEnabled, problemSession?.chatbotCompletedAt, session?.isChatbotCompleted],
   )
+  const renderedMessages = useMemo(
+    () => (isChatbotCompleted ? [...messages, CHATBOT_COMPLETED_GUIDE_MESSAGE] : messages),
+    [isChatbotCompleted, messages],
+  )
+
+  useEffect(() => {
+    if (!isChatbotCompleted || isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
+
+    scrollToBottom('smooth')
+  }, [
+    hasActiveSession,
+    isChatbotCompleted,
+    isLoading,
+    isSessionRequired,
+    loadError,
+    scrollToBottom,
+  ])
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4">
@@ -1164,7 +1197,7 @@ export default function Chatbot() {
             ref={messagesViewportRef}
           >
             <div className="space-y-10">
-              {messages.map((message) => {
+              {renderedMessages.map((message) => {
                 const isPending =
                   message.role === 'assistant' &&
                   isStreaming &&
@@ -1210,18 +1243,39 @@ export default function Chatbot() {
             {sendError ? <p className="m-2 text-xs text-red-500">{sendError}</p> : null}
 
             {isChatbotCompleted ? (
-              <div className="space-y-2 rounded-2xl border border-muted-foreground/20 bg-background p-3 shadow-sm">
-                <p className="text-sm text-muted-foreground">
-                  챗봇 단계가 완료되었습니다. 퀴즈를 진행해주세요.
-                </p>
-                <Button
-                  className="h-10 w-full rounded-xl bg-info text-white hover:bg-info/90"
-                  onClick={handleQuizCtaClick}
-                  type="button"
-                  variant="secondary"
-                >
-                  퀴즈 풀기
-                </Button>
+              <div className="space-y-2 rounded-2xl bg-background shadow-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    className="h-auto w-full rounded-2xl border-black bg-background px-3 py-3 text-left text-black hover:bg-muted/20"
+                    onClick={handleSummaryCtaClick}
+                    type="button"
+                    variant="outline"
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="block truncate break-keep text-[13px] font-semibold leading-5">
+                          문제 요약 카드 만들기
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0" />
+                    </span>
+                  </Button>
+                  <Button
+                    className="h-auto w-full rounded-2xl border-black bg-background px-3 py-3 text-left text-black hover:bg-muted/20"
+                    onClick={handleQuizCtaClick}
+                    type="button"
+                    variant="outline"
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="block truncate break-keep text-[13px] font-semibold leading-5">
+                          퀴즈 풀기
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0" />
+                    </span>
+                  </Button>
+                </div>
               </div>
             ) : (
               <>
