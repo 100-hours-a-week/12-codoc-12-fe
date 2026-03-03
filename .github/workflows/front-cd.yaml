@@ -63,8 +63,14 @@ jobs:
           [ -d artifact/dist ] && OUT="artifact/dist"
           [ -z "$OUT" ] && [ -d artifact/build ] && OUT="artifact/build"
           [ -z "$OUT" ] && [ -d artifact/.next ] && OUT="artifact/.next"
+          # download-artifact가 폴더 없이 루트에 바로 풀리는 경우 대응
+          if [ -z "$OUT" ] && [ -f artifact/index.html ]; then
+            OUT="artifact"
+          fi
           if [ -z "$OUT" ]; then
             echo "ERROR: No build output found under artifact/ (dist/build/.next)"
+            echo "Artifact directory snapshot:"
+            find artifact -maxdepth 3 -mindepth 1 -print | head -n 200 || true
             exit 1
           fi
           echo "path=$OUT" >> $GITHUB_OUTPUT
