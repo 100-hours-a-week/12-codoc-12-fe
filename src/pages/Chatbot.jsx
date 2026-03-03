@@ -35,6 +35,7 @@ const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 �
 const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
 const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
+const FINAL_CHATBOT_NODE = 'INSIGHT'
 const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
   CANCELED: '답변 생성이 중단되었습니다',
   FAILED: '답변 생성에 실패했습니다.',
@@ -52,6 +53,26 @@ const normalizeConversationStatus = (status) =>
   String(status ?? '')
     .trim()
     .toUpperCase()
+
+const normalizeChatbotNode = (node) => (typeof node === 'string' ? node.trim().toUpperCase() : '')
+
+const resolveFinalNode = (result = {}) => {
+  const candidates = [
+    result.current_node,
+    result.currentNode,
+    result.paragraph_type,
+    result.paragraphType,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeChatbotNode(candidate)
+    if (normalized) {
+      return normalized
+    }
+  }
+
+  return ''
+}
 
 const resolveHistoryFallbackMessage = (status) => {
   const normalizedStatus = normalizeConversationStatus(status)
@@ -118,7 +139,6 @@ const toHistoryMessages = (items = []) => {
 const ChatMessage = memo(function ChatMessage({
   message,
   isPending,
-  onSummaryClick,
   setStreamingTextNode,
   setTypingNode,
 }) {
@@ -240,16 +260,6 @@ const ChatMessage = memo(function ChatMessage({
               </ReactMarkdown>
             )}
           </div>
-          {message.role === 'assistant' && message.meta?.showSummaryCta ? (
-            <Button
-              className="w-fit rounded-xl bg-muted text-foreground hover:bg-muted/80"
-              onClick={onSummaryClick}
-              type="button"
-              variant="secondary"
-            >
-              문제 요약 카드 풀러 가기
-            </Button>
-          ) : null}
         </div>
       )}
     </div>
@@ -486,7 +496,7 @@ export default function Chatbot() {
     [clearTokenBuffer, clearStreamingNodes, problemId, updateSession],
   )
 
-  const handleMarkSummaryReady = useCallback(
+  const handleMarkQuizReady = useCallback(
     (targetId) => {
       if (!problemId || !targetId) {
         return
@@ -499,7 +509,7 @@ export default function Chatbot() {
                 ...message,
                 meta: {
                   ...(message.meta ?? {}),
-                  showSummaryCta: true,
+                  showQuizCta: true,
                 },
               }
             : message,
@@ -508,6 +518,25 @@ export default function Chatbot() {
     },
     [problemId, updateSession],
   )
+
+  const handleCompleteChatbotSession = useCallback(() => {
+    if (!problemId) {
+      return
+    }
+
+    const completedAt = new Date().toISOString()
+    updateSession(problemId, {
+      isChatbotCompleted: true,
+      inputValue: '',
+      sendError: null,
+    })
+    if (problemSession?.sessionId) {
+      setProblemSession(problemId, {
+        ...problemSession,
+        chatbotCompletedAt: problemSession.chatbotCompletedAt ?? completedAt,
+      })
+    }
+  }, [problemId, problemSession, setProblemSession, updateSession])
 
   const handleStopStreaming = useCallback(
     ({ failureMessage, fallbackStatus, patch = {} } = {}) => {
@@ -597,11 +626,21 @@ export default function Chatbot() {
         if (isActive) {
           setProblemStatus(data.status)
           if (sessionId) {
+            const isChatbotCompletedBySession = Boolean(problemSession?.chatbotCompletedAt)
+            const isChatbotCompletedByStatus = ['summary_card_passed', 'solved'].includes(
+              data.status ?? '',
+            )
+            const isChatbotCompletedState =
+              isChatbotCompletedBySession || isChatbotCompletedByStatus
             const historyItems = Array.isArray(history?.items) ? history.items : []
             const historyMessages = toHistoryMessages(historyItems)
             initSession(problemId, historyMessages)
+            updateSession(problemId, {
+              isChatbotCompleted: isChatbotCompletedState,
+              ...(isChatbotCompletedState ? { inputValue: '' } : {}),
+            })
 
-            if (!existingSession) {
+            if (!existingSession && !isChatbotCompletedState) {
               const resumableConversationId = resolveResumableConversationId(historyItems)
               if (resumableConversationId) {
                 const pendingAssistantId = `conv-${resumableConversationId}-assistant`
@@ -662,7 +701,15 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [fetchProblemDetail, initSession, navigate, problemId, sessionId, updateSession])
+  }, [
+    fetchProblemDetail,
+    initSession,
+    navigate,
+    problemId,
+    problemSession?.chatbotCompletedAt,
+    sessionId,
+    updateSession,
+  ])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -750,9 +797,10 @@ export default function Chatbot() {
           }
           didReceiveFinalRef.current = true
           const isCorrect = eventData?.result?.is_correct ?? eventData?.result?.isCorrect
-          const currentNode = eventData?.result?.current_node ?? eventData?.result?.currentNode
-          if (isCorrect === true && currentNode === 'RULE') {
-            handleMarkSummaryReady(assistantMessageIdRef.current)
+          const currentNode = resolveFinalNode(eventData?.result)
+          if (isCorrect === true && currentNode === FINAL_CHATBOT_NODE) {
+            handleMarkQuizReady(assistantMessageIdRef.current)
+            handleCompleteChatbotSession()
           }
         },
         onStatus: (status) => {
@@ -772,6 +820,15 @@ export default function Chatbot() {
           handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
           return
         },
+        onConflict: ({ isResumeStreamRequest }) => {
+          if (isResumeStreamRequest) {
+            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+            return
+          }
+
+          handleCompleteChatbotSession()
+          handleStopStreaming()
+        },
         onRateLimit: ({ message }) => {
           const rateLimitMessage = message ?? STREAM_RATE_LIMIT_MESSAGE
           handleStopStreaming({
@@ -790,9 +847,10 @@ export default function Chatbot() {
       streamPayloadRef.current = null
     }
   }, [
+    handleCompleteChatbotSession,
     handleAppendAssistant,
     handleReplaceAssistant,
-    handleMarkSummaryReady,
+    handleMarkQuizReady,
     handleStopStreaming,
     isStreaming,
     problemId,
@@ -816,7 +874,7 @@ export default function Chatbot() {
 
   const handleSend = async () => {
     const trimmed = inputValue.trim()
-    if (!trimmed || !problemId || isStreaming) {
+    if (!trimmed || !problemId || isStreaming || isChatbotCompleted) {
       return
     }
 
@@ -877,9 +935,9 @@ export default function Chatbot() {
     }, 120)
   }
 
-  const handleSummaryCtaClick = useCallback(() => {
+  const handleQuizCtaClick = useCallback(() => {
     if (problemId) {
-      navigate(`/problems/${problemId}/summary`)
+      navigate(`/problems/${problemId}/quiz`)
     }
   }, [navigate, problemId])
 
@@ -898,6 +956,7 @@ export default function Chatbot() {
         conversationId: null,
         assistantMessageId: null,
         isStreaming: false,
+        isChatbotCompleted: false,
         isInputBlocked: false,
         sendError: null,
       })
@@ -916,6 +975,13 @@ export default function Chatbot() {
   const isQuizEnabled = useMemo(
     () => ['summary_card_passed', 'solved'].includes(problemStatus ?? ''),
     [problemStatus],
+  )
+  const isChatbotCompleted = useMemo(
+    () =>
+      Boolean(session?.isChatbotCompleted) ||
+      Boolean(problemSession?.chatbotCompletedAt) ||
+      isQuizEnabled,
+    [isQuizEnabled, problemSession?.chatbotCompletedAt, session?.isChatbotCompleted],
   )
 
   return (
@@ -1018,7 +1084,6 @@ export default function Chatbot() {
                   key={message.id}
                   isPending={isPending}
                   message={message}
-                  onSummaryClick={handleSummaryCtaClick}
                   setStreamingTextNode={isPending ? setStreamingTextNode : undefined}
                   setTypingNode={isPending ? setTypingNode : undefined}
                 />
@@ -1038,54 +1103,72 @@ export default function Chatbot() {
             className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
             style={{ bottom: inputBottomOffset }}
           >
-            <p className="m-2 text-right text-[12px] text-neutral-500">
-              {inputValue.length} / {MAX_INPUT_LENGTH}
-            </p>
-            <form
-              className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
-              onSubmit={(event) => {
-                event.preventDefault()
-                handleSend()
-              }}
-            >
-              <Input
-                className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={isStreaming}
-                maxLength={500}
-                onChange={(event) => {
-                  const nextValue = event.target.value
-                  updateSession(problemId, { inputValue: nextValue.slice(0, 500) })
-                }}
-                onFocus={handleInputFocus}
-                placeholder="메시지를 입력하세요"
-                ref={inputRef}
-                value={inputValue}
-              />
-              {isStreaming ? (
+            {isChatbotCompleted ? (
+              <div className="space-y-2 rounded-2xl border border-muted-foreground/20 bg-background p-3 shadow-sm">
+                <p className="text-sm text-muted-foreground">
+                  챗봇 단계가 완료되었습니다. 퀴즈를 진행해주세요.
+                </p>
                 <Button
-                  className="h-10 rounded-xl"
-                  onClick={handleCancelStream}
-                  size="sm"
+                  className="h-10 w-full rounded-xl bg-info text-white hover:bg-info/90"
+                  onClick={handleQuizCtaClick}
                   type="button"
-                  variant="destructive"
-                >
-                  중단
-                </Button>
-              ) : (
-                <Button
-                  className={`h-10 rounded-xl ${
-                    inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
-                  }`}
-                  disabled={inputValue.trim().length === 0}
-                  size="sm"
-                  type="submit"
                   variant="secondary"
                 >
-                  <Send className="h-4 w-4" />
-                  전송
+                  퀴즈 풀기
                 </Button>
-              )}
-            </form>
+              </div>
+            ) : (
+              <>
+                <p className="m-2 text-right text-[12px] text-neutral-500">
+                  {inputValue.length} / {MAX_INPUT_LENGTH}
+                </p>
+                <form
+                  className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSend()
+                  }}
+                >
+                  <Input
+                    className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                    disabled={isStreaming}
+                    maxLength={500}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      updateSession(problemId, { inputValue: nextValue.slice(0, 500) })
+                    }}
+                    onFocus={handleInputFocus}
+                    placeholder="메시지를 입력하세요"
+                    ref={inputRef}
+                    value={inputValue}
+                  />
+                  {isStreaming ? (
+                    <Button
+                      className="h-10 rounded-xl"
+                      onClick={handleCancelStream}
+                      size="sm"
+                      type="button"
+                      variant="destructive"
+                    >
+                      중단
+                    </Button>
+                  ) : (
+                    <Button
+                      className={`h-10 rounded-xl ${
+                        inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
+                      }`}
+                      disabled={inputValue.trim().length === 0}
+                      size="sm"
+                      type="submit"
+                      variant="secondary"
+                    >
+                      <Send className="h-4 w-4" />
+                      전송
+                    </Button>
+                  )}
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
