@@ -1,5 +1,5 @@
 import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
@@ -83,7 +83,7 @@ const resolveResumableConversationId = (items = []) => {
     return null
   }
 
-  const latestConversation = items[items.length - 1]
+  const latestConversation = items[0]
   const latestStatus = normalizeConversationStatus(latestConversation?.status)
   const latestAiMessage = String(latestConversation?.aiMessage ?? '').trim()
   const conversationId = Number(latestConversation?.conversationId)
@@ -104,7 +104,7 @@ const toHistoryMessages = (items = []) => {
     return [INITIAL_MESSAGE]
   }
 
-  const historyMessages = items.flatMap((item) => {
+  const historyMessages = [...items].reverse().flatMap((item) => {
     const conversationId = item?.conversationId ?? buildMessageId()
     const userMessage = String(item?.userMessage ?? '').trim()
     const aiMessage = String(item?.aiMessage ?? '').trim()
@@ -306,6 +306,8 @@ export default function Chatbot() {
   const messagesViewportRef = useRef(null)
   const inputRef = useRef(null)
   const isAtBottomRef = useRef(true)
+  const hasInitialViewportSyncRef = useRef(false)
+  const previousMessagesLengthRef = useRef(0)
 
   useEffect(() => {
     if (!problemId) {
@@ -617,6 +619,11 @@ export default function Chatbot() {
   )
 
   useEffect(() => {
+    hasInitialViewportSyncRef.current = false
+    previousMessagesLengthRef.current = 0
+  }, [problemId, sessionId])
+
+  useEffect(() => {
     let isActive = true
 
     const fetchStatus = async () => {
@@ -728,21 +735,39 @@ export default function Chatbot() {
     updateSession,
   ])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
       return
     }
 
+    if (hasInitialViewportSyncRef.current) {
+      return
+    }
+
+    scrollToBottom('auto')
+    hasInitialViewportSyncRef.current = true
+    previousMessagesLengthRef.current = messages.length
+    isAtBottomRef.current = true
+    setIsAtBottom(true)
+  }, [hasActiveSession, isLoading, isSessionRequired, loadError, messages.length, scrollToBottom])
+
+  useEffect(() => {
+    if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
+    if (!hasInitialViewportSyncRef.current) {
+      return
+    }
+
+    const previousLength = previousMessagesLengthRef.current
+    previousMessagesLengthRef.current = messages.length
+
+    if (messages.length <= previousLength) {
+      return
+    }
+
     scrollToBottom(messages.length <= 1 ? 'auto' : 'smooth')
-  }, [
-    hasActiveSession,
-    isLoading,
-    isSessionRequired,
-    loadError,
-    messages.length,
-    isStreaming,
-    scrollToBottom,
-  ])
+  }, [hasActiveSession, isLoading, isSessionRequired, loadError, messages.length, scrollToBottom])
 
   useEffect(() => {
     if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
