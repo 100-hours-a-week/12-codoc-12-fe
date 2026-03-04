@@ -255,7 +255,7 @@ export default function MainLayout() {
           className={
             isFullHeightPage
               ? 'min-h-0 flex flex-1 overflow-hidden p-0'
-              : `flex-1 px-4 py-5 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`
+              : `flex-1 px-4 pt-2 ${isNavHidden ? 'pb-6' : 'pb-24 sm:pb-28'}`
           }
         >
           {content}
