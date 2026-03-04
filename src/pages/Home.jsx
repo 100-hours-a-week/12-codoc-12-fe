@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { normalizeProblemStatus, STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 
@@ -408,16 +409,13 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+      <section className="rounded-[20px] border border-black/10 bg-white p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
         <div className="flex items-center gap-2">
           <span className="text-[hsl(var(--warning))]">
             <Sparkles className="h-4 w-4 fill-current" aria-hidden />
           </span>
           <div>
-            <h3 className="text-base font-semibold">나를 위한 추천문제</h3>
-            <p className="text-xs text-muted-foreground">
-              현재 레벨에 맞는 문제를 추천해 드립니다.
-            </p>
+            <h3 className="text-base font-semibold leading-none">나를 위한 추천문제</h3>
           </div>
         </div>
         {isLoadingRecommend ? (
@@ -427,44 +425,44 @@ export default function Home() {
             {recommendError}
           </StatusMessage>
         ) : recommendedProblem ? (
-          <button
-            className="mt-3 w-full rounded-2xl border border-black/10 bg-[#f5f6f8] px-4 py-3 text-left shadow-sm transition hover:bg-[#eef0f2]"
-            type="button"
-            onClick={handleOpenRecommended}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-sm font-semibold">
-                {formatTitleWithId(
-                  recommendedProblem.problemId ?? recommendedProblem.id,
-                  recommendedProblem.title,
-                )}
-                {recommendedProblem.bookmarked ? (
-                  <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
+          <button className="mt-3 w-full text-left" type="button" onClick={handleOpenRecommended}>
+            <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                    {formatTitleWithId(
+                      recommendedProblem.problemId ?? recommendedProblem.id,
+                      recommendedProblem.title,
+                    )}
+                    {recommendedProblem.bookmarked ? (
+                      <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
+                    ) : null}
+                  </h3>
+                  <span className="text-lg text-muted-foreground" aria-hidden>
+                    ›
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
+                    {formatDifficultyLabel(recommendedProblem.difficulty)}
+                  </Badge>
+                  {recommendedStatus ? (
+                    <Badge
+                      className={`rounded-full px-3 py-1 ${
+                        recommendedStatus.pillClass ?? 'bg-background text-foreground/80'
+                      }`}
+                    >
+                      {recommendedStatus.label}
+                    </Badge>
+                  ) : null}
+                </div>
+                {recommendedProblem.reason ? (
+                  <p className="mt-2 text-base leading-relaxed text-foreground/80">
+                    {recommendedProblem.reason}
+                  </p>
                 ) : null}
-              </p>
-              <span className="text-sm text-muted-foreground" aria-hidden>
-                ›
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-              <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
-                {formatDifficultyLabel(recommendedProblem.difficulty)}
-              </Badge>
-              {recommendedStatus ? (
-                <Badge
-                  className={`rounded-full px-3 py-1 ${
-                    recommendedStatus.pillClass ?? 'bg-background text-foreground/80'
-                  }`}
-                >
-                  {recommendedStatus.label}
-                </Badge>
-              ) : null}
-            </div>
-            {recommendedProblem.reason ? (
-              <p className="mt-2 text-base leading-relaxed text-foreground/80">
-                {recommendedProblem.reason}
-              </p>
-            ) : null}
+              </CardContent>
+            </Card>
           </button>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">추천 문제가 아직 준비되지 않았어요.</p>
@@ -478,7 +476,7 @@ export default function Home() {
       >
         <div className="flex items-center justify-between">
           <h3 className="text-base font-semibold">리더보드</h3>
-          <span className="text-sm text-muted-foreground">›</span>
+          <span className="text-lg text-muted-foreground">›</span>
         </div>
 
         {isLeaderboardLoading ? (
