@@ -560,7 +560,7 @@ export default function MyPage() {
     <div className="space-y-6">
       <section className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-2">
+          <div className="space-y-6">
             <div className="relative h-20 w-20 overflow-hidden rounded-full bg-[#4b5563]">
               {avatarUrl ? (
                 <img alt="avatar" className="h-full w-full object-cover" src={avatarUrl} />
@@ -734,243 +734,252 @@ export default function MyPage() {
             ))}
           </section>
 
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
+          <div className="space-y-6">
+            <section className="rounded-[24px] border border-black/10 bg-white p-3.5 shadow-[0_16px_32px_rgba(15,23,42,0.08)]">
               <button
-                className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+                className="flex w-full items-center justify-between text-left"
                 type="button"
-                onClick={() => setIsGoalModalOpen(true)}
+                onClick={() => setIsReportOpen((prev) => !prev)}
+                aria-expanded={isReportOpen}
               >
-                일일 목표 설정
-              </button>
-              <div className="relative">
-                <button
-                  className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
-                  type="button"
-                  onClick={() => setIsYearMenuOpen((prev) => !prev)}
-                >
-                  <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
-                  <span aria-hidden className="text-xs text-muted-foreground">
-                    ▾
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-muted-foreground">
+                    AI 분석 리포트
                   </span>
-                </button>
-                {isYearMenuOpen ? (
-                  <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                  <span className="text-xs font-semibold text-muted-foreground">
+                    {reportRangeLabel}
+                  </span>
+                </div>
+                <span className="text-lg text-muted-foreground">{isReportOpen ? '▾' : '▸'}</span>
+              </button>
+
+              {isReportOpen ? (
+                isLoadingReport ? (
+                  <StatusMessage className="mt-4">리포트를 불러오는 중...</StatusMessage>
+                ) : reportError ? (
+                  <StatusMessage className="mt-4">
+                    분석 리포트는 매주 월요일 오전 5시에 발급됩니다.
+                  </StatusMessage>
+                ) : report ? (
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-2xl border border-black/10 bg-[#f8fafc] px-4 py-3">
+                      <p className="text-xs font-semibold text-muted-foreground">성장지수</p>
+                      <div className="mt-1 flex items-baseline gap-2">
+                        <span className="text-2xl font-semibold">
+                          {Number(reportSummary?.growth_index ?? 0).toFixed(1)}
+                        </span>
+                        <span className="text-sm font-semibold text-muted-foreground">
+                          {reportSummary?.user_type ?? '분석 중'}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-xs font-medium text-muted-foreground">
+                        {reportSummary?.summary_comment ?? '이번 주 학습 리포트를 생성했어요.'}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-sm font-semibold">
+                          문맥 핵심 약점: {paragraphLabelMap[reportPast?.weak_section] ?? '분석 중'}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {reportPast?.analysis_text ?? '문단별 약점을 분석하고 있어요.'}
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        {reportStatsEntries.length > 0 ? (
+                          reportStatsEntries.map(([key, value]) => {
+                            const normalized = Math.round((Number(value) / maxReportStat) * 100)
+                            return (
+                              <div key={key} className="space-y-1">
+                                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
+                                  <span>{paragraphLabelMap[key] ?? key}</span>
+                                  <span>{value ?? 0}</span>
+                                </div>
+                                <div className="h-2 rounded-full bg-[#e5e7eb]">
+                                  <div
+                                    className="h-full rounded-full bg-info"
+                                    style={{ width: `${normalized}%` }}
+                                  />
+                                </div>
+                              </div>
+                            )
+                          })
+                        ) : (
+                          <p className="text-xs text-muted-foreground">
+                            이번 주 약점 데이터가 없습니다.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
+                      <p className="text-sm font-semibold">현재 성장 지표</p>
+                      <div className="mt-3 flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <svg viewBox="0 0 120 120" className="h-24 w-24 text-muted-foreground">
+                            <polygon
+                              points="60,10 110,60 60,110 10,60"
+                              fill="none"
+                              stroke="#e5e7eb"
+                              strokeWidth="2"
+                            />
+                            <polygon
+                              points="60,25 95,60 60,95 25,60"
+                              fill="none"
+                              stroke="#f3f4f6"
+                              strokeWidth="2"
+                            />
+                            <polygon
+                              points="60,40 80,60 60,80 40,60"
+                              fill="none"
+                              stroke="#f3f4f6"
+                              strokeWidth="2"
+                            />
+                            {(() => {
+                              const accuracy = clampScore(reportPresent?.accuracy ?? 0) / 100
+                              const efficiency = clampScore(reportPresent?.efficiency ?? 0) / 100
+                              const consistency = clampScore(reportPresent?.consistency ?? 0) / 100
+                              const independence =
+                                clampScore(reportPresent?.independence ?? 0) / 100
+                              const top = 60 - 50 * accuracy
+                              const right = 60 + 50 * efficiency
+                              const bottom = 60 + 50 * consistency
+                              const left = 60 - 50 * independence
+                              const points = `${60},${top} ${right},${60} ${60},${bottom} ${left},${60}`
+                              return (
+                                <polygon
+                                  points={points}
+                                  fill="rgba(59,130,246,0.2)"
+                                  stroke="#3b82f6"
+                                  strokeWidth="2"
+                                />
+                              )
+                            })()}
+                          </svg>
+                        </div>
+                        <div className="flex-1 space-y-2 text-xs font-semibold text-muted-foreground">
+                          <div className="flex items-center justify-between">
+                            <span>정확도</span>
+                            <span className="text-foreground">{reportPresent?.accuracy ?? 0}</span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>독립성</span>
+                            <span className="text-foreground">
+                              {reportPresent?.independence ?? 0}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>효율성</span>
+                            <span className="text-foreground">
+                              {reportPresent?.efficiency ?? 0}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span>꾸준함</span>
+                            <span className="text-foreground">
+                              {reportPresent?.consistency ?? 0}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        {reportPresent?.metrics_analysis_comment ??
+                          '성장 지표를 기반으로 다음 학습을 추천합니다.'}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-black/10 bg-[#f8fafc] px-4 py-3">
+                      <p className="text-sm font-semibold">미래: 독학 전략 & 로드맵</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {reportFuture?.strategy_tip ?? '추천 전략이 곧 도착할 예정이에요.'}
+                      </p>
+                    </div>
+
                     <button
-                      className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                        year === 'recent' ? 'bg-[#f3f4f6]' : ''
-                      }`}
+                      className="w-full rounded-2xl border border-black/10 bg-[#f5f6f8] px-4 py-3 text-left shadow-sm transition hover:bg-[#eef0f2]"
                       type="button"
-                      onClick={() => {
-                        setYear('recent')
-                        setIsYearMenuOpen(false)
-                      }}
+                      onClick={handleOpenRecommended}
                     >
-                      {recentLabel}
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-foreground">
+                          추천 문제 풀러가기
+                        </span>
+                        <span className="text-sm text-muted-foreground" aria-hidden>
+                          ›
+                        </span>
+                      </div>
                     </button>
-                    {years.map((value) => (
+                  </div>
+                ) : (
+                  <StatusMessage className="mt-4">분석 리포트가 아직 없어요.</StatusMessage>
+                )
+              ) : null}
+            </section>
+
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <button
+                  className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+                  type="button"
+                  onClick={() => setIsGoalModalOpen(true)}
+                >
+                  일일 목표 설정
+                </button>
+                <div className="relative">
+                  <button
+                    className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
+                    type="button"
+                    onClick={() => setIsYearMenuOpen((prev) => !prev)}
+                  >
+                    <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
+                    <span aria-hidden className="text-xs text-muted-foreground">
+                      ▾
+                    </span>
+                  </button>
+                  {isYearMenuOpen ? (
+                    <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
                       <button
-                        key={value}
                         className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                          value === year ? 'bg-[#f3f4f6]' : ''
+                          year === 'recent' ? 'bg-[#f3f4f6]' : ''
                         }`}
                         type="button"
                         onClick={() => {
-                          setYear(value)
+                          setYear('recent')
                           setIsYearMenuOpen(false)
                         }}
                       >
-                        {value}년
+                        {recentLabel}
                       </button>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </div>
-            <Heatmap
-              model={heatmapModel}
-              monthMarkers={monthMarkers}
-              scrollRef={heatmapScrollRef}
-              selectedCell={selectedCell}
-              onSelectCell={setSelectedCell}
-              levelClasses={levelClasses}
-            />
-          </section>
-
-          <section className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_16px_32px_rgba(15,23,42,0.08)]">
-            <button
-              className="flex w-full items-center justify-between text-left"
-              type="button"
-              onClick={() => setIsReportOpen((prev) => !prev)}
-              aria-expanded={isReportOpen}
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-muted-foreground">AI 분석 리포트</span>
-                <span className="text-xs font-semibold text-muted-foreground">
-                  {reportRangeLabel}
-                </span>
-              </div>
-              <span className="text-lg text-muted-foreground">{isReportOpen ? '▾' : '▸'}</span>
-            </button>
-
-            {isReportOpen ? (
-              isLoadingReport ? (
-                <StatusMessage className="mt-4">리포트를 불러오는 중...</StatusMessage>
-              ) : reportError ? (
-                <StatusMessage className="mt-4">
-                  분석 리포트는 매주 월요일 오전 5시에 발급됩니다.
-                </StatusMessage>
-              ) : report ? (
-                <div className="mt-4 space-y-4">
-                  <div className="rounded-2xl border border-black/10 bg-[#f8fafc] px-4 py-3">
-                    <p className="text-xs font-semibold text-muted-foreground">성장지수</p>
-                    <div className="mt-1 flex items-baseline gap-2">
-                      <span className="text-2xl font-semibold">
-                        {Number(reportSummary?.growth_index ?? 0).toFixed(1)}
-                      </span>
-                      <span className="text-sm font-semibold text-muted-foreground">
-                        {reportSummary?.user_type ?? '분석 중'}
-                      </span>
+                      {years.map((value) => (
+                        <button
+                          key={value}
+                          className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                            value === year ? 'bg-[#f3f4f6]' : ''
+                          }`}
+                          type="button"
+                          onClick={() => {
+                            setYear(value)
+                            setIsYearMenuOpen(false)
+                          }}
+                        >
+                          {value}년
+                        </button>
+                      ))}
                     </div>
-                    <p className="mt-2 text-xs font-medium text-muted-foreground">
-                      {reportSummary?.summary_comment ?? '이번 주 학습 리포트를 생성했어요.'}
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-semibold">
-                        문맥 핵심 약점: {paragraphLabelMap[reportPast?.weak_section] ?? '분석 중'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {reportPast?.analysis_text ?? '문단별 약점을 분석하고 있어요.'}
-                      </p>
-                    </div>
-                    <div className="space-y-2">
-                      {reportStatsEntries.length > 0 ? (
-                        reportStatsEntries.map(([key, value]) => {
-                          const normalized = Math.round((Number(value) / maxReportStat) * 100)
-                          return (
-                            <div key={key} className="space-y-1">
-                              <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
-                                <span>{paragraphLabelMap[key] ?? key}</span>
-                                <span>{value ?? 0}</span>
-                              </div>
-                              <div className="h-2 rounded-full bg-[#e5e7eb]">
-                                <div
-                                  className="h-full rounded-full bg-info"
-                                  style={{ width: `${normalized}%` }}
-                                />
-                              </div>
-                            </div>
-                          )
-                        })
-                      ) : (
-                        <p className="text-xs text-muted-foreground">
-                          이번 주 약점 데이터가 없습니다.
-                        </p>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
-                    <p className="text-sm font-semibold">현재 성장 지표</p>
-                    <div className="mt-3 flex items-center justify-between gap-4">
-                      <div className="flex-1">
-                        <svg viewBox="0 0 120 120" className="h-24 w-24 text-muted-foreground">
-                          <polygon
-                            points="60,10 110,60 60,110 10,60"
-                            fill="none"
-                            stroke="#e5e7eb"
-                            strokeWidth="2"
-                          />
-                          <polygon
-                            points="60,25 95,60 60,95 25,60"
-                            fill="none"
-                            stroke="#f3f4f6"
-                            strokeWidth="2"
-                          />
-                          <polygon
-                            points="60,40 80,60 60,80 40,60"
-                            fill="none"
-                            stroke="#f3f4f6"
-                            strokeWidth="2"
-                          />
-                          {(() => {
-                            const accuracy = clampScore(reportPresent?.accuracy ?? 0) / 100
-                            const efficiency = clampScore(reportPresent?.efficiency ?? 0) / 100
-                            const consistency = clampScore(reportPresent?.consistency ?? 0) / 100
-                            const independence = clampScore(reportPresent?.independence ?? 0) / 100
-                            const top = 60 - 50 * accuracy
-                            const right = 60 + 50 * efficiency
-                            const bottom = 60 + 50 * consistency
-                            const left = 60 - 50 * independence
-                            const points = `${60},${top} ${right},${60} ${60},${bottom} ${left},${60}`
-                            return (
-                              <polygon
-                                points={points}
-                                fill="rgba(59,130,246,0.2)"
-                                stroke="#3b82f6"
-                                strokeWidth="2"
-                              />
-                            )
-                          })()}
-                        </svg>
-                      </div>
-                      <div className="flex-1 space-y-2 text-xs font-semibold text-muted-foreground">
-                        <div className="flex items-center justify-between">
-                          <span>정확도</span>
-                          <span className="text-foreground">{reportPresent?.accuracy ?? 0}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>독립성</span>
-                          <span className="text-foreground">
-                            {reportPresent?.independence ?? 0}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>효율성</span>
-                          <span className="text-foreground">{reportPresent?.efficiency ?? 0}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span>꾸준함</span>
-                          <span className="text-foreground">{reportPresent?.consistency ?? 0}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <p className="mt-3 text-xs text-muted-foreground">
-                      {reportPresent?.metrics_analysis_comment ??
-                        '성장 지표를 기반으로 다음 학습을 추천합니다.'}
-                    </p>
-                  </div>
-
-                  <div className="rounded-2xl border border-black/10 bg-[#f8fafc] px-4 py-3">
-                    <p className="text-sm font-semibold">미래: 독학 전략 & 로드맵</p>
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {reportFuture?.strategy_tip ?? '추천 전략이 곧 도착할 예정이에요.'}
-                    </p>
-                  </div>
-
-                  <button
-                    className="w-full rounded-2xl border border-black/10 bg-[#f5f6f8] px-4 py-3 text-left shadow-sm transition hover:bg-[#eef0f2]"
-                    type="button"
-                    onClick={handleOpenRecommended}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-foreground">
-                        추천 문제 풀러가기
-                      </span>
-                      <span className="text-sm text-muted-foreground" aria-hidden>
-                        ›
-                      </span>
-                    </div>
-                  </button>
+                  ) : null}
                 </div>
-              ) : (
-                <StatusMessage className="mt-4">분석 리포트가 아직 없어요.</StatusMessage>
-              )
-            ) : null}
-          </section>
+              </div>
+              <Heatmap
+                model={heatmapModel}
+                monthMarkers={monthMarkers}
+                scrollRef={heatmapScrollRef}
+                selectedCell={selectedCell}
+                onSelectCell={setSelectedCell}
+                levelClasses={levelClasses}
+              />
+            </section>
+          </div>
         </>
       )}
       {toastMessage
