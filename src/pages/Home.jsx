@@ -1,67 +1,17 @@
 import { RefreshCw, Sparkles, Star } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import Heatmap, { HEATMAP_COL_WIDTH_PX, HEATMAP_ROWS } from '@/components/Heatmap'
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { normalizeProblemStatus, STATUS_OPTIONS } from '@/constants/problemStatusOptions'
 
-const heatmapRows = HEATMAP_ROWS
-const colWidthPx = HEATMAP_COL_WIDTH_PX
-
-const monthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-]
-
-const levelClasses = [
-  'bg-[#ebedf0]',
-  'bg-[#d6f5d6]',
-  'bg-[#b7ecb7]',
-  'bg-[#8ddb8d]',
-  'bg-[#57c957]',
-  'bg-[#2ea043]',
-]
-
 const statusCopy = {
   IN_PROGRESS: { variant: 'pending', disabled: true },
   COMPLETED: { variant: 'ready', disabled: false },
   CLAIMED: { variant: 'done', disabled: true },
-}
-
-const formatDate = (date) => date.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
-
-const addDays = (date, days) => {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next
-}
-
-const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
-
-const getWeekStartSunday = (date) => {
-  const start = new Date(date)
-  start.setDate(start.getDate() - start.getDay())
-  return start
-}
-
-const getKstToday = () => {
-  const now = new Date()
-  const kstDate = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
-  return new Date(`${kstDate}T00:00:00+09:00`)
 }
 
 const formatTitleWithId = (id, title) => {
@@ -72,63 +22,6 @@ const formatTitleWithId = (id, title) => {
     return title
   }
   return `${id}. ${title}`
-}
-
-const getContributionRange = (today) => {
-  const fromDate = addDays(today, -364)
-  return { fromDate, toDate: today, today }
-}
-
-const buildMonthMarkers = (range, gridStartDate) => {
-  const markers = []
-  const cursor = new Date(range.fromDate.getFullYear(), range.fromDate.getMonth(), 1)
-
-  while (cursor < range.fromDate) {
-    cursor.setMonth(cursor.getMonth() + 1)
-  }
-
-  while (cursor <= range.toDate) {
-    const dayIndex = daysBetween(gridStartDate, cursor)
-    const colIndex = Math.floor(dayIndex / heatmapRows)
-    markers.push({
-      key: formatDate(cursor),
-      label: monthNames[cursor.getMonth()],
-      leftPx: colIndex * colWidthPx,
-    })
-    cursor.setMonth(cursor.getMonth() + 1)
-  }
-
-  return markers
-}
-
-const buildHeatmapModel = (dailySolveCount, range) => {
-  const countByDate = new Map(
-    (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
-  )
-  const gridStart = getWeekStartSunday(range.fromDate)
-  const totalDays = Math.max(1, daysBetween(gridStart, range.toDate) + 1)
-  const weeks = Math.ceil(totalDays / heatmapRows)
-  const totalCells = weeks * heatmapRows
-  const minWidthPx = weeks * colWidthPx
-
-  const cells = Array.from({ length: totalCells }, (_, idx) => {
-    if (idx >= totalDays) {
-      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
-    }
-    const date = addDays(gridStart, idx)
-    if (date < range.fromDate) {
-      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
-    }
-    if (date > range.today) {
-      return { id: `future-${idx}`, level: 0, date: null, solveCount: 0 }
-    }
-    const key = formatDate(date)
-    const solveCount = countByDate.get(key) ?? 0
-    const level = Math.min(5, Math.max(0, solveCount))
-    return { id: key, level, date: key, solveCount }
-  })
-
-  return { cells, weeks, minWidthPx, startDate: gridStart, totalDays }
 }
 
 function QuestCard({ quest, onClaim }) {
@@ -190,8 +83,6 @@ function QuestCard({ quest, onClaim }) {
 export default function Home() {
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
-  const [dailySolveCount, setDailySolveCount] = useState([])
-  const [streak, setStreak] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
@@ -202,14 +93,9 @@ export default function Home() {
   const [groupRank, setGroupRank] = useState(null)
   const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true)
   const [leaderboardError, setLeaderboardError] = useState('')
-  const heatmapScrollRef = useRef(null)
-  const [selectedCell, setSelectedCell] = useState(null)
   const [questPage, setQuestPage] = useState(0)
   const questTouchStartX = useRef(null)
   const questTouchLastX = useRef(null)
-
-  const today = useMemo(() => getKstToday(), [])
-  const contributionRange = useMemo(() => getContributionRange(today), [today])
 
   useEffect(() => {
     let mounted = true
@@ -247,17 +133,8 @@ export default function Home() {
       }
       setLoadError('')
 
-      const fromDate = formatDate(contributionRange.fromDate)
-      const toDate = formatDate(contributionRange.toDate)
-
       try {
-        const [questRes, contributionRes, streakRes] = await Promise.all([
-          api.get('/api/user/quests'),
-          api.get('/api/user/contribution', {
-            params: { from_date: fromDate, to_date: toDate },
-          }),
-          api.get('/api/user/streak'),
-        ])
+        const [questRes] = await Promise.all([api.get('/api/user/quests')])
 
         if (!mounted) {
           return
@@ -276,9 +153,6 @@ export default function Home() {
         })
 
         setQuests(mappedQuests)
-        setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
-        setStreak(streakRes.data?.data?.streak ?? 0)
-        setSelectedCell(null)
       } catch {
         if (!mounted) {
           return
@@ -330,7 +204,7 @@ export default function Home() {
     return () => {
       mounted = false
     }
-  }, [contributionRange.fromDate, contributionRange.toDate])
+  }, [])
 
   const handleQuestRefresh = async () => {
     if (isRefreshing) {
@@ -341,15 +215,7 @@ export default function Home() {
     setRecommendError('')
     try {
       await api.post('/api/user/quests/refresh', {})
-      const fromDate = formatDate(contributionRange.fromDate)
-      const toDate = formatDate(contributionRange.toDate)
-      const [questRes, contributionRes, streakRes] = await Promise.all([
-        api.get('/api/user/quests'),
-        api.get('/api/user/contribution', {
-          params: { from_date: fromDate, to_date: toDate },
-        }),
-        api.get('/api/user/streak'),
-      ])
+      const [questRes] = await Promise.all([api.get('/api/user/quests')])
       let nextRecommended = null
       try {
         const recommendRes = await api.get('/api/problems/recommended')
@@ -373,9 +239,6 @@ export default function Home() {
         }
       })
       setQuests(mappedQuests)
-      setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
-      setStreak(streakRes.data?.data?.streak ?? 0)
-      setSelectedCell(null)
       setRecommendedProblem(nextRecommended)
     } catch {
       setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
@@ -383,29 +246,6 @@ export default function Home() {
       setIsRefreshing(false)
     }
   }
-
-  const heatmapModel = useMemo(
-    () => buildHeatmapModel(dailySolveCount, contributionRange),
-    [contributionRange, dailySolveCount],
-  )
-  const monthMarkers = useMemo(
-    () => buildMonthMarkers(contributionRange, heatmapModel.startDate),
-    [contributionRange, heatmapModel.startDate],
-  )
-
-  useEffect(() => {
-    const container = heatmapScrollRef.current
-    if (!container || !heatmapModel?.weeks) {
-      return
-    }
-    const dayIndex = Math.min(
-      heatmapModel.totalDays - 1,
-      Math.max(0, daysBetween(heatmapModel.startDate, contributionRange.today)),
-    )
-    const targetCol = Math.floor(dayIndex / heatmapRows)
-    const targetLeft = Math.max(0, (targetCol + 1) * colWidthPx - container.clientWidth)
-    container.scrollTo({ left: targetLeft, behavior: 'auto' })
-  }, [contributionRange.today, heatmapModel])
 
   const handleClaim = async (userQuestId) => {
     if (!userQuestId) {
@@ -568,16 +408,6 @@ export default function Home() {
         </div>
       </section>
 
-      <Heatmap
-        model={heatmapModel}
-        monthMarkers={monthMarkers}
-        scrollRef={heatmapScrollRef}
-        selectedCell={selectedCell}
-        onSelectCell={setSelectedCell}
-        levelClasses={levelClasses}
-        header={<h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>}
-        cardClassName="mt-1"
-      />
       <button
         className="w-full rounded-[22px] border border-black/10 bg-white px-4 py-4 text-left shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:bg-[#f7f8fa]"
         type="button"
