@@ -408,49 +408,6 @@ export default function Home() {
         </div>
       </section>
 
-      <button
-        className="w-full rounded-[22px] border border-black/10 bg-white px-4 py-4 text-left shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:bg-[#f7f8fa]"
-        type="button"
-        onClick={() => navigate('/leaderboard')}
-      >
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold">리더보드</h3>
-          <span className="text-sm text-muted-foreground">›</span>
-        </div>
-
-        {isLeaderboardLoading ? (
-          <StatusMessage className="mt-3">리더보드를 불러오는 중...</StatusMessage>
-        ) : leaderboardError ? (
-          <StatusMessage className="mt-3" tone="error">
-            {leaderboardError}
-          </StatusMessage>
-        ) : groupRank ? (
-          <div className="mt-3 flex items-center gap-4">
-            <div className="flex h-[86px] w-[86px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-muted-foreground/30 bg-white text-sm font-semibold text-muted-foreground">
-              {leagueInfo?.logoUrl ? (
-                <img
-                  alt="league logo"
-                  className="h-full w-full object-cover"
-                  src={leagueInfo.logoUrl}
-                />
-              ) : (
-                (leagueInfo?.name ?? 'LEAGUE').slice(0, 6)
-              )}
-            </div>
-            <div className="flex flex-1 flex-col gap-2">
-              <span className="text-sm font-semibold text-foreground">
-                주간 경험치: {groupRank.weeklyXp ?? 0}XP
-              </span>
-              <span className="text-sm font-semibold text-foreground">
-                그룹 순위: {groupRank.placeGroup ?? '-'}
-              </span>
-            </div>
-          </div>
-        ) : (
-          <StatusMessage className="mt-3">리더보드 데이터를 준비하고 있어요.</StatusMessage>
-        )}
-      </button>
-
       <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
         <div className="flex items-center gap-2">
           <span className="text-[hsl(var(--warning))]">
@@ -513,6 +470,49 @@ export default function Home() {
           <p className="mt-3 text-xs text-muted-foreground">추천 문제가 아직 준비되지 않았어요.</p>
         )}
       </section>
+
+      <button
+        className="w-full rounded-[22px] border border-black/10 bg-white px-4 py-4 text-left shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:bg-[#f7f8fa]"
+        type="button"
+        onClick={() => navigate('/leaderboard')}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-semibold">리더보드</h3>
+          <span className="text-sm text-muted-foreground">›</span>
+        </div>
+
+        {isLeaderboardLoading ? (
+          <StatusMessage className="mt-3">리더보드를 불러오는 중...</StatusMessage>
+        ) : leaderboardError ? (
+          <StatusMessage className="mt-3" tone="error">
+            {leaderboardError}
+          </StatusMessage>
+        ) : groupRank ? (
+          <div className="mt-3 flex items-center gap-4">
+            <div className="flex h-[86px] w-[86px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-muted-foreground/30 bg-white text-sm font-semibold text-muted-foreground">
+              {leagueInfo?.logoUrl ? (
+                <img
+                  alt="league logo"
+                  className="h-full w-full object-cover"
+                  src={leagueInfo.logoUrl}
+                />
+              ) : (
+                (leagueInfo?.name ?? 'LEAGUE').slice(0, 6)
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-2">
+              <span className="text-sm font-semibold text-foreground">
+                주간 경험치: {groupRank.weeklyXp ?? 0}XP
+              </span>
+              <span className="text-sm font-semibold text-foreground">
+                그룹 순위: {groupRank.placeGroup ?? '-'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <StatusMessage className="mt-3">리더보드 데이터를 준비하고 있어요.</StatusMessage>
+        )}
+      </button>
 
       <div className="mt-3">
         <a
