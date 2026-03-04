@@ -667,12 +667,7 @@ export default function Chatbot() {
         if (isActive) {
           setProblemStatus(data.status)
           if (sessionId) {
-            const isChatbotCompletedBySession = Boolean(problemSession?.chatbotCompletedAt)
-            const isChatbotCompletedByStatus = ['summary_card_passed', 'solved'].includes(
-              data.status ?? '',
-            )
-            const isChatbotCompletedState =
-              isChatbotCompletedBySession || isChatbotCompletedByStatus
+            const isChatbotCompletedState = Boolean(problemSession?.chatbotCompletedAt)
             const historyItems = Array.isArray(history?.items) ? history.items : []
             const historyMessages = toHistoryMessages(historyItems)
             initSession(problemId, historyMessages)
@@ -1084,11 +1079,8 @@ export default function Chatbot() {
     [problemStatus],
   )
   const isChatbotCompleted = useMemo(
-    () =>
-      Boolean(session?.isChatbotCompleted) ||
-      Boolean(problemSession?.chatbotCompletedAt) ||
-      isQuizEnabled,
-    [isQuizEnabled, problemSession?.chatbotCompletedAt, session?.isChatbotCompleted],
+    () => Boolean(session?.isChatbotCompleted) || Boolean(problemSession?.chatbotCompletedAt),
+    [problemSession?.chatbotCompletedAt, session?.isChatbotCompleted],
   )
   const renderedMessages = useMemo(
     () => (isChatbotCompleted ? [...messages, CHATBOT_COMPLETED_GUIDE_MESSAGE] : messages),
