@@ -157,7 +157,7 @@ const clampScore = (value) => {
 
 function StatCard({ label, value }) {
   return (
-    <div className="rounded-2xl border border-black/15 bg-white px-3 py-4 text-center shadow-[0_10px_20px_rgba(15,23,42,0.05)]">
+    <div className="rounded-2xl border border-black/15 bg-white px-3 py-3 text-center shadow-[0_10px_20px_rgba(15,23,42,0.05)]">
       <p className="text-lg font-semibold">{value}</p>
       <p className="mt-1 text-xs font-semibold text-muted-foreground">{label}</p>
     </div>
