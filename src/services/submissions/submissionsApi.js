@@ -5,7 +5,7 @@ export const requestQuizSubmission = async (quizId, payload) => {
   return response.data
 }
 
-export const requestProblemSubmission = async (problemId) => {
-  const response = await api.post(`/api/problems/${problemId}/submissions`)
+export const requestProblemSubmission = async (problemId, payload) => {
+  const response = await api.post(`/api/problems/${problemId}/submissions`, payload)
   return response.data
 }

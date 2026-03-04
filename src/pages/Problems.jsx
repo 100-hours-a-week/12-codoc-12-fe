@@ -35,6 +35,16 @@ const SCROLL_Y_KEY = 'problems:scrollY'
 const RESTORE_KEY = 'problems:restore'
 const LIST_STATE_KEY = 'problems:listState'
 
+const formatTitleWithId = (id, title) => {
+  if (!title) {
+    return ''
+  }
+  if (id === null || id === undefined || id === '') {
+    return title
+  }
+  return `${id}. ${title}`
+}
+
 export default function Problems() {
   const shouldRestore = typeof window !== 'undefined' && sessionStorage.getItem(RESTORE_KEY) === '1'
   const [searchValue, setSearchValue] = useState('')
@@ -462,15 +472,15 @@ export default function Problems() {
                   <Link
                     key={problem.id}
                     className="block rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/20"
-                    aria-label={`${problem.title} 상세 보기`}
+                    aria-label={`${formatTitleWithId(problem.id, problem.title)} 상세 보기`}
                     onClick={handleOpenProblem}
                     to={`/problems/${problem.id}`}
                   >
                     <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
-                      <CardContent className="p-4">
+                      <CardContent className="p-3">
                         <div className="flex items-start justify-between gap-3">
                           <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                            {problem.title}
+                            {formatTitleWithId(problem.id, problem.title)}
                             {problem.bookmarked ? (
                               <Star
                                 aria-label="북마크"
@@ -480,7 +490,7 @@ export default function Problems() {
                           </h3>
                           <span className="text-lg text-muted-foreground">{'›'}</span>
                         </div>
-                        <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
                           <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
                             {formatDifficultyLabel(problem.difficulty)}
                           </Badge>

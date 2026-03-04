@@ -1,17 +1,24 @@
-import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowDown, BookOpen, Brain, ChevronRight, Clover, Send } from 'lucide-react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 
+import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import { Card } from '@/components/ui/card'
 import { trackEvent } from '@/lib/ga4'
-import { getProblemDetail } from '@/services/problems/problemsService'
-import { createChatbotStream } from '@/services/chatbot/chatbotService'
+import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
+import {
+  createChatbotStream,
+  getAllChatbotConversations,
+  stopChatbotStream,
+} from '@/services/chatbot/chatbotService'
+import { getProblemDetail, startProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
+import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
+import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -22,11 +29,18 @@ const TAB_ITEMS = [
 const ACTIVE_TAB_ID = 'chatbot'
 
 const MAX_INPUT_LENGTH = 500
-const STREAM_FAILED_MESSAGE = '요청에 실패했습니다. 다시 시도해주세요.'
+const STREAM_FAILED_MESSAGE = '답변 생성에 실패했습니다.'
 const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 후 다시 시도해주세요.'
 const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
 const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
+const FINAL_CHATBOT_NODE = 'INSIGHT'
+const CHATBOT_COMPLETED_GUIDE_TEXT =
+  '챗봇 단계가 모두 완료되었습니다. 이제 요약 카드를 만들고 퀴즈를 풀어보세요!'
+const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
+  CANCELED: '답변 생성이 중단되었습니다',
+  FAILED: STREAM_FAILED_MESSAGE,
+}
 
 const INITIAL_MESSAGE = {
   id: 'assistant-intro',
@@ -35,12 +49,103 @@ const INITIAL_MESSAGE = {
     '안녕하세요! 코독이에요.\n지금부터 문제를 4단계로 쪼개 요약카드를 완성해봅시다.\n1단계는 “문제 배경(상황)”입니다.\n지금 어떤 상황인지 말해주세요.\n(누가/무엇을/얼마나를 잡아내면 좋습니다)',
 }
 
+const CHATBOT_COMPLETED_GUIDE_MESSAGE = {
+  id: 'assistant-chatbot-completed-guide',
+  role: 'assistant',
+  content: CHATBOT_COMPLETED_GUIDE_TEXT,
+}
+
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const normalizeConversationStatus = (status) =>
+  String(status ?? '')
+    .trim()
+    .toUpperCase()
+
+const normalizeChatbotNode = (node) => (typeof node === 'string' ? node.trim().toUpperCase() : '')
+
+const resolveFinalNode = (result = {}) => {
+  const candidates = [
+    result.current_node,
+    result.currentNode,
+    result.paragraph_type,
+    result.paragraphType,
+  ]
+
+  for (const candidate of candidates) {
+    const normalized = normalizeChatbotNode(candidate)
+    if (normalized) {
+      return normalized
+    }
+  }
+
+  return ''
+}
+
+const resolveHistoryFallbackMessage = (status) => {
+  const normalizedStatus = normalizeConversationStatus(status)
+  return HISTORY_FALLBACK_MESSAGE_BY_STATUS[normalizedStatus] ?? ''
+}
+
+const resolveResumableConversationId = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return null
+  }
+
+  const latestConversation = items[0]
+  const latestStatus = normalizeConversationStatus(latestConversation?.status)
+  const latestAiMessage = String(latestConversation?.aiMessage ?? '').trim()
+  const conversationId = Number(latestConversation?.conversationId)
+
+  const isResumableStatus = latestStatus === 'DISCONNECTED' || latestStatus === 'PROCESSING'
+  if (!isResumableStatus || latestAiMessage) {
+    return null
+  }
+  if (!Number.isInteger(conversationId) || conversationId <= 0) {
+    return null
+  }
+
+  return conversationId
+}
+
+const toHistoryMessages = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [INITIAL_MESSAGE]
+  }
+
+  const historyMessages = [...items].reverse().flatMap((item) => {
+    const conversationId = item?.conversationId ?? buildMessageId()
+    const userMessage = String(item?.userMessage ?? '').trim()
+    const aiMessage = String(item?.aiMessage ?? '').trim()
+    const status = normalizeConversationStatus(item?.status)
+    const fallbackMessage = resolveHistoryFallbackMessage(status)
+    const nextMessages = []
+
+    if (userMessage) {
+      nextMessages.push({ id: `conv-${conversationId}-user`, role: 'user', content: userMessage })
+    }
+    if (aiMessage || fallbackMessage) {
+      nextMessages.push({
+        id: `conv-${conversationId}-assistant`,
+        role: 'assistant',
+        content: aiMessage || fallbackMessage,
+        meta: fallbackMessage
+          ? {
+              isFallback: true,
+              fallbackStatus: status,
+            }
+          : undefined,
+      })
+    }
+
+    return nextMessages
+  })
+
+  return historyMessages.length > 0 ? [INITIAL_MESSAGE, ...historyMessages] : [INITIAL_MESSAGE]
+}
 
 const ChatMessage = memo(function ChatMessage({
   message,
   isPending,
-  onSummaryClick,
   setStreamingTextNode,
   setTypingNode,
 }) {
@@ -147,6 +252,12 @@ const ChatMessage = memo(function ChatMessage({
                   <span aria-hidden="true" />
                 </div>
               </div>
+            ) : message.meta?.isFallback ? (
+              <div className="inline-flex rounded-2xl">
+                <p className="whitespace-pre-line text-[14px] font-semibold leading-6 text-amber-900">
+                  {message.content}
+                </p>
+              </div>
             ) : (
               <ReactMarkdown
                 remarkPlugins={[remarkGfm, remarkBreaks]}
@@ -156,16 +267,6 @@ const ChatMessage = memo(function ChatMessage({
               </ReactMarkdown>
             )}
           </div>
-          {message.role === 'assistant' && message.meta?.showSummaryCta ? (
-            <Button
-              className="w-fit rounded-xl bg-muted text-foreground hover:bg-muted/80"
-              onClick={onSummaryClick}
-              type="button"
-              variant="secondary"
-            >
-              문제 요약 카드 풀러 가기
-            </Button>
-          ) : null}
         </div>
       )}
     </div>
@@ -180,11 +281,30 @@ export default function Chatbot() {
   const [loadError, setLoadError] = useState(null)
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [keyboardOffset, setKeyboardOffset] = useState(0)
+  const [isSessionStarting, setIsSessionStarting] = useState(false)
+  const [sessionError, setSessionError] = useState(null)
+  const [isSessionRequired, setIsSessionRequired] = useState(false)
 
   const { sessions, initSession, updateSession } = useChatbotStore()
   const session = problemId ? sessions[String(problemId)] : null
+  const { sessions: problemSessions, setSession: setProblemSession } = useProblemSessionStore()
+  const { fetchProblem: fetchProblemDetail } = useProblemDetailStore()
+  const problemSession = problemId ? problemSessions[String(problemId)] : null
+  const sessionId = problemSession?.sessionId ?? null
+  const isExpired = isSessionExpired(problemSession?.expiresAt)
+  const hasActiveSession = Boolean(sessionId) && !isExpired
+  const activeSession = useMemo(() => {
+    const items = Object.values(problemSessions)
+    return items.find((entry) => entry?.sessionId) ?? null
+  }, [problemSessions])
+  const isActiveSessionExpired = isSessionExpired(activeSession?.expiresAt)
+  const hasOtherActiveSession =
+    Boolean(activeSession?.sessionId) &&
+    !isActiveSessionExpired &&
+    String(activeSession?.problemId ?? '') !== String(problemId ?? '')
   const messages = useMemo(() => session?.messages ?? [INITIAL_MESSAGE], [session?.messages])
   const inputValue = session?.inputValue ?? ''
+  const conversationId = session?.conversationId ?? null
   const assistantMessageId = session?.assistantMessageId ?? null
   const isStreaming = session?.isStreaming ?? false
   const sendError = session?.sendError ?? null
@@ -200,9 +320,11 @@ export default function Chatbot() {
   const lastDrainTimestampRef = useRef(0)
   const autoScrollRafRef = useRef(null)
   const streamPayloadRef = useRef(null)
-  const bottomRef = useRef(null)
+  const messagesViewportRef = useRef(null)
   const inputRef = useRef(null)
   const isAtBottomRef = useRef(true)
+  const hasInitialViewportSyncRef = useRef(false)
+  const previousMessagesLengthRef = useRef(0)
 
   useEffect(() => {
     if (!problemId) {
@@ -252,7 +374,11 @@ export default function Chatbot() {
     if (isAtBottomRef.current && !autoScrollRafRef.current) {
       autoScrollRafRef.current = requestAnimationFrame(() => {
         autoScrollRafRef.current = null
-        bottomRef.current?.scrollIntoView({ behavior: 'auto' })
+        const viewport = messagesViewportRef.current
+        if (!viewport) {
+          return
+        }
+        viewport.scrollTo({ top: viewport.scrollHeight, behavior: 'auto' })
       })
     }
   }, [])
@@ -364,12 +490,26 @@ export default function Chatbot() {
   )
 
   const checkIsAtBottom = useCallback(() => {
-    const threshold = 160
-    const scrollBottom = window.innerHeight + window.scrollY
-    const pageHeight = document.documentElement.scrollHeight
-    const nextIsAtBottom = scrollBottom >= pageHeight - threshold
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      isAtBottomRef.current = true
+      setIsAtBottom(true)
+      return
+    }
+
+    const remaining = viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight
+    const nextIsAtBottom = remaining < 32
     isAtBottomRef.current = nextIsAtBottom
     setIsAtBottom(nextIsAtBottom)
+  }, [])
+
+  const scrollToBottom = useCallback((behavior = 'auto') => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    viewport.scrollTo({ top: viewport.scrollHeight, behavior })
   }, [])
 
   const handleReplaceAssistant = useCallback(
@@ -392,7 +532,7 @@ export default function Chatbot() {
     [clearTokenBuffer, clearStreamingNodes, problemId, updateSession],
   )
 
-  const handleMarkSummaryReady = useCallback(
+  const handleMarkQuizReady = useCallback(
     (targetId) => {
       if (!problemId || !targetId) {
         return
@@ -405,7 +545,7 @@ export default function Chatbot() {
                 ...message,
                 meta: {
                   ...(message.meta ?? {}),
-                  showSummaryCta: true,
+                  showQuizCta: true,
                 },
               }
             : message,
@@ -415,8 +555,27 @@ export default function Chatbot() {
     [problemId, updateSession],
   )
 
+  const handleCompleteChatbotSession = useCallback(() => {
+    if (!problemId) {
+      return
+    }
+
+    const completedAt = new Date().toISOString()
+    updateSession(problemId, {
+      isChatbotCompleted: true,
+      inputValue: '',
+      sendError: null,
+    })
+    if (problemSession?.sessionId) {
+      setProblemSession(problemId, {
+        ...problemSession,
+        chatbotCompletedAt: problemSession.chatbotCompletedAt ?? completedAt,
+      })
+    }
+  }, [problemId, problemSession, setProblemSession, updateSession])
+
   const handleStopStreaming = useCallback(
-    ({ failureMessage, patch = {} } = {}) => {
+    ({ failureMessage, fallbackStatus, patch = {} } = {}) => {
       if (!problemId) {
         return
       }
@@ -433,7 +592,19 @@ export default function Chatbot() {
       const nextMessages = targetId
         ? failureMessage
           ? currentMessages.map((message) =>
-              message.id === targetId ? { ...message, content: failureMessage } : message,
+              message.id === targetId
+                ? {
+                    ...message,
+                    content: failureMessage,
+                    meta: fallbackStatus
+                      ? {
+                          ...(message.meta ?? {}),
+                          isFallback: true,
+                          fallbackStatus,
+                        }
+                      : message.meta,
+                  }
+                : message,
             )
           : currentMessages.filter(
               (message) =>
@@ -448,6 +619,7 @@ export default function Chatbot() {
       assistantMessageIdRef.current = null
       updateSession(problemId, {
         messages: nextMessages,
+        conversationId: null,
         isStreaming: false,
         assistantMessageId: null,
         ...patch,
@@ -464,6 +636,11 @@ export default function Chatbot() {
   )
 
   useEffect(() => {
+    hasInitialViewportSyncRef.current = false
+    previousMessagesLengthRef.current = 0
+  }, [problemId, sessionId])
+
+  useEffect(() => {
     let isActive = true
 
     const fetchStatus = async () => {
@@ -478,15 +655,70 @@ export default function Chatbot() {
 
       setIsLoading(true)
       setLoadError(null)
+      setIsSessionRequired(false)
 
       try {
-        const data = await getProblemDetail(problemId)
+        const existingSession = useChatbotStore.getState().sessions[String(problemId)]
+        const data = await fetchProblemDetail(problemId, getProblemDetail)
+        let history = { items: [] }
+        if (sessionId && !existingSession) {
+          history = await getAllChatbotConversations(problemId, { sessionId })
+        }
         if (isActive) {
           setProblemStatus(data.status)
-          initSession(problemId, [INITIAL_MESSAGE])
+          if (sessionId) {
+            const isChatbotCompletedBySession = Boolean(problemSession?.chatbotCompletedAt)
+            const isChatbotCompletedByStatus = ['summary_card_passed', 'solved'].includes(
+              data.status ?? '',
+            )
+            const isChatbotCompletedState =
+              isChatbotCompletedBySession || isChatbotCompletedByStatus
+            const historyItems = Array.isArray(history?.items) ? history.items : []
+            const historyMessages = toHistoryMessages(historyItems)
+            initSession(problemId, historyMessages)
+            updateSession(problemId, {
+              isChatbotCompleted: isChatbotCompletedState,
+              ...(isChatbotCompletedState ? { inputValue: '' } : {}),
+            })
+
+            if (!existingSession && !isChatbotCompletedState) {
+              const resumableConversationId = resolveResumableConversationId(historyItems)
+              if (resumableConversationId) {
+                const pendingAssistantId = `conv-${resumableConversationId}-assistant`
+                const hasAssistantMessage = historyMessages.some(
+                  (message) => message.id === pendingAssistantId && message.role === 'assistant',
+                )
+                const resumeMessages = hasAssistantMessage
+                  ? historyMessages
+                  : [
+                      ...historyMessages,
+                      {
+                        id: pendingAssistantId,
+                        role: 'assistant',
+                        content: '',
+                      },
+                    ]
+
+                assistantMessageIdRef.current = pendingAssistantId
+                streamPayloadRef.current = { conversationId: resumableConversationId }
+                updateSession(problemId, {
+                  messages: resumeMessages,
+                  conversationId: resumableConversationId,
+                  assistantMessageId: pendingAssistantId,
+                  isStreaming: true,
+                  sendError: null,
+                })
+              }
+            }
+          }
         }
       } catch (error) {
         if (isActive) {
+          if (isSessionRequiredError(error)) {
+            setIsSessionRequired(true)
+            setProblemStatus(null)
+            return
+          }
           const status = error?.response?.status
           if (status === 404) {
             setLoadError('존재하지 않는 문제입니다.')
@@ -510,30 +742,71 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [initSession, navigate, problemId])
+  }, [
+    fetchProblemDetail,
+    initSession,
+    navigate,
+    problemId,
+    problemSession?.chatbotCompletedAt,
+    sessionId,
+    updateSession,
+  ])
+
+  useLayoutEffect(() => {
+    if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
+
+    if (hasInitialViewportSyncRef.current) {
+      return
+    }
+
+    scrollToBottom('auto')
+    hasInitialViewportSyncRef.current = true
+    previousMessagesLengthRef.current = messages.length
+    isAtBottomRef.current = true
+    setIsAtBottom(true)
+  }, [hasActiveSession, isLoading, isSessionRequired, loadError, messages.length, scrollToBottom])
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages, isStreaming])
+    if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
+    if (!hasInitialViewportSyncRef.current) {
+      return
+    }
+
+    const previousLength = previousMessagesLengthRef.current
+    previousMessagesLengthRef.current = messages.length
+
+    if (messages.length <= previousLength) {
+      return
+    }
+
+    scrollToBottom(messages.length <= 1 ? 'auto' : 'smooth')
+  }, [hasActiveSession, isLoading, isSessionRequired, loadError, messages.length, scrollToBottom])
 
   useEffect(() => {
-    checkIsAtBottom()
-  }, [checkIsAtBottom, messages, isStreaming])
+    if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
 
-  useEffect(() => {
-    const handleScroll = () => {
+    const viewport = messagesViewportRef.current
+    if (!viewport) {
+      return
+    }
+
+    const handleViewportScroll = () => {
       checkIsAtBottom()
     }
 
-    window.addEventListener('scroll', handleScroll, { passive: true })
-    window.addEventListener('resize', handleScroll)
-    handleScroll()
+    viewport.addEventListener('scroll', handleViewportScroll, { passive: true })
+    handleViewportScroll()
 
     return () => {
-      window.removeEventListener('scroll', handleScroll)
-      window.removeEventListener('resize', handleScroll)
+      viewport.removeEventListener('scroll', handleViewportScroll)
     }
-  }, [checkIsAtBottom])
+  }, [checkIsAtBottom, hasActiveSession, isLoading, isSessionRequired, loadError])
 
   useEffect(() => {
     const viewport = window.visualViewport
@@ -567,7 +840,7 @@ export default function Chatbot() {
   }, [])
 
   const effectiveKeyboardOffset = keyboardOffset
-  const inputBottomOffset = `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px)`
+  const inputBottomOffset = `calc(var(--chatbot-input-bottom) + env(safe-area-inset-bottom) + ${effectiveKeyboardOffset}px)`
 
   useEffect(() => {
     assistantMessageIdRef.current = assistantMessageId
@@ -576,6 +849,16 @@ export default function Chatbot() {
   useEffect(() => {
     if (isStreaming && streamPayloadRef.current && !streamRef.current) {
       streamRef.current = createChatbotStream(streamPayloadRef.current, {
+        onAccepted: ({ conversationId: acceptedConversationId }) => {
+          if (!problemId || !acceptedConversationId) {
+            return
+          }
+          const currentSession = useChatbotStore.getState().sessions[String(problemId)]
+          if (!currentSession?.isStreaming) {
+            return
+          }
+          updateSession(problemId, { conversationId: acceptedConversationId })
+        },
         onToken: (chunk) => {
           if (chunk) {
             handleAppendAssistant(chunk)
@@ -588,9 +871,10 @@ export default function Chatbot() {
           }
           didReceiveFinalRef.current = true
           const isCorrect = eventData?.result?.is_correct ?? eventData?.result?.isCorrect
-          const currentNode = eventData?.result?.current_node ?? eventData?.result?.currentNode
-          if (isCorrect === true && currentNode === 'RULE') {
-            handleMarkSummaryReady(assistantMessageIdRef.current)
+          const currentNode = resolveFinalNode(eventData?.result)
+          if (isCorrect === true && currentNode === FINAL_CHATBOT_NODE) {
+            handleMarkQuizReady(assistantMessageIdRef.current)
+            handleCompleteChatbotSession()
           }
         },
         onStatus: (status) => {
@@ -602,13 +886,25 @@ export default function Chatbot() {
           }
 
           if (status === 'FAILED') {
-            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+            handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE, fallbackStatus: 'FAILED' })
             return
           }
         },
         onError: () => {
-          handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE })
+          handleStopStreaming({ failureMessage: STREAM_FAILED_MESSAGE, fallbackStatus: 'FAILED' })
           return
+        },
+        onConflict: ({ isResumeStreamRequest }) => {
+          if (isResumeStreamRequest) {
+            handleStopStreaming({
+              failureMessage: STREAM_FAILED_MESSAGE,
+              fallbackStatus: 'FAILED',
+            })
+            return
+          }
+
+          handleCompleteChatbotSession()
+          handleStopStreaming()
         },
         onRateLimit: ({ message }) => {
           const rateLimitMessage = message ?? STREAM_RATE_LIMIT_MESSAGE
@@ -620,15 +916,22 @@ export default function Chatbot() {
             },
           })
         },
+        onSessionRequired: () => {
+          handleStopStreaming()
+          setIsSessionRequired(true)
+        },
       })
       streamPayloadRef.current = null
     }
   }, [
+    handleCompleteChatbotSession,
     handleAppendAssistant,
     handleReplaceAssistant,
-    handleMarkSummaryReady,
+    handleMarkQuizReady,
     handleStopStreaming,
     isStreaming,
+    problemId,
+    updateSession,
   ])
 
   useEffect(() => {
@@ -648,7 +951,7 @@ export default function Chatbot() {
 
   const handleSend = async () => {
     const trimmed = inputValue.trim()
-    if (!trimmed || !problemId || isStreaming) {
+    if (!trimmed || !problemId || isStreaming || isChatbotCompleted) {
       return
     }
 
@@ -668,21 +971,76 @@ export default function Chatbot() {
     updateSession(problemId, {
       assistantMessageId: assistantId,
       messages: [...messages, userMessage, { id: assistantId, role: 'assistant', content: '' }],
+      conversationId: null,
       isStreaming: true,
     })
 
-    streamPayloadRef.current = { problemId, message: trimmed }
+    streamPayloadRef.current = { problemId, message: trimmed, sessionId }
   }
 
+  const handleCancelStream = useCallback(async () => {
+    if (!problemId || !isStreaming) {
+      return
+    }
+
+    const currentConversationId =
+      useChatbotStore.getState().sessions[String(problemId)]?.conversationId ?? conversationId
+
+    handleStopStreaming({
+      failureMessage: resolveHistoryFallbackMessage('CANCELED'),
+      fallbackStatus: 'CANCELED',
+    })
+
+    if (!currentConversationId) {
+      return
+    }
+
+    try {
+      await stopChatbotStream(currentConversationId)
+    } catch {
+      // ignore API cancel failures; UI already switched to canceled
+    }
+  }, [conversationId, handleStopStreaming, isStreaming, problemId])
+
   const handleScrollBottom = () => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    scrollToBottom('smooth')
   }
 
   const handleInputFocus = () => {
     window.setTimeout(() => {
-      bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+      scrollToBottom('smooth')
     }, 120)
   }
+
+  useEffect(() => {
+    const inputEl = inputRef.current
+    if (!inputEl) {
+      return
+    }
+
+    inputEl.style.height = '0px'
+    const nextHeight = Math.min(inputEl.scrollHeight, 120)
+    inputEl.style.height = `${nextHeight}px`
+    inputEl.style.overflowY = inputEl.scrollHeight > 120 ? 'auto' : 'hidden'
+  }, [inputValue])
+
+  const handleInputKeyDown = (event) => {
+    if (event.key !== 'Enter') {
+      return
+    }
+    if (event.nativeEvent?.isComposing || event.shiftKey) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.form?.requestSubmit()
+  }
+
+  const handleQuizCtaClick = useCallback(() => {
+    if (problemId) {
+      navigate(`/problems/${problemId}/quiz`)
+    }
+  }, [navigate, problemId])
 
   const handleSummaryCtaClick = useCallback(() => {
     if (problemId) {
@@ -690,29 +1048,91 @@ export default function Chatbot() {
     }
   }, [navigate, problemId])
 
+  const handleStartSession = async () => {
+    if (!problemId || isSessionStarting) {
+      return
+    }
+    setIsSessionStarting(true)
+    setSessionError(null)
+    try {
+      const response = await startProblemSession(problemId)
+      setProblemSession(problemId, response)
+      updateSession(problemId, {
+        messages: [INITIAL_MESSAGE],
+        inputValue: '',
+        conversationId: null,
+        assistantMessageId: null,
+        isStreaming: false,
+        isChatbotCompleted: false,
+        isInputBlocked: false,
+        sendError: null,
+      })
+      setIsSessionRequired(false)
+    } catch (error) {
+      if (isSessionRequiredError(error)) {
+        setIsSessionRequired(true)
+        return
+      }
+      setSessionError('세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsSessionStarting(false)
+    }
+  }
+
   const isQuizEnabled = useMemo(
     () => ['summary_card_passed', 'solved'].includes(problemStatus ?? ''),
     [problemStatus],
   )
+  const isChatbotCompleted = useMemo(
+    () =>
+      Boolean(session?.isChatbotCompleted) ||
+      Boolean(problemSession?.chatbotCompletedAt) ||
+      isQuizEnabled,
+    [isQuizEnabled, problemSession?.chatbotCompletedAt, session?.isChatbotCompleted],
+  )
+  const renderedMessages = useMemo(
+    () => (isChatbotCompleted ? [...messages, CHATBOT_COMPLETED_GUIDE_MESSAGE] : messages),
+    [isChatbotCompleted, messages],
+  )
+
+  useEffect(() => {
+    if (!isChatbotCompleted || isLoading || loadError || isSessionRequired || !hasActiveSession) {
+      return
+    }
+
+    scrollToBottom('smooth')
+  }, [
+    hasActiveSession,
+    isChatbotCompleted,
+    isLoading,
+    isSessionRequired,
+    loadError,
+    scrollToBottom,
+  ])
 
   return (
-    <div className="flex min-h-full flex-col space-y-5">
-      <div className="sticky top-[52px] z-20 -mx-4 bg-background/95 px-4 pb-3 pt-3 backdrop-blur">
+    <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4">
+      <div className="shrink-0 space-y-4 pt-5">
         <div className="rounded-2xl bg-muted/70 px-2 shadow-sm">
           <div className="grid grid-cols-3">
             {TAB_ITEMS.map((tab) => {
               const isQuizTab = tab.id === 'quiz'
-              const isEnabled = !isQuizTab || isQuizEnabled
+              const isSessionEnabled = tab.id === 'problem' || hasActiveSession
+              const isEnabled = isSessionEnabled && (!isQuizTab || isQuizEnabled)
 
               return (
                 <button
                   key={tab.id}
                   className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                    tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
+                    tab.id === ACTIVE_TAB_ID
+                      ? 'text-info'
+                      : isEnabled
+                        ? 'text-foreground/80'
+                        : 'text-neutral-500'
                   } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
                   disabled={!isEnabled}
                   onClick={() => {
-                    if (!problemId) {
+                    if (!problemId || !isEnabled) {
                       return
                     }
                     if (tab.id === 'problem') {
@@ -736,114 +1156,202 @@ export default function Chatbot() {
             })}
           </div>
         </div>
+
+        <p className="text-sm text-neutral-500">
+          ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
+        </p>
+
+        {hasActiveSession ? (
+          <div className="!mt-0 flex justify-end">
+            <SessionTimer expiresAt={problemSession?.expiresAt} />
+          </div>
+        ) : null}
       </div>
 
-      <p className="text-sm text-neutral-500">
-        ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
-      </p>
-
       {isLoading ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-muted-foreground">챗봇을 준비하는 중입니다.</p>
-        </Card>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-muted-foreground">챗봇을 준비하는 중입니다.</p>
+          </Card>
+        </div>
       ) : loadError ? (
-        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
-          <p className="text-sm text-red-500">{loadError}</p>
-          <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
-            다시 시도
-          </Button>
-        </Card>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-red-500">{loadError}</p>
+            <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
+              다시 시도
+            </Button>
+          </Card>
+        </div>
+      ) : isSessionRequired || !hasActiveSession ? (
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+            <p className="text-sm text-muted-foreground">
+              {isExpired || isSessionRequired
+                ? '세션이 만료되었습니다. 다시 시작해주세요.'
+                : '문제 풀이를 시작해야 챗봇을 사용할 수 있어요.'}
+            </p>
+            {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
+            <Button
+              className="mt-4 w-full rounded-xl bg-[hsl(0_91%_60%)] text-white hover:bg-[hsl(0_91%_60%)]/90"
+              disabled={isSessionStarting || hasOtherActiveSession}
+              onClick={handleStartSession}
+              type="button"
+            >
+              문제 풀이 시작
+            </Button>
+          </Card>
+        </div>
       ) : (
-        <div className="flex flex-1 flex-col gap-4">
-          <div className="flex-1 space-y-10 pb-[calc(var(--chatbot-input-bottom)+12rem)]">
-            {messages.map((message) => {
-              const isPending =
-                message.role === 'assistant' &&
-                isStreaming &&
-                message.id === assistantMessageId &&
-                !message.content
-              return (
-                <ChatMessage
-                  key={message.id}
-                  isPending={isPending}
-                  message={message}
-                  onSummaryClick={handleSummaryCtaClick}
-                  setStreamingTextNode={isPending ? setStreamingTextNode : undefined}
-                  setTypingNode={isPending ? setTypingNode : undefined}
-                />
-              )
-            })}
-            <div ref={bottomRef} />
+        <div className="relative min-h-0 flex flex-1 flex-col overflow-hidden">
+          <div
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain pb-4 pt-2 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+            ref={messagesViewportRef}
+          >
+            <div className="space-y-10">
+              {renderedMessages.map((message) => {
+                const isPending =
+                  message.role === 'assistant' &&
+                  isStreaming &&
+                  message.id === assistantMessageId &&
+                  !message.content
+                return (
+                  <ChatMessage
+                    key={message.id}
+                    isPending={isPending}
+                    message={message}
+                    setStreamingTextNode={isPending ? setStreamingTextNode : undefined}
+                    setTypingNode={isPending ? setTypingNode : undefined}
+                  />
+                )
+              })}
+            </div>
           </div>
 
-          {sendError ? <p className="text-xs text-red-500">{sendError}</p> : null}
+          {!isAtBottom ? (
+            <div
+              className="pointer-events-none absolute left-4 right-4 z-20"
+              style={{ bottom: `calc(${inputBottomOffset} + 88px)` }}
+            >
+              <div className="flex justify-end">
+                <Button
+                  aria-label="맨 아래로 이동"
+                  className="pointer-events-auto h-10 w-10 rounded-full border border-muted bg-background shadow-md"
+                  onClick={handleScrollBottom}
+                  size="icon"
+                  type="button"
+                  variant="outline"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ) : null}
 
           <div
-            aria-hidden
-            className="fixed left-1/2 z-10 w-full max-w-[430px] -translate-x-1/2 bg-background/95 backdrop-blur"
-            style={{ bottom: 0, height: inputBottomOffset }}
-          />
-          <div
-            className="fixed left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 bg-background/95 px-4 pb-2 pt-2 backdrop-blur"
-            style={{ bottom: inputBottomOffset }}
+            className="shrink-0 bg-background/95 pt-2 backdrop-blur"
+            style={{ paddingBottom: inputBottomOffset }}
           >
-            <p className="m-2 text-right text-[12px] text-neutral-500">
-              {inputValue.length} / {MAX_INPUT_LENGTH}
-            </p>
-            <form
-              className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
-              onSubmit={(event) => {
-                event.preventDefault()
-                handleSend()
-              }}
-            >
-              <Input
-                className="h-10 flex-1 border-0 px-2 text-[16px] placeholder:text-neutral-500 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                disabled={isStreaming}
-                maxLength={500}
-                onChange={(event) => {
-                  const nextValue = event.target.value
-                  updateSession(problemId, { inputValue: nextValue.slice(0, 500) })
-                }}
-                onFocus={handleInputFocus}
-                placeholder="메시지를 입력하세요"
-                ref={inputRef}
-                value={inputValue}
-              />
-              <Button
-                className={`h-10 rounded-xl ${
-                  inputValue.trim().length > 0 && !isStreaming
-                    ? 'bg-info text-white hover:bg-info/90'
-                    : ''
-                }`}
-                disabled={isStreaming || inputValue.trim().length === 0}
-                size="sm"
-                type="submit"
-                variant="secondary"
-              >
-                <Send className="h-4 w-4" />
-                전송
-              </Button>
-            </form>
+            {sendError ? <p className="m-2 text-xs text-red-500">{sendError}</p> : null}
+
+            {isChatbotCompleted ? (
+              <div className="space-y-2 rounded-2xl bg-background shadow-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <Button
+                    className="h-auto w-full rounded-2xl border-black bg-background px-3 py-3 text-left text-black hover:bg-muted/20"
+                    onClick={handleSummaryCtaClick}
+                    type="button"
+                    variant="outline"
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="block truncate break-keep text-[13px] font-semibold leading-5">
+                          문제 요약 카드 만들기
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0" />
+                    </span>
+                  </Button>
+                  <Button
+                    className="h-auto w-full rounded-2xl border-black bg-background px-3 py-3 text-left text-black hover:bg-muted/20"
+                    onClick={handleQuizCtaClick}
+                    type="button"
+                    variant="outline"
+                  >
+                    <span className="flex w-full items-center gap-2">
+                      <span className="min-w-0 flex-1 overflow-hidden">
+                        <span className="block truncate break-keep text-[13px] font-semibold leading-5">
+                          퀴즈 풀기
+                        </span>
+                      </span>
+                      <ChevronRight className="h-4 w-4 shrink-0" />
+                    </span>
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className="m-2 text-right text-[12px] text-neutral-500">
+                  {inputValue.length} / {MAX_INPUT_LENGTH}
+                </p>
+                <form
+                  className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
+                  onSubmit={(event) => {
+                    event.preventDefault()
+                    handleSend()
+                  }}
+                >
+                  <label className="sr-only" htmlFor="chatbot-message-input">
+                    메시지 입력
+                  </label>
+                  <textarea
+                    id="chatbot-message-input"
+                    className="min-h-10 max-h-[120px] flex-1 resize-none border-0 px-2 py-2 text-[16px] leading-6 placeholder:text-neutral-500 shadow-none focus-visible:outline-none"
+                    disabled={isStreaming}
+                    maxLength={MAX_INPUT_LENGTH}
+                    onChange={(event) => {
+                      const nextValue = event.target.value
+                      updateSession(problemId, {
+                        inputValue: nextValue.slice(0, MAX_INPUT_LENGTH),
+                      })
+                    }}
+                    onKeyDown={handleInputKeyDown}
+                    onFocus={handleInputFocus}
+                    placeholder="메시지를 입력하세요"
+                    ref={inputRef}
+                    rows={1}
+                    value={inputValue}
+                  />
+                  {isStreaming ? (
+                    <Button
+                      className="h-10 rounded-xl"
+                      onClick={handleCancelStream}
+                      size="sm"
+                      type="button"
+                      variant="destructive"
+                    >
+                      중단
+                    </Button>
+                  ) : (
+                    <Button
+                      className={`h-10 rounded-xl ${
+                        inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
+                      }`}
+                      disabled={inputValue.trim().length === 0}
+                      size="sm"
+                      type="submit"
+                      variant="secondary"
+                    >
+                      <Send className="h-4 w-4" />
+                      전송
+                    </Button>
+                  )}
+                </form>
+              </>
+            )}
           </div>
         </div>
       )}
-
-      {!isAtBottom ? (
-        <Button
-          aria-label="맨 아래로 이동"
-          className="fixed right-6 z-20 h-10 w-10 rounded-full border border-muted bg-background shadow-md"
-          style={{
-            bottom: `calc(var(--chatbot-input-bottom) + ${effectiveKeyboardOffset}px + 88px)`,
-          }}
-          onClick={handleScrollBottom}
-          size="icon"
-          type="button"
-          variant="outline"
-        >
-          <ArrowDown className="h-4 w-4" />
-        </Button>
-      ) : null}
-    </div>
+    </section>
   )
 }

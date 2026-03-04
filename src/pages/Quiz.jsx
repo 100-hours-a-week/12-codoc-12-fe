@@ -2,12 +2,16 @@ import { BookOpen, Brain, Clover, Trophy } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
+import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { trackEvent } from '@/lib/ga4'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
-import { getProblemDetail } from '@/services/problems/problemsService'
+import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
+import { getProblemDetail, startProblemSession } from '@/services/problems/problemsService'
 import { submitProblem, submitQuiz } from '@/services/submissions/submissionsService'
+import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
+import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import { useQuizStore } from '@/stores/useQuizStore'
 
 const TAB_ITEMS = [
@@ -34,9 +38,27 @@ export default function Quiz() {
   const [isBlocked, setIsBlocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionError, setActionError] = useState(null)
+  const [isSessionStarting, setIsSessionStarting] = useState(false)
+  const [sessionError, setSessionError] = useState(null)
+  const [isSessionRequired, setIsSessionRequired] = useState(false)
 
   const { sessions, initSession, updateSession, resetSession } = useQuizStore()
   const session = problemId ? sessions[String(problemId)] : null
+  const { sessions: problemSessions, setSession: setProblemSession } = useProblemSessionStore()
+  const { fetchProblem: fetchProblemDetail, setProblem: setCachedProblem } = useProblemDetailStore()
+  const problemSession = problemId ? problemSessions[String(problemId)] : null
+  const sessionId = problemSession?.sessionId ?? null
+  const isExpired = isSessionExpired(problemSession?.expiresAt)
+  const hasActiveSession = Boolean(sessionId) && !isExpired
+  const activeSession = useMemo(() => {
+    const items = Object.values(problemSessions)
+    return items.find((entry) => entry?.sessionId) ?? null
+  }, [problemSessions])
+  const isActiveSessionExpired = isSessionExpired(activeSession?.expiresAt)
+  const hasOtherActiveSession =
+    Boolean(activeSession?.sessionId) &&
+    !isActiveSessionExpired &&
+    String(activeSession?.problemId ?? '') !== String(problemId ?? '')
   const currentIndex = session?.currentIndex ?? 0
   const selectedChoices = useMemo(() => session?.selectedChoices ?? {}, [session?.selectedChoices])
   const results = useMemo(() => session?.results ?? {}, [session?.results])
@@ -44,7 +66,7 @@ export default function Quiz() {
   const attemptId = session?.attemptId ?? null
   const isResultView = session?.isResultView ?? false
   const submissionResult = session?.submissionResult ?? null
-  const quizzes = useMemo(() => problem?.quizzes ?? [], [problem])
+  const quizzes = useMemo(() => problemSession?.quizzes ?? [], [problemSession])
   const totalQuestions = quizzes.length
 
   useEffect(() => {
@@ -57,7 +79,7 @@ export default function Quiz() {
   useEffect(() => {
     let isActive = true
 
-    const fetchProblem = async () => {
+    const loadProblem = async () => {
       if (!problemId) {
         if (isActive) {
           setLoadError('문제 정보를 찾을 수 없습니다.')
@@ -71,7 +93,7 @@ export default function Quiz() {
       setLoadError(null)
 
       try {
-        const data = await getProblemDetail(problemId)
+        const data = await fetchProblemDetail(problemId, getProblemDetail)
         if (isActive) {
           const canAccessQuiz = QUIZ_ALLOWED_STATUSES.includes(data.status ?? '')
           setProblem(data)
@@ -100,12 +122,12 @@ export default function Quiz() {
       }
     }
 
-    fetchProblem()
+    loadProblem()
 
     return () => {
       isActive = false
     }
-  }, [initSession, navigate, problemId])
+  }, [fetchProblemDetail, initSession, navigate, problemId])
 
   useEffect(() => {
     if (!problemId || totalQuestions === 0) {
@@ -163,6 +185,7 @@ export default function Quiz() {
         choiceId: selectedChoiceIndex,
         idempotencyKey: buildIdempotencyKey(currentQuiz.id),
         attemptId,
+        sessionId,
       })
       const nextResults = { ...results, [currentQuiz.id]: response.result }
       const nextExplanations = { ...explanations, [currentQuiz.id]: response.explanation ?? '' }
@@ -171,7 +194,11 @@ export default function Quiz() {
         explanations: nextExplanations,
         attemptId: response.attemptId ?? attemptId,
       })
-    } catch {
+    } catch (error) {
+      if (isSessionRequiredError(error)) {
+        setIsSessionRequired(true)
+        return
+      }
       setActionError('답안을 제출하지 못했습니다. 다시 시도해주세요.')
     } finally {
       setIsSubmitting(false)
@@ -192,7 +219,7 @@ export default function Quiz() {
     setActionError(null)
     setIsSubmitting(true)
     try {
-      const response = await submitProblem(problemId)
+      const response = await submitProblem(problemId, { sessionId })
       const correctCountForEvent = response?.correctCount ?? correctCount
       trackEvent('quiz_complete', {
         problem_id: String(problemId),
@@ -203,6 +230,9 @@ export default function Quiz() {
         next_status: response?.nextStatus ?? null,
       })
       setProblem((prev) => (prev ? { ...prev, status: response.nextStatus } : prev))
+      if (problem?.id) {
+        setCachedProblem(problem.id, { ...problem, status: response.nextStatus })
+      }
       queueProblemListUpdate({
         id: problemId,
         status: response.nextStatus,
@@ -211,7 +241,11 @@ export default function Quiz() {
         title: problem?.title,
       })
       updateSession(problemId, { submissionResult: response, isResultView: true })
-    } catch {
+    } catch (error) {
+      if (isSessionRequiredError(error)) {
+        setIsSessionRequired(true)
+        return
+      }
       setActionError('결과를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
       setIsSubmitting(false)
@@ -230,40 +264,79 @@ export default function Quiz() {
     navigate('/')
   }
 
+  const handleStartSession = async () => {
+    if (!problemId || isSessionStarting) {
+      return
+    }
+    setIsSessionStarting(true)
+    setSessionError(null)
+    try {
+      const response = await startProblemSession(problemId)
+      setProblemSession(problemId, response)
+      resetSession(problemId)
+      initSession(problemId)
+      setIsSessionRequired(false)
+    } catch (error) {
+      if (isSessionRequiredError(error)) {
+        setIsSessionRequired(true)
+        return
+      }
+      setSessionError('세션을 시작하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsSessionStarting(false)
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="rounded-2xl bg-muted/70 px-2">
         <div className="grid grid-cols-3">
-          {TAB_ITEMS.map((tab) => (
-            <button
-              key={tab.id}
-              className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
-                tab.id === ACTIVE_TAB_ID ? 'text-info' : 'text-neutral-500'
-              }`}
-              onClick={() => {
-                if (!problemId) {
-                  return
-                }
-                if (tab.id === 'problem') {
-                  navigate(`/problems/${problemId}`)
-                }
-                if (tab.id === 'chatbot') {
-                  navigate(`/problems/${problemId}/chatbot`)
-                }
-              }}
-              type="button"
-            >
-              <tab.Icon className="h-5 w-5" />
-              {tab.label}
-              <span
-                className={`mt-1 h-[2px] w-12 rounded-full ${
-                  tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
-                }`}
-              />
-            </button>
-          ))}
+          {TAB_ITEMS.map((tab) => {
+            const isSessionEnabled = tab.id === 'problem' || hasActiveSession
+            const isEnabled = isSessionEnabled
+
+            return (
+              <button
+                key={tab.id}
+                className={`flex flex-col items-center justify-center gap-1 px-3 py-3 text-xs font-semibold transition ${
+                  tab.id === ACTIVE_TAB_ID
+                    ? 'text-info'
+                    : isEnabled
+                      ? 'text-foreground/80'
+                      : 'text-neutral-500'
+                } ${!isEnabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                disabled={!isEnabled}
+                onClick={() => {
+                  if (!problemId || !isEnabled) {
+                    return
+                  }
+                  if (tab.id === 'problem') {
+                    navigate(`/problems/${problemId}`)
+                  }
+                  if (tab.id === 'chatbot') {
+                    navigate(`/problems/${problemId}/chatbot`)
+                  }
+                }}
+                type="button"
+              >
+                <tab.Icon className="h-5 w-5" />
+                {tab.label}
+                <span
+                  className={`mt-1 h-[2px] w-12 rounded-full ${
+                    tab.id === ACTIVE_TAB_ID ? 'bg-info' : 'bg-transparent'
+                  }`}
+                />
+              </button>
+            )
+          })}
         </div>
       </div>
+
+      {hasActiveSession ? (
+        <div className="flex justify-end">
+          <SessionTimer expiresAt={problemSession?.expiresAt} />
+        </div>
+      ) : null}
 
       {isLoading ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
@@ -274,6 +347,23 @@ export default function Quiz() {
           <p className="text-sm text-danger">{loadError}</p>
           <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
             다시 시도
+          </Button>
+        </Card>
+      ) : isSessionRequired || !hasActiveSession ? (
+        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+          <p className="text-sm text-muted-foreground">
+            {isExpired || isSessionRequired
+              ? '세션이 만료되었습니다. 다시 시작해주세요.'
+              : '문제 풀이를 시작해야 퀴즈를 풀 수 있어요.'}
+          </p>
+          {sessionError ? <p className="mt-2 text-xs text-danger">{sessionError}</p> : null}
+          <Button
+            className="mt-4 w-full rounded-xl bg-[hsl(0_91%_60%)] text-white hover:bg-[hsl(0_91%_60%)]/90"
+            disabled={isSessionStarting || hasOtherActiveSession}
+            onClick={handleStartSession}
+            type="button"
+          >
+            문제 풀이 시작
           </Button>
         </Card>
       ) : isBlocked ? (

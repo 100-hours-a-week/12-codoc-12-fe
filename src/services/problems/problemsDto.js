@@ -22,6 +22,30 @@ const DIFFICULTY_MAP = {
 
 const DEFAULT_STATUS = 'not_attempted'
 
+const mapSummaryCards = (cards = []) =>
+  Array.isArray(cards)
+    ? cards.map((card, index) => {
+        const safeCard = card ?? {}
+        return {
+          id: safeCard.summaryCardId ?? `summary-${index}`,
+          paragraphType: safeCard.paragraphType ?? '',
+          choices: Array.isArray(safeCard.choices) ? safeCard.choices : [],
+        }
+      })
+    : []
+
+const mapQuizzes = (quizzes = []) =>
+  Array.isArray(quizzes)
+    ? quizzes.map((quiz, index) => {
+        const safeQuiz = quiz ?? {}
+        return {
+          id: safeQuiz.quizId ?? `quiz-${index}`,
+          question: safeQuiz.question ?? '',
+          choices: Array.isArray(safeQuiz.choices) ? safeQuiz.choices : [],
+        }
+      })
+    : []
+
 const normalizeStatus = (status) => STATUS_MAP[status ?? ''] ?? DEFAULT_STATUS
 
 const normalizeDifficulty = (difficulty) => {
@@ -50,26 +74,17 @@ export const toProblemDetail = (item = {}) => ({
   status: normalizeStatus(item.status),
   bookmarked: Boolean(item.bookmarked),
   content: item.content ?? '',
-  summaryCards: Array.isArray(item.summaryCards)
-    ? item.summaryCards.map((card, index) => {
-        const safeCard = card ?? {}
-        return {
-          id: safeCard.summaryCardId ?? `summary-${index}`,
-          paragraphType: safeCard.paragraphType ?? '',
-          choices: Array.isArray(safeCard.choices) ? safeCard.choices : [],
-        }
-      })
-    : [],
-  quizzes: Array.isArray(item.quizzes)
-    ? item.quizzes.map((quiz, index) => {
-        const safeQuiz = quiz ?? {}
-        return {
-          id: safeQuiz.quizId ?? `quiz-${index}`,
-          question: safeQuiz.question ?? '',
-          choices: Array.isArray(safeQuiz.choices) ? safeQuiz.choices : [],
-        }
-      })
-    : [],
+  summaryCards: mapSummaryCards(item.summaryCards),
+  quizzes: mapQuizzes(item.quizzes),
+})
+
+export const toProblemSession = (item = {}) => ({
+  sessionId: item.sessionId ?? null,
+  problemId: item.problemId ?? null,
+  expiresAt: item.expiresAt ?? null,
+  chatbotCompletedAt: item.chatbotCompletedAt ?? item.chatbot_completed_at ?? null,
+  summaryCards: mapSummaryCards(item.summaryCards),
+  quizzes: mapQuizzes(item.quizzes),
 })
 
 export const toProblemListResponse = (apiResponse) => {
@@ -86,6 +101,11 @@ export const toProblemListResponse = (apiResponse) => {
 export const toProblemDetailResponse = (apiResponse) => {
   const data = apiResponse?.data ?? {}
   return toProblemDetail(data)
+}
+
+export const toProblemSessionResponse = (apiResponse) => {
+  const data = apiResponse?.data ?? {}
+  return toProblemSession(data)
 }
 
 export const toProblemBookmarkResponse = (_apiResponse, bookmarked) => ({

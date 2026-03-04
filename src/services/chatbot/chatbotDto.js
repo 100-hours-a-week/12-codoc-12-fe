@@ -1,7 +1,9 @@
 const STATUS_MAP = {
   ACCEPTED: 'ACCEPTED',
   PROCESSING: 'PROCESSING',
+  DISCONNECTED: 'DISCONNECTED',
   COMPLETED: 'COMPLETED',
+  CANCELED: 'CANCELED',
   FAILED: 'FAILED',
   CHATBOT_STREAM_EVENT_FAILED: 'FAILED',
   '': '',
@@ -22,6 +24,24 @@ export const toChatbotMessageResponse = (apiResponse) => {
   }
 }
 
+export const toChatbotConversationItem = (item = {}) => ({
+  conversationId: item.conversationId ?? item.id ?? null,
+  userMessage: item.userMessage ?? item.user_message ?? '',
+  aiMessage: item.aiMessage ?? item.ai_message ?? '',
+  status: normalizeChatbotStatus(item.status),
+})
+
+export const toChatbotConversationListResponse = (apiResponse) => {
+  const data = apiResponse?.data ?? {}
+  const items = Array.isArray(data.items) ? data.items : []
+
+  return {
+    items: items.map(toChatbotConversationItem),
+    nextCursor: data.nextCursor ?? data.next_cursor ?? null,
+    hasNextPage: Boolean(data.hasNextPage ?? data.has_next_page),
+  }
+}
+
 export const parseChatbotStreamEvent = (data) => {
   if (!data) {
     return null
@@ -33,3 +53,7 @@ export const parseChatbotStreamEvent = (data) => {
     return null
   }
 }
+
+export const toChatbotStreamStopResponse = () => ({
+  status: 'CANCELED',
+})

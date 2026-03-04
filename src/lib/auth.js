@@ -81,12 +81,18 @@ export const refreshAccessToken = async () => {
 
 export const logout = async () => {
   const token = getAccessToken()
+  const headers = token ? { Authorization: `Bearer ${token}` } : undefined
+
   try {
-    await refreshClient.post(
-      '/api/auth/logout',
-      {},
-      token ? { headers: { Authorization: `Bearer ${token}` } } : undefined,
-    )
+    if (headers) {
+      await Promise.allSettled([
+        refreshClient.delete('/api/notification-devices', { headers }),
+        refreshClient.post('/api/auth/logout', {}, { headers }),
+      ])
+      return
+    }
+
+    await refreshClient.post('/api/auth/logout')
   } finally {
     clearAccessToken()
   }

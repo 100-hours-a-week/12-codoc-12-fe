@@ -1,8 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
-import { getAccessToken, getAccessTokenPayload, getAccessTokenStatus, refreshAccessToken } from '@/lib/auth'
+import {
+  getAccessToken,
+  getAccessTokenPayload,
+  getAccessTokenStatus,
+  refreshAccessToken,
+} from '@/lib/auth'
+import {
+  getNotificationPermission,
+  getWebPushToken,
+  isFirebaseMessagingConfigured,
+  requestNotificationPermission,
+} from '@/lib/firebaseMessaging'
 import { setUserId } from '@/lib/ga4'
+import { registerNotificationDevice } from '@/services/notifications/notificationsService'
+
+let syncPushDevicePromise = null
+let syncedPushToken = ''
 
 const resolveStatus = (token) => {
   const tokenStatus = getAccessTokenStatus(token)
@@ -22,6 +37,45 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     let isMounted = true
+    const syncPushDevice = async () => {
+      if (syncPushDevicePromise) {
+        await syncPushDevicePromise
+        return
+      }
+
+      if (!isFirebaseMessagingConfigured()) {
+        return
+      }
+
+      let permission = getNotificationPermission()
+      if (permission !== 'granted') {
+        permission = await requestNotificationPermission()
+      }
+
+      if (permission !== 'granted') {
+        return
+      }
+
+      syncPushDevicePromise = (async () => {
+        const pushToken = await getWebPushToken()
+
+        if (!pushToken || pushToken === syncedPushToken) {
+          return
+        }
+
+        await registerNotificationDevice(pushToken, 'WEB')
+        syncedPushToken = pushToken
+      })()
+
+      try {
+        await syncPushDevicePromise
+      } catch {
+        // Best-effort sync only.
+      } finally {
+        syncPushDevicePromise = null
+      }
+    }
+
     const applyUserId = (token) => {
       const payload = getAccessTokenPayload(token)
       const userId = payload?.userId ?? payload?.sub
@@ -34,6 +88,7 @@ export default function AuthGate({ children }) {
       const existingToken = getAccessToken()
       if (existingToken) {
         applyUserId(existingToken)
+        void syncPushDevice()
         if (isMounted) {
           setStatus(resolveStatus(existingToken) ?? 'unauthenticated')
         }
@@ -43,6 +98,7 @@ export default function AuthGate({ children }) {
       try {
         const token = await refreshAccessToken()
         applyUserId(token)
+        void syncPushDevice()
         if (isMounted) {
           setStatus(resolveStatus(token) ?? 'unauthenticated')
         }

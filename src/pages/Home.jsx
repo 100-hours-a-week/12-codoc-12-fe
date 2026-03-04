@@ -1,40 +1,13 @@
 import { RefreshCw, Sparkles, Star } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
-import Heatmap, { HEATMAP_COL_WIDTH_PX, HEATMAP_ROWS } from '@/components/Heatmap'
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
+import { Card, CardContent } from '@/components/ui/card'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { normalizeProblemStatus, STATUS_OPTIONS } from '@/constants/problemStatusOptions'
-
-const heatmapRows = HEATMAP_ROWS
-const colWidthPx = HEATMAP_COL_WIDTH_PX
-
-const monthNames = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'Jun',
-  'Jul',
-  'Aug',
-  'Sep',
-  'Oct',
-  'Nov',
-  'Dec',
-]
-
-const levelClasses = [
-  'bg-[#ebedf0]',
-  'bg-[#d6f5d6]',
-  'bg-[#b7ecb7]',
-  'bg-[#8ddb8d]',
-  'bg-[#57c957]',
-  'bg-[#2ea043]',
-]
 
 const statusCopy = {
   IN_PROGRESS: { variant: 'pending', disabled: true },
@@ -42,83 +15,14 @@ const statusCopy = {
   CLAIMED: { variant: 'done', disabled: true },
 }
 
-const formatDate = (date) => date.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
-
-const addDays = (date, days) => {
-  const next = new Date(date)
-  next.setDate(next.getDate() + days)
-  return next
-}
-
-const daysBetween = (from, to) => Math.floor((to - from) / 86400000)
-
-const getWeekStartSunday = (date) => {
-  const start = new Date(date)
-  start.setDate(start.getDate() - start.getDay())
-  return start
-}
-
-const getKstToday = () => {
-  const now = new Date()
-  const kstDate = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Seoul' })
-  return new Date(`${kstDate}T00:00:00+09:00`)
-}
-
-const getContributionRange = (today) => {
-  const fromDate = addDays(today, -364)
-  return { fromDate, toDate: today, today }
-}
-
-const buildMonthMarkers = (range, gridStartDate) => {
-  const markers = []
-  const cursor = new Date(range.fromDate.getFullYear(), range.fromDate.getMonth(), 1)
-
-  while (cursor < range.fromDate) {
-    cursor.setMonth(cursor.getMonth() + 1)
+const formatTitleWithId = (id, title) => {
+  if (!title) {
+    return ''
   }
-
-  while (cursor <= range.toDate) {
-    const dayIndex = daysBetween(gridStartDate, cursor)
-    const colIndex = Math.floor(dayIndex / heatmapRows)
-    markers.push({
-      key: formatDate(cursor),
-      label: monthNames[cursor.getMonth()],
-      leftPx: colIndex * colWidthPx,
-    })
-    cursor.setMonth(cursor.getMonth() + 1)
+  if (id === null || id === undefined || id === '') {
+    return title
   }
-
-  return markers
-}
-
-const buildHeatmapModel = (dailySolveCount, range) => {
-  const countByDate = new Map(
-    (dailySolveCount ?? []).map((item) => [String(item.date), item.solveCount]),
-  )
-  const gridStart = getWeekStartSunday(range.fromDate)
-  const totalDays = Math.max(1, daysBetween(gridStart, range.toDate) + 1)
-  const weeks = Math.ceil(totalDays / heatmapRows)
-  const totalCells = weeks * heatmapRows
-  const minWidthPx = weeks * colWidthPx
-
-  const cells = Array.from({ length: totalCells }, (_, idx) => {
-    if (idx >= totalDays) {
-      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
-    }
-    const date = addDays(gridStart, idx)
-    if (date < range.fromDate) {
-      return { id: `pad-${idx}`, level: 0, date: null, solveCount: 0 }
-    }
-    if (date > range.today) {
-      return { id: `future-${idx}`, level: 0, date: null, solveCount: 0 }
-    }
-    const key = formatDate(date)
-    const solveCount = countByDate.get(key) ?? 0
-    const level = Math.min(5, Math.max(0, solveCount))
-    return { id: key, level, date: key, solveCount }
-  })
-
-  return { cells, weeks, minWidthPx, startDate: gridStart, totalDays }
+  return `${id}. ${title}`
 }
 
 function QuestCard({ quest, onClaim }) {
@@ -180,22 +84,19 @@ function QuestCard({ quest, onClaim }) {
 export default function Home() {
   const navigate = useNavigate()
   const [quests, setQuests] = useState([])
-  const [dailySolveCount, setDailySolveCount] = useState([])
-  const [streak, setStreak] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [recommendedProblem, setRecommendedProblem] = useState(null)
   const [isLoadingRecommend, setIsLoadingRecommend] = useState(true)
   const [recommendError, setRecommendError] = useState('')
-  const heatmapScrollRef = useRef(null)
-  const [selectedCell, setSelectedCell] = useState(null)
+  const [leagueInfo, setLeagueInfo] = useState(null)
+  const [groupRank, setGroupRank] = useState(null)
+  const [isLeaderboardLoading, setIsLeaderboardLoading] = useState(true)
+  const [leaderboardError, setLeaderboardError] = useState('')
   const [questPage, setQuestPage] = useState(0)
   const questTouchStartX = useRef(null)
   const questTouchLastX = useRef(null)
-
-  const today = useMemo(() => getKstToday(), [])
-  const contributionRange = useMemo(() => getContributionRange(today), [today])
 
   useEffect(() => {
     let mounted = true
@@ -233,17 +134,8 @@ export default function Home() {
       }
       setLoadError('')
 
-      const fromDate = formatDate(contributionRange.fromDate)
-      const toDate = formatDate(contributionRange.toDate)
-
       try {
-        const [questRes, contributionRes, streakRes] = await Promise.all([
-          api.get('/api/user/quests'),
-          api.get('/api/user/contribution', {
-            params: { from_date: fromDate, to_date: toDate },
-          }),
-          api.get('/api/user/streak'),
-        ])
+        const [questRes] = await Promise.all([api.get('/api/user/quests')])
 
         if (!mounted) {
           return
@@ -262,9 +154,6 @@ export default function Home() {
         })
 
         setQuests(mappedQuests)
-        setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
-        setStreak(streakRes.data?.data?.streak ?? 0)
-        setSelectedCell(null)
       } catch {
         if (!mounted) {
           return
@@ -277,13 +166,46 @@ export default function Home() {
       }
     }
 
+    const fetchLeaderboard = async () => {
+      setIsLeaderboardLoading(true)
+      setLeaderboardError('')
+
+      const [leagueResult, groupResult] = await Promise.allSettled([
+        api.get('/api/user/league'),
+        api.get('/api/user/leaderboards/group'),
+      ])
+
+      if (!mounted) {
+        return
+      }
+
+      if (leagueResult.status === 'fulfilled') {
+        setLeagueInfo(leagueResult.value.data?.data ?? null)
+      } else {
+        setLeagueInfo(null)
+      }
+
+      if (groupResult.status === 'fulfilled') {
+        setGroupRank(groupResult.value.data?.data ?? null)
+      } else {
+        setGroupRank(null)
+        const status = groupResult.reason?.response?.status
+        setLeaderboardError(
+          status === 403 ? '곧 리그가 시작됩니다!' : '리더보드 정보를 불러오지 못했습니다.',
+        )
+      }
+
+      setIsLeaderboardLoading(false)
+    }
+
     fetchHome()
     fetchRecommended()
+    fetchLeaderboard()
 
     return () => {
       mounted = false
     }
-  }, [contributionRange.fromDate, contributionRange.toDate])
+  }, [])
 
   const handleQuestRefresh = async () => {
     if (isRefreshing) {
@@ -294,15 +216,7 @@ export default function Home() {
     setRecommendError('')
     try {
       await api.post('/api/user/quests/refresh', {})
-      const fromDate = formatDate(contributionRange.fromDate)
-      const toDate = formatDate(contributionRange.toDate)
-      const [questRes, contributionRes, streakRes] = await Promise.all([
-        api.get('/api/user/quests'),
-        api.get('/api/user/contribution', {
-          params: { from_date: fromDate, to_date: toDate },
-        }),
-        api.get('/api/user/streak'),
-      ])
+      const [questRes] = await Promise.all([api.get('/api/user/quests')])
       let nextRecommended = null
       try {
         const recommendRes = await api.get('/api/problems/recommended')
@@ -326,9 +240,6 @@ export default function Home() {
         }
       })
       setQuests(mappedQuests)
-      setDailySolveCount(contributionRes.data?.data?.dailySolveCount ?? [])
-      setStreak(streakRes.data?.data?.streak ?? 0)
-      setSelectedCell(null)
       setRecommendedProblem(nextRecommended)
     } catch {
       setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
@@ -336,29 +247,6 @@ export default function Home() {
       setIsRefreshing(false)
     }
   }
-
-  const heatmapModel = useMemo(
-    () => buildHeatmapModel(dailySolveCount, contributionRange),
-    [contributionRange, dailySolveCount],
-  )
-  const monthMarkers = useMemo(
-    () => buildMonthMarkers(contributionRange, heatmapModel.startDate),
-    [contributionRange, heatmapModel.startDate],
-  )
-
-  useEffect(() => {
-    const container = heatmapScrollRef.current
-    if (!container || !heatmapModel?.weeks) {
-      return
-    }
-    const dayIndex = Math.min(
-      heatmapModel.totalDays - 1,
-      Math.max(0, daysBetween(heatmapModel.startDate, contributionRange.today)),
-    )
-    const targetCol = Math.floor(dayIndex / heatmapRows)
-    const targetLeft = Math.max(0, (targetCol + 1) * colWidthPx - container.clientWidth)
-    container.scrollTo({ left: targetLeft, behavior: 'auto' })
-  }, [contributionRange.today, heatmapModel])
 
   const handleClaim = async (userQuestId) => {
     if (!userQuestId) {
@@ -383,38 +271,15 @@ export default function Home() {
   const recommendedStatus =
     STATUS_OPTIONS.find((option) => option.value === normalizedRecommendStatus) ?? null
 
-  const questItems =
-    quests.length > 0
-      ? quests
-      : [
-          {
-            userQuestId: null,
-            title: '퀘스트를 준비 중입니다',
-            reward: 0,
-            variant: 'pending',
-            disabled: true,
-          },
-          {
-            userQuestId: null,
-            title: '곧 새로운 퀘스트가 도착해요',
-            reward: 0,
-            variant: 'pending',
-            disabled: true,
-          },
-          {
-            userQuestId: null,
-            title: '조금만 기다려주세요',
-            reward: 0,
-            variant: 'pending',
-            disabled: true,
-          },
-        ]
+  const questItems = quests
+  const hasQuestItems = questItems.length > 0
+  const completedQuestCount = quests.filter((quest) => quest.variant === 'done').length
   const questPages = Math.max(1, Math.ceil(questItems.length / 3))
   const isQuestPaged = questItems.length > 3
   const questOffsetPct = Math.min(questPages - 1, questPage) * (100 / questPages)
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <section className="rounded-[20px] border border-black/5 bg-white p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
         <div className="relative space-y-3">
           <div className="flex items-center justify-between">
@@ -454,118 +319,103 @@ export default function Home() {
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               </button>
               <span className="rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold text-muted-foreground">
-                {quests.filter((q) => q.variant === 'done').length} / {questItems.length}
+                {hasQuestItems ? `${completedQuestCount} / ${questItems.length}` : '-'}
               </span>
             </div>
           </div>
           {loadError ? <StatusMessage tone="error">{loadError}</StatusMessage> : null}
           <div className="relative">
-            <div
-              className="overflow-hidden"
-              style={{ touchAction: 'pan-y' }}
-              onTouchStart={(event) => {
-                if (!isQuestPaged) {
-                  return
-                }
-                const startX = event.touches[0]?.clientX ?? null
-                questTouchStartX.current = startX
-                questTouchLastX.current = startX
-              }}
-              onTouchMove={(event) => {
-                if (!isQuestPaged) {
-                  return
-                }
-                questTouchLastX.current = event.touches[0]?.clientX ?? questTouchLastX.current
-              }}
-              onTouchEnd={(event) => {
-                if (!isQuestPaged || questTouchStartX.current == null) {
-                  return
-                }
-                const endX = questTouchLastX.current ?? event.changedTouches[0]?.clientX ?? null
-                if (endX == null) {
+            {hasQuestItems ? (
+              <div
+                className="overflow-hidden"
+                style={{ touchAction: 'pan-y' }}
+                onTouchStart={(event) => {
+                  if (!isQuestPaged) {
+                    return
+                  }
+                  const startX = event.touches[0]?.clientX ?? null
+                  questTouchStartX.current = startX
+                  questTouchLastX.current = startX
+                }}
+                onTouchMove={(event) => {
+                  if (!isQuestPaged) {
+                    return
+                  }
+                  questTouchLastX.current = event.touches[0]?.clientX ?? questTouchLastX.current
+                }}
+                onTouchEnd={(event) => {
+                  if (!isQuestPaged || questTouchStartX.current == null) {
+                    return
+                  }
+                  const endX = questTouchLastX.current ?? event.changedTouches[0]?.clientX ?? null
+                  if (endX == null) {
+                    questTouchStartX.current = null
+                    questTouchLastX.current = null
+                    return
+                  }
+                  const delta = questTouchStartX.current - endX
                   questTouchStartX.current = null
                   questTouchLastX.current = null
-                  return
-                }
-                const delta = questTouchStartX.current - endX
-                questTouchStartX.current = null
-                questTouchLastX.current = null
-                if (Math.abs(delta) < 40) {
-                  return
-                }
-                if (delta > 0) {
-                  setQuestPage((prev) => Math.min(questPages - 1, prev + 1))
-                } else {
-                  setQuestPage((prev) => Math.max(0, prev - 1))
-                }
-              }}
-              onTouchCancel={() => {
-                questTouchStartX.current = null
-                questTouchLastX.current = null
-              }}
-            >
-              <div
-                className="flex w-full transition-transform duration-300 ease-out"
-                style={{
-                  width: `${questPages * 100}%`,
-                  transform: `translateX(-${questOffsetPct}%)`,
+                  if (Math.abs(delta) < 40) {
+                    return
+                  }
+                  if (delta > 0) {
+                    setQuestPage((prev) => Math.min(questPages - 1, prev + 1))
+                  } else {
+                    setQuestPage((prev) => Math.max(0, prev - 1))
+                  }
+                }}
+                onTouchCancel={() => {
+                  questTouchStartX.current = null
+                  questTouchLastX.current = null
                 }}
               >
-                {Array.from({ length: questPages }).map((_, pageIndex) => {
-                  const sliceStart = pageIndex * 3
-                  const sliceEnd = sliceStart + 3
-                  const pageItems = questItems.slice(sliceStart, sliceEnd)
-                  return (
-                    <div
-                      key={`quest-page-${pageIndex}`}
-                      className="grid flex-none grid-cols-3 gap-1 px-0.5"
-                      style={{ width: `${100 / questPages}%` }}
-                    >
-                      {pageItems.map((quest) => (
-                        <QuestCard
-                          key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}-${pageIndex}`}
-                          quest={quest}
-                          onClaim={handleClaim}
-                        />
-                      ))}
-                    </div>
-                  )
-                })}
+                <div
+                  className="flex w-full transition-transform duration-300 ease-out"
+                  style={{
+                    width: `${questPages * 100}%`,
+                    transform: `translateX(-${questOffsetPct}%)`,
+                  }}
+                >
+                  {Array.from({ length: questPages }).map((_, pageIndex) => {
+                    const sliceStart = pageIndex * 3
+                    const sliceEnd = sliceStart + 3
+                    const pageItems = questItems.slice(sliceStart, sliceEnd)
+                    return (
+                      <div
+                        key={`quest-page-${pageIndex}`}
+                        className="grid flex-none grid-cols-3 gap-1 px-0.5"
+                        style={{ width: `${100 / questPages}%` }}
+                      >
+                        {pageItems.map((quest) => (
+                          <QuestCard
+                            key={`${quest.title}-${quest.userQuestId ?? 'placeholder'}-${pageIndex}`}
+                            quest={quest}
+                            onClaim={handleClaim}
+                          />
+                        ))}
+                      </div>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
+            ) : !isLoading ? (
+              <div className="py-6 text-center">
+                <StatusMessage>오늘의 퀘스트가 없습니다.</StatusMessage>
+              </div>
+            ) : null}
           </div>
           {isLoading ? <StatusMessage>불러오는 중...</StatusMessage> : null}
         </div>
       </section>
 
-      <Heatmap
-        model={heatmapModel}
-        monthMarkers={monthMarkers}
-        scrollRef={heatmapScrollRef}
-        selectedCell={selectedCell}
-        onSelectCell={setSelectedCell}
-        levelClasses={levelClasses}
-        header={<h3 className="text-lg font-semibold">{streak}일 연속 학습</h3>}
-        cardClassName="mt-1"
-      />
-      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
-        <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold">리더보드</h3>
-          <span className="text-xs font-semibold text-muted-foreground">준비 중</span>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">리더보드 데이터를 준비하고 있어요.</p>
-      </section>
-
-      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+      <section className="rounded-[20px] border border-black/10 bg-white p-2.5 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
         <div className="flex items-center gap-2">
           <span className="text-[hsl(var(--warning))]">
             <Sparkles className="h-4 w-4 fill-current" aria-hidden />
           </span>
           <div>
-            <h3 className="text-base font-semibold">나를 위한 추천문제</h3>
-            <p className="text-xs text-muted-foreground">
-              현재 레벨에 맞는 문제를 추천해 드립니다.
-            </p>
+            <h3 className="text-base font-semibold leading-none">나를 위한 추천문제</h3>
           </div>
         </div>
         {isLoadingRecommend ? (
@@ -575,54 +425,92 @@ export default function Home() {
             {recommendError}
           </StatusMessage>
         ) : recommendedProblem ? (
-          <button
-            className="mt-3 w-full rounded-2xl border border-black/10 bg-[#f5f6f8] px-4 py-3 text-left shadow-sm transition hover:bg-[#eef0f2]"
-            type="button"
-            onClick={handleOpenRecommended}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-2 text-sm font-semibold">
-                {recommendedProblem.title}
-                {recommendedProblem.bookmarked ? (
-                  <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
+          <button className="mt-3 w-full text-left" type="button" onClick={handleOpenRecommended}>
+            <Card className="border-muted/60 bg-muted/70 shadow-sm transition hover:shadow-md">
+              <CardContent className="p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                    {formatTitleWithId(
+                      recommendedProblem.problemId ?? recommendedProblem.id,
+                      recommendedProblem.title,
+                    )}
+                    {recommendedProblem.bookmarked ? (
+                      <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
+                    ) : null}
+                  </h3>
+                  <span className="text-lg text-muted-foreground" aria-hidden>
+                    ›
+                  </span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
+                    {formatDifficultyLabel(recommendedProblem.difficulty)}
+                  </Badge>
+                  {recommendedStatus ? (
+                    <Badge
+                      className={`rounded-full px-3 py-1 ${
+                        recommendedStatus.pillClass ?? 'bg-background text-foreground/80'
+                      }`}
+                    >
+                      {recommendedStatus.label}
+                    </Badge>
+                  ) : null}
+                </div>
+                {recommendedProblem.reason ? (
+                  <p className="mt-2 text-base leading-relaxed text-foreground/80">
+                    {recommendedProblem.reason}
+                  </p>
                 ) : null}
-              </p>
-              <span className="text-sm text-muted-foreground" aria-hidden>
-                ›
-              </span>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
-              <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
-                {formatDifficultyLabel(recommendedProblem.difficulty)}
-              </Badge>
-              {recommendedStatus ? (
-                <Badge
-                  className={`rounded-full px-3 py-1 ${
-                    recommendedStatus.pillClass ?? 'bg-background text-foreground/80'
-                  }`}
-                >
-                  {recommendedStatus.label}
-                </Badge>
-              ) : null}
-            </div>
-            {recommendedProblem.reason ? (
-              <p className="mt-2 text-base leading-relaxed text-foreground/80">
-                {recommendedProblem.reason}
-              </p>
-            ) : null}
+              </CardContent>
+            </Card>
           </button>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">추천 문제가 아직 준비되지 않았어요.</p>
         )}
       </section>
 
-      <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_24px_rgba(15,23,42,0.07)]">
+      <button
+        className="w-full rounded-[22px] border border-black/10 bg-white px-4 py-4 text-left shadow-[0_12px_24px_rgba(15,23,42,0.08)] transition hover:bg-[#f7f8fa]"
+        type="button"
+        onClick={() => navigate('/leaderboard')}
+      >
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-semibold">실시간 인기 문제</h3>
-          <span className="text-xs font-semibold text-muted-foreground">준비 중</span>
+          <h3 className="text-base font-semibold">리더보드</h3>
+          <span className="text-lg text-muted-foreground">›</span>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">인기 문제 데이터를 준비하고 있어요.</p>
-      </section>
+
+        {isLeaderboardLoading ? (
+          <StatusMessage className="mt-3">리더보드를 불러오는 중...</StatusMessage>
+        ) : leaderboardError ? (
+          <StatusMessage className="mt-3" tone="error">
+            {leaderboardError}
+          </StatusMessage>
+        ) : groupRank ? (
+          <div className="mt-3 flex items-center gap-4">
+            <div className="flex h-[86px] w-[86px] items-center justify-center overflow-hidden rounded-[18px] border-2 border-muted-foreground/30 bg-white text-sm font-semibold text-muted-foreground">
+              {leagueInfo?.logoUrl ? (
+                <img
+                  alt="league logo"
+                  className="h-full w-full object-cover"
+                  src={leagueInfo.logoUrl}
+                />
+              ) : (
+                (leagueInfo?.name ?? 'LEAGUE').slice(0, 6)
+              )}
+            </div>
+            <div className="flex flex-1 flex-col gap-2">
+              <span className="text-sm font-semibold text-foreground">
+                주간 경험치: {groupRank.weeklyXp ?? 0}XP
+              </span>
+              <span className="text-sm font-semibold text-foreground">
+                그룹 순위: {groupRank.placeGroup ?? '-'}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <StatusMessage className="mt-3">리더보드 데이터를 준비하고 있어요.</StatusMessage>
+        )}
+      </button>
 
       <div className="mt-3">
         <a

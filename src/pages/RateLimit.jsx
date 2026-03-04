@@ -15,8 +15,8 @@ export default function RateLimit() {
 
   return (
     <div className="min-h-screen bg-muted/40 text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col items-center justify-center bg-background px-4 py-12 text-center">
-        <div className="flex w-full flex-col items-center gap-10">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col justify-center bg-background px-4 py-12">
+        <div className="mx-auto flex w-full max-w-[358px] flex-col gap-10 text-center">
           <div className="flex w-full flex-col items-center gap-5">
             <div className="flex h-14 w-14 items-center justify-center rounded-full bg-muted">
               <Clock className="h-7 w-7 text-muted-foreground" />
@@ -27,11 +27,11 @@ export default function RateLimit() {
             </div>
           </div>
           <div className="flex w-full flex-col gap-3">
-            <Button className="h-10 w-[358px] text-base" onClick={handleRetry}>
+            <Button className="h-10 w-full text-base" onClick={handleRetry}>
               다시 시도
             </Button>
             <Button
-              className="h-10 w-[358px] text-base bg-muted text-muted-foreground hover:bg-muted"
+              className="h-10 w-full bg-muted text-base text-muted-foreground hover:bg-muted"
               onClick={() => {
                 clearRateLimit()
                 navigate('/')

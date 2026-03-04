@@ -6,6 +6,7 @@ const createInitialSession = () => ({
   conversationId: null,
   assistantMessageId: null,
   isStreaming: false,
+  isChatbotCompleted: false,
   isInputBlocked: false,
   sendError: null,
 })

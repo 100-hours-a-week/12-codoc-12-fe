@@ -1,0 +1,139 @@
+const MINUTE_MS = 60 * 1000
+const HOUR_MS = 60 * MINUTE_MS
+const DAY_MS = 24 * HOUR_MS
+
+const toRelativeTimeLabel = (value) => {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const diffMs = Math.max(0, Date.now() - date.getTime())
+
+  if (diffMs < MINUTE_MS) {
+    return '방금'
+  }
+
+  if (diffMs < HOUR_MS) {
+    return `${Math.floor(diffMs / MINUTE_MS)}분 전`
+  }
+
+  if (diffMs < DAY_MS) {
+    return `${Math.floor(diffMs / HOUR_MS)}시간 전`
+  }
+
+  return `${Math.floor(diffMs / DAY_MS)}일 전`
+}
+
+const pad2 = (value) => String(value).padStart(2, '0')
+
+const toMessageDateTimeLabel = (value) => {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return `${date.getMonth() + 1}/${date.getDate()} ${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+const toJoinedChatRoomItem = (item = {}) => {
+  const lastMessageAt = item.lastMessageAt ?? null
+
+  return {
+    roomId: item.roomId ?? null,
+    title: item.title ?? '',
+    participantsCount: Number(item.participantsCount ?? 0),
+    unreadCount: Number(item.unreadCount ?? 0),
+    lastMessagePreview: item.lastMessagePreview ?? '',
+    lastMessageAt,
+    lastMessageAtLabel: toRelativeTimeLabel(lastMessageAt),
+  }
+}
+
+const toSearchChatRoomItem = (item = {}) => {
+  const lastMessageAt = item.lastMessageAt ?? null
+  const rawJoinedState =
+    item.isJoined ?? item.joined ?? item.isParticipant ?? item.isParticipating ?? item.alreadyJoined
+
+  return {
+    roomId: item.roomId ?? null,
+    title: item.title ?? '',
+    hasPassword: Boolean(item.hasPassword),
+    isJoined: Boolean(rawJoinedState),
+    participantCount: Number(item.participantCount ?? 0),
+    maxParticipants: Number(item.maxParticipants ?? 0),
+    lastMessageAt,
+    lastMessageAtLabel: toRelativeTimeLabel(lastMessageAt),
+  }
+}
+
+export const toChatMessageItem = (item = {}) => {
+  const createdAt = item.createdAt ?? null
+  const senderId = Number(item.senderId)
+  const rawParticipantCount = Number(item.participantCount)
+  const rawSenderAvatarImageUrl =
+    typeof item.senderAvatarImageUrl === 'string'
+      ? item.senderAvatarImageUrl
+      : typeof item.senderAvatarUrl === 'string'
+        ? item.senderAvatarUrl
+        : ''
+  const rawSenderNickname =
+    typeof item.senderNickname === 'string'
+      ? item.senderNickname
+      : typeof item.senderName === 'string'
+        ? item.senderName
+        : ''
+  const senderAvatarImageUrl = rawSenderAvatarImageUrl.trim()
+  const senderNickname = rawSenderNickname.trim()
+
+  return {
+    messageId: item.messageId ?? null,
+    clientMessageId:
+      typeof item.clientMessageId === 'string' && item.clientMessageId.trim()
+        ? item.clientMessageId.trim()
+        : null,
+    senderId: Number.isInteger(senderId) ? senderId : null,
+    senderNickname,
+    senderAvatarImageUrl,
+    type: String(item.type ?? 'TEXT').toUpperCase(),
+    content: item.content ?? '',
+    participantCount:
+      Number.isInteger(rawParticipantCount) && rawParticipantCount >= 0
+        ? rawParticipantCount
+        : null,
+    createdAt,
+    createdAtLabel: toMessageDateTimeLabel(createdAt),
+    deliveryStatus:
+      item.deliveryStatus === 'sending' || item.deliveryStatus === 'failed'
+        ? item.deliveryStatus
+        : 'sent',
+  }
+}
+
+const toCursorPagingResponse = (apiResponse, itemMapper) => {
+  const data = apiResponse?.data ?? {}
+  const items = Array.isArray(data.items) ? data.items : []
+
+  return {
+    items: items.map(itemMapper),
+    nextCursor: data.nextCursor ?? null,
+    hasNextPage: Boolean(data.hasNextPage),
+  }
+}
+
+export const toJoinedChatRoomListResponse = (apiResponse) =>
+  toCursorPagingResponse(apiResponse, toJoinedChatRoomItem)
+
+export const toSearchChatRoomListResponse = (apiResponse) =>
+  toCursorPagingResponse(apiResponse, toSearchChatRoomItem)
+
+export const toChatMessageListResponse = (apiResponse) =>
+  toCursorPagingResponse(apiResponse, toChatMessageItem)
