@@ -197,6 +197,7 @@ export default function MyPage() {
   const [dailySolveCount, setDailySolveCount] = useState([])
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
+  const reportSectionRef = useRef(null)
   const [isLoadingReport, setIsLoadingReport] = useState(true)
   const [reportError, setReportError] = useState('')
   const [report, setReport] = useState(null)
@@ -400,6 +401,15 @@ export default function MyPage() {
     }
   }, [contributionRange])
 
+  useEffect(() => {
+    if (!isReportOpen || !reportSectionRef.current) {
+      return
+    }
+    requestAnimationFrame(() => {
+      reportSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [isReportOpen])
+
   const handleSaveDailyGoal = async () => {
     if (isSavingGoal) {
       return
@@ -563,10 +573,10 @@ export default function MyPage() {
         : ''
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-3">
       <section className="rounded-[24px] border border-black/10 bg-white p-4 shadow-[0_12px_24px_rgba(15,23,42,0.06)]">
         <div className="flex items-start justify-between gap-4">
-          <div className="space-y-6">
+          <div className="space-y-4">
             <div className="relative h-20 w-20 overflow-hidden rounded-full bg-[#4b5563]">
               {avatarUrl ? (
                 <img alt="avatar" className="h-full w-full object-cover" src={avatarUrl} />
@@ -745,7 +755,7 @@ export default function MyPage() {
             ))}
           </section>
 
-          <div className="space-y-6">
+          <div className="space-y-3">
             <section className="space-y-3">
               <div className="flex items-center justify-between">
                 <button
@@ -809,7 +819,10 @@ export default function MyPage() {
               />
             </section>
 
-            <section className="rounded-[24px] border border-black/10 bg-white p-3.5 shadow-[0_16px_32px_rgba(15,23,42,0.08)]">
+            <section
+              ref={reportSectionRef}
+              className="rounded-[24px] border border-black/10 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
+            >
               <button
                 className="flex w-full items-center justify-between text-left"
                 type="button"
