@@ -117,12 +117,20 @@ jobs:
       # 8. Discord 알림
       - name: Notify Discord
         if: always()
+        env:
+          COMMIT_MSG_RAW: ${{ github.event.head_commit.message }}
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BRANCH="${{ inputs.ref_name }}"
           SHA="${{ github.sha }}"
           ACTOR="${{ github.actor }}"
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          COMMIT_MSG="${COMMIT_MSG_RAW}"
+
+          if [ -z "$COMMIT_MSG" ]; then
+            COMMIT_MSG="(커밋 메시지를 이벤트에서 가져올 수 없음)"
+          fi
+
+          COMMIT_MSG_ESCAPED="$(printf '%s' "$COMMIT_MSG" | sed 's/\\/\\\\/g; s/\"/\\\"/g')"
 
           if [ "${{ job.status }}" = "success" ]; then
             STATUS="성공"
@@ -139,7 +147,7 @@ jobs:
               \"description\": \"**상태**: ${STATUS}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
               \"color\": ${COLOR},
               \"fields\": [
-                {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG}\"},
+                {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG_ESCAPED}\"},
                 {\"name\": \"로그\", \"value\": \"${RUN_URL}\"}
               ]
             }]
