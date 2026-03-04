@@ -180,6 +180,7 @@ export default function MyPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [showNicknameHelper, setShowNicknameHelper] = useState(false)
   const [nicknameHelperVariant, setNicknameHelperVariant] = useState('invalid')
+  const [nicknameErrorMessage, setNicknameErrorMessage] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [avatars, setAvatars] = useState([])
@@ -442,6 +443,7 @@ export default function MyPage() {
     setAvatarUrl(profileAvatarUrl)
     setShowNicknameHelper(false)
     setNicknameHelperVariant('invalid')
+    setNicknameErrorMessage('')
     setIsEditing(false)
     setAvatarError('')
     setIsAvatarPickerOpen(false)
@@ -470,13 +472,17 @@ export default function MyPage() {
       setSelectedAvatarId(updatedAvatarId)
       setShowNicknameHelper(false)
       setNicknameHelperVariant('invalid')
+      setNicknameErrorMessage('')
       setIsEditing(false)
       setIsAvatarPickerOpen(false)
       showToast('저장이 완료되었습니다.')
     } catch (error) {
       const errorCode = error?.response?.data?.code
+      const invalidMessage = error?.response?.data?.data?.nickname ?? ''
       const isDuplicate = error?.response?.status === 409 || errorCode === 'DUPLICATE_NICKNAME'
+      const isProfanity = typeof invalidMessage === 'string' && invalidMessage.includes('금지어')
       setNicknameHelperVariant(isDuplicate ? 'duplicate' : 'invalid')
+      setNicknameErrorMessage(!isDuplicate && isProfanity ? invalidMessage : '')
       setShowNicknameHelper(true)
       showToast('프로필 저장에 실패했습니다.')
     } finally {
@@ -632,8 +638,13 @@ export default function MyPage() {
                   </p>
                 ) : (
                   <div className="space-y-1 text-red-500">
-                    <p className="text-[11px] font-semibold">{helperText.main}</p>
-                    <p className="text-[10px] font-medium">{helperText.sub}</p>
+                    {nicknameErrorMessage ? (
+                      <p className="text-[11px] font-semibold">{nicknameErrorMessage}</p>
+                    ) : (
+                      <>
+                        <p className="text-[11px] font-semibold">{helperText.main}</p>
+                      </>
+                    )}
                   </div>
                 )
               ) : null}
