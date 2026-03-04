@@ -735,6 +735,69 @@ export default function MyPage() {
           </section>
 
           <div className="space-y-6">
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <button
+                  className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+                  type="button"
+                  onClick={() => setIsGoalModalOpen(true)}
+                >
+                  일일 목표 설정
+                </button>
+                <div className="relative">
+                  <button
+                    className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
+                    type="button"
+                    onClick={() => setIsYearMenuOpen((prev) => !prev)}
+                  >
+                    <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
+                    <span aria-hidden className="text-xs text-muted-foreground">
+                      ▾
+                    </span>
+                  </button>
+                  {isYearMenuOpen ? (
+                    <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                      <button
+                        className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                          year === 'recent' ? 'bg-[#f3f4f6]' : ''
+                        }`}
+                        type="button"
+                        onClick={() => {
+                          setYear('recent')
+                          setIsYearMenuOpen(false)
+                        }}
+                      >
+                        {recentLabel}
+                      </button>
+                      {years.map((value) => (
+                        <button
+                          key={value}
+                          className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                            value === year ? 'bg-[#f3f4f6]' : ''
+                          }`}
+                          type="button"
+                          onClick={() => {
+                            setYear(value)
+                            setIsYearMenuOpen(false)
+                          }}
+                        >
+                          {value}년
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <Heatmap
+                model={heatmapModel}
+                monthMarkers={monthMarkers}
+                scrollRef={heatmapScrollRef}
+                selectedCell={selectedCell}
+                onSelectCell={setSelectedCell}
+                levelClasses={levelClasses}
+              />
+            </section>
+
             <section className="rounded-[24px] border border-black/10 bg-white p-3.5 shadow-[0_16px_32px_rgba(15,23,42,0.08)]">
               <button
                 className="flex w-full items-center justify-between text-left"
@@ -915,69 +978,6 @@ export default function MyPage() {
                   <StatusMessage className="mt-4">분석 리포트가 아직 없어요.</StatusMessage>
                 )
               ) : null}
-            </section>
-
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <button
-                  className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
-                  type="button"
-                  onClick={() => setIsGoalModalOpen(true)}
-                >
-                  일일 목표 설정
-                </button>
-                <div className="relative">
-                  <button
-                    className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
-                    type="button"
-                    onClick={() => setIsYearMenuOpen((prev) => !prev)}
-                  >
-                    <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
-                    <span aria-hidden className="text-xs text-muted-foreground">
-                      ▾
-                    </span>
-                  </button>
-                  {isYearMenuOpen ? (
-                    <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                      <button
-                        className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                          year === 'recent' ? 'bg-[#f3f4f6]' : ''
-                        }`}
-                        type="button"
-                        onClick={() => {
-                          setYear('recent')
-                          setIsYearMenuOpen(false)
-                        }}
-                      >
-                        {recentLabel}
-                      </button>
-                      {years.map((value) => (
-                        <button
-                          key={value}
-                          className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                            value === year ? 'bg-[#f3f4f6]' : ''
-                          }`}
-                          type="button"
-                          onClick={() => {
-                            setYear(value)
-                            setIsYearMenuOpen(false)
-                          }}
-                        >
-                          {value}년
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <Heatmap
-                model={heatmapModel}
-                monthMarkers={monthMarkers}
-                scrollRef={heatmapScrollRef}
-                selectedCell={selectedCell}
-                onSelectCell={setSelectedCell}
-                levelClasses={levelClasses}
-              />
             </section>
           </div>
         </>
