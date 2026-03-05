@@ -1,4 +1,5 @@
 import {
+  requestAllChatRooms,
   requestChatMessages,
   requestCreateChatRoom,
   requestJoinChatRoom,
@@ -49,19 +50,28 @@ export const searchChatRooms = async (params = {}) => {
   return toSearchChatRoomListResponse(response)
 }
 
+export const getAllChatRooms = async (params = {}) => {
+  const normalizedParams = toChatRoomListParams(params)
+  const response = await requestAllChatRooms(normalizedParams)
+  return toSearchChatRoomListResponse(response)
+}
+
 export const getChatRoomList = async (params = {}) => {
   const scope = params.scope === 'all' ? 'all' : 'joined'
   const keyword = String(params.keyword ?? '').trim()
 
   if (scope === 'all') {
-    if (!keyword) {
-      return { items: [], nextCursor: null, hasNextPage: false }
+    if (keyword) {
+      return searchChatRooms({
+        cursor: params.cursor,
+        limit: params.limit,
+        keyword,
+      })
     }
 
-    return searchChatRooms({
+    return getAllChatRooms({
       cursor: params.cursor,
       limit: params.limit,
-      keyword,
     })
   }
 
