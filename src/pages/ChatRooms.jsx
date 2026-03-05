@@ -34,10 +34,7 @@ const normalizeChatRoomLabel = (value = '') =>
 
 const getEmptyMessage = (scope, keyword) => {
   if (scope === 'all') {
-    if (!keyword) {
-      return '전체 채팅방은 검색어를 입력하면 확인할 수 있습니다.'
-    }
-    return '검색 결과가 없습니다.'
+    return keyword ? '검색 결과가 없습니다.' : '등록된 전체 채팅방이 없습니다.'
   }
 
   if (keyword) {
@@ -224,7 +221,6 @@ export default function ChatRooms() {
   const [passwordRoom, setPasswordRoom] = useState(null)
   const [isPublicJoinDialogOpen, setIsPublicJoinDialogOpen] = useState(false)
   const [publicJoinRoom, setPublicJoinRoom] = useState(null)
-  const hasSearchKeyword = keyword.length > 0
   const isCreateFormComplete = createTitle.trim().length > 0
   const roomUpdateVersion = useChatRealtimeStore((state) => state.roomUpdateVersion)
   const setHasUnreadChat = useChatRealtimeStore((state) => state.setHasUnreadChat)
@@ -241,24 +237,8 @@ export default function ChatRooms() {
     navigate('/chat', { replace: true, state: null })
   }, [location.state, navigate])
 
-  useEffect(() => {
-    if (!hasSearchKeyword && scope !== 'joined') {
-      setScope('joined')
-    }
-  }, [hasSearchKeyword, scope])
-
   const fetchRooms = useCallback(
     async ({ cursor = null, append = false, background = false } = {}) => {
-      if (scope === 'all' && !keyword) {
-        setRooms([])
-        setNextCursor(null)
-        setHasNextPage(false)
-        setLoadError('')
-        setIsLoading(false)
-        setIsLoadingMore(false)
-        return
-      }
-
       if (append) {
         setIsLoadingMore(true)
       } else if (!background) {
@@ -653,29 +633,27 @@ export default function ChatRooms() {
                 </label>
               </form>
 
-              {hasSearchKeyword ? (
-                <div className="grid grid-cols-2 gap-2">
-                  {SCOPE_OPTIONS.map((option) => {
-                    const isActive = scope === option.value
+              <div className="grid grid-cols-2 gap-2">
+                {SCOPE_OPTIONS.map((option) => {
+                  const isActive = scope === option.value
 
-                    return (
-                      <Button
-                        key={option.value}
-                        className={`h-9 rounded-full ${
-                          isActive
-                            ? 'border-info bg-info/10 text-info hover:bg-info/15 hover:text-info'
-                            : ''
-                        }`}
-                        onClick={() => setScope(option.value)}
-                        type="button"
-                        variant="outline"
-                      >
-                        {option.label}
-                      </Button>
-                    )
-                  })}
-                </div>
-              ) : null}
+                  return (
+                    <Button
+                      key={option.value}
+                      className={`h-9 rounded-full ${
+                        isActive
+                          ? 'border-info bg-info/10 text-info hover:bg-info/15 hover:text-info'
+                          : ''
+                      }`}
+                      onClick={() => setScope(option.value)}
+                      type="button"
+                      variant="outline"
+                    >
+                      {option.label}
+                    </Button>
+                  )
+                })}
+              </div>
             </CardContent>
           </Card>
 
