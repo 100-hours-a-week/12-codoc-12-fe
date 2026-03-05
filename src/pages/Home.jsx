@@ -415,7 +415,7 @@ export default function Home() {
             <Sparkles className="h-4 w-4 fill-current" aria-hidden />
           </span>
           <div>
-            <h3 className="text-base font-semibold leading-none">나를 위한 추천문제</h3>
+            <h3 className="text-base font-semibold leading-none">나를 위한 AI 추천 문제</h3>
           </div>
         </div>
         {isLoadingRecommend ? (
