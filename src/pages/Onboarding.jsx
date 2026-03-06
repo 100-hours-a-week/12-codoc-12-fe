@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
-import { clearAccessToken } from '@/lib/auth'
+import { refreshAccessToken } from '@/lib/auth'
 
 const steps = [
   {
@@ -122,7 +122,7 @@ export default function Onboarding() {
     setSubmitError('')
     try {
       await api.patch('/api/user/init-survey', payload)
-      clearAccessToken()
+      await refreshAccessToken()
       window.location.replace('/')
     } catch {
       setSubmitError('설문 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
