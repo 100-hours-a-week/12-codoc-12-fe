@@ -24,10 +24,9 @@ concurrency:
 
 jobs:
   deploy:
-    # develop 자동 배포, main은 수동 실행일 때만 배포
+    # develop/main push 모두 배포 허용
     if: >
-      inputs.ref_name == 'develop' ||
-      (github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main')
+      inputs.ref_name == 'develop' || inputs.ref_name == 'main'
 
     runs-on: ubuntu-latest
 
@@ -73,15 +72,11 @@ jobs:
         env:
           REF_NAME: ${{ inputs.ref_name }}
           FE_S3_BUCKET_DEV: ${{ secrets.FE_S3_BUCKET_DEV }}
-          FE_S3_BUCKET_PROD: ${{ secrets.FE_S3_BUCKET_PROD }}
           FE_CF_DIST_DEV: ${{ secrets.FE_CF_DIST_DEV }}
         run: |
           set -euo pipefail
-          if [ "$REF_NAME" = "develop" ]; then
+          if [ "$REF_NAME" = "develop" ] || [ "$REF_NAME" = "main" ]; then
             BUCKET="$FE_S3_BUCKET_DEV"
-            DIST_ID="$FE_CF_DIST_DEV"
-          elif [ "$REF_NAME" = "main" ]; then
-            BUCKET="$FE_S3_BUCKET_PROD"
             DIST_ID="$FE_CF_DIST_DEV"
           else
             echo "Unsupported ref_name for deploy: $REF_NAME"
