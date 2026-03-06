@@ -1,5 +1,5 @@
 import { BookOpen, Brain, Clover, Trophy } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import SessionTimer from '@/components/SessionTimer'
@@ -67,6 +67,7 @@ export default function Quiz() {
   const isResultView = session?.isResultView ?? false
   const submissionResult = session?.submissionResult ?? null
   const quizzes = useMemo(() => problemSession?.quizzes ?? [], [problemSession])
+  const explanationRef = useRef(null)
   const totalQuestions = quizzes.length
 
   useEffect(() => {
@@ -204,6 +205,15 @@ export default function Quiz() {
       setIsSubmitting(false)
     }
   }
+
+  useEffect(() => {
+    if (!hasAnsweredCurrent || !currentResult || !currentExplanation) {
+      return
+    }
+    requestAnimationFrame(() => {
+      explanationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [currentExplanation, currentResult, hasAnsweredCurrent])
 
   const handleNext = () => {
     if (currentIndex < totalQuestions - 1) {
@@ -508,7 +518,7 @@ export default function Quiz() {
             </div>
 
             {hasAnsweredCurrent && currentResult && currentExplanation ? (
-              <Card className="bg-muted/40">
+              <Card ref={explanationRef} className="bg-muted/40">
                 <CardContent className="space-y-2 p-4">
                   <p className="text-sm font-semibold text-foreground">해설</p>
                   <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
