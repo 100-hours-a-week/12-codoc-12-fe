@@ -15,16 +15,6 @@ const statusCopy = {
   CLAIMED: { variant: 'done', disabled: true },
 }
 
-const formatTitleWithId = (id, title) => {
-  if (!title) {
-    return ''
-  }
-  if (id === null || id === undefined || id === '') {
-    return title
-  }
-  return `${id}. ${title}`
-}
-
 function QuestCard({ quest, onClaim }) {
   const isDone = quest.variant === 'done'
   const isReady = quest.variant === 'ready'
@@ -430,10 +420,7 @@ export default function Home() {
               <CardContent className="p-3">
                 <div className="flex items-start justify-between gap-3">
                   <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
-                    {formatTitleWithId(
-                      recommendedProblem.problemId ?? recommendedProblem.id,
-                      recommendedProblem.title,
-                    )}
+                    {recommendedProblem.title}
                     {recommendedProblem.bookmarked ? (
                       <Star aria-label="북마크" className="h-4 w-4 fill-warning text-warning" />
                     ) : null}
@@ -443,6 +430,11 @@ export default function Home() {
                   </span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-semibold text-muted-foreground">
+                  {(recommendedProblem.problemId ?? recommendedProblem.id) ? (
+                    <Badge className="rounded-full border border-black/10 bg-white px-3 py-1 text-foreground">
+                      {recommendedProblem.problemId ?? recommendedProblem.id}번
+                    </Badge>
+                  ) : null}
                   <Badge className="rounded-full bg-background px-3 py-1 text-foreground/80">
                     {formatDifficultyLabel(recommendedProblem.difficulty)}
                   </Badge>
