@@ -19,7 +19,7 @@ import {
   toChatMessageSendDestination,
   toChatRoomTopic,
 } from '@/services/chat/chatRealtime'
-import { getChatRoomMessages, leaveChatRoom } from '@/services/chat/chatService'
+import { getChatRoomMessages, getUserChatRoom, leaveChatRoom } from '@/services/chat/chatService'
 import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 
 const PAGE_LIMIT = 30
@@ -299,6 +299,7 @@ export default function ChatRoomDetail() {
   const [isInputFocused, setIsInputFocused] = useState(false)
   const [isNetworkOnline, setIsNetworkOnline] = useState(() => toIsNetworkOnline())
   const [connectionStatus, setConnectionStatus] = useState('connecting')
+  const [roomTitleFromApi, setRoomTitleFromApi] = useState('')
   const [participantCount, setParticipantCount] = useState(() =>
     toParticipantCountFromLocationState(location.state),
   )
@@ -387,12 +388,16 @@ export default function ChatRoomDetail() {
       return titleFromState.trim()
     }
 
+    if (roomTitleFromApi) {
+      return roomTitleFromApi
+    }
+
     if (normalizedRoomId == null) {
       return '채팅방'
     }
 
     return `채팅방 #${normalizedRoomId}`
-  }, [normalizedRoomId, titleFromState])
+  }, [normalizedRoomId, roomTitleFromApi, titleFromState])
 
   const inputBottomOffset = useMemo(
     () => `calc(var(--chatbot-input-bottom) + env(safe-area-inset-bottom) + ${keyboardOffset}px)`,
@@ -463,6 +468,61 @@ export default function ChatRoomDetail() {
   useEffect(() => {
     setParticipantCount(toParticipantCountFromLocationState(location.state))
   }, [location.state, normalizedRoomId])
+
+  useEffect(() => {
+    let isMounted = true
+
+    const fetchChatRoom = async () => {
+      if (normalizedRoomId == null) {
+        setRoomTitleFromApi('')
+        return
+      }
+
+      setRoomTitleFromApi('')
+
+      try {
+        const response = await getUserChatRoom({ roomId: normalizedRoomId })
+        if (!isMounted) {
+          return
+        }
+
+        const fetchedTitle = typeof response?.title === 'string' ? response.title.trim() : ''
+        setRoomTitleFromApi(fetchedTitle)
+
+        const fetchedParticipantCount = toParticipantCount(response?.participantsCount)
+        if (fetchedParticipantCount != null) {
+          setParticipantCount(fetchedParticipantCount)
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return
+        }
+
+        const code = error?.response?.data?.code
+
+        if (code === 'NO_CHAT_ROOM_PARTICIPANT') {
+          navigate('/chat', {
+            replace: true,
+            state: { chatRedirectError: '참여 중인 채팅방이 아닙니다.' },
+          })
+          return
+        }
+
+        if (code === 'CHAT_ROOM_NOT_FOUND') {
+          navigate('/chat', {
+            replace: true,
+            state: { chatRedirectError: '채팅방을 찾을 수 없습니다.' },
+          })
+        }
+      }
+    }
+
+    fetchChatRoom()
+
+    return () => {
+      isMounted = false
+    }
+  }, [navigate, normalizedRoomId])
 
   const fetchMessages = useCallback(
     async ({ cursor = null, append = false } = {}) => {

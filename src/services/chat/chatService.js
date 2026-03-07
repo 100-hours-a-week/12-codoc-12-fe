@@ -6,6 +6,7 @@ import {
   requestLeaveChatRoom,
   requestSearchChatRooms,
   requestSearchUserChatRooms,
+  requestUserChatRoom,
   requestUserChatUnreadStatus,
   requestUserChatRooms,
 } from './chatApi'
@@ -13,6 +14,7 @@ import {
   toChatMessageListResponse,
   toJoinedChatRoomListResponse,
   toSearchChatRoomListResponse,
+  toUserChatRoomDetailResponse,
 } from './chatDto'
 import {
   toChatMessageListParams,
@@ -92,6 +94,12 @@ export const getChatRoomList = async (params = {}) => {
 export const getChatUnreadStatus = async () => {
   const response = await requestUserChatUnreadStatus()
   return { hasUnread: Boolean(response?.data?.hasUnread) }
+}
+
+export const getUserChatRoom = async (params = {}) => {
+  const normalizedRoomId = normalizeRoomId(params.roomId)
+  const response = await requestUserChatRoom(normalizedRoomId)
+  return toUserChatRoomDetailResponse(response)
 }
 
 export const createChatRoom = async (params = {}) => {
