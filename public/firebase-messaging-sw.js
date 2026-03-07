@@ -3,7 +3,7 @@
 importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-app-compat.js')
 importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-compat.js')
 
-const NOTIFICATION_LOGO_PATH = '/favicon.png'
+const NOTIFICATION_LOGO_PATH = '/notification-icon.png'
 
 const LINK_CODE_PATHS = {
   HOME: '/',
