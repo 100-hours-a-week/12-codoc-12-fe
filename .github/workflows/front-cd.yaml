@@ -102,6 +102,11 @@ jobs:
         run: |
           aws s3 sync "${{ steps.out.outputs.path }}/" "s3://${{ steps.target.outputs.bucket }}" --delete
 
+      # 6-1. 이미지 버킷 → FE 배포 버킷 복사
+      - name: Sync images bucket to FE bucket
+        run: |
+          aws s3 sync "s3://codoc-images/images" "s3://${{ steps.target.outputs.bucket }}/images" --delete
+
       # 7. CloudFront 무효화
       - name: Invalidate CloudFront
         run: |
