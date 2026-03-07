@@ -13,6 +13,7 @@ const LINK_CODE_PATHS = {
   HOME: '/',
   MY: '/my',
   LEADERBOARD: '/leaderboard',
+  CHAT: '/chat',
 }
 
 const resolveLegacyLink = (linkUrl) => {
@@ -50,6 +51,17 @@ const resolvePathByLinkCode = (linkCode, linkParams = {}) => {
     }
 
     return `/problems/${encodeURIComponent(problemId)}`
+  }
+
+  if (linkCode === 'CHAT') {
+    const rawRoomId = linkParams?.roomId
+    if (rawRoomId !== null && rawRoomId !== undefined) {
+      const roomId = String(rawRoomId).trim()
+      if (roomId) {
+        return `/chat/${encodeURIComponent(roomId)}`
+      }
+    }
+    return '/chat'
   }
 
   return LINK_CODE_PATHS[linkCode] ?? null
