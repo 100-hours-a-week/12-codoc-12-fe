@@ -135,5 +135,19 @@ export const toJoinedChatRoomListResponse = (apiResponse) =>
 export const toSearchChatRoomListResponse = (apiResponse) =>
   toCursorPagingResponse(apiResponse, toSearchChatRoomItem)
 
+export const toUserChatRoomDetailResponse = (apiResponse) => {
+  const data = apiResponse?.data ?? {}
+  const parsedParticipantsCount = Number(data.participantsCount ?? data.participantCount)
+
+  return {
+    roomId: data.roomId ?? null,
+    title: typeof data.title === 'string' ? data.title : '',
+    participantsCount:
+      Number.isInteger(parsedParticipantsCount) && parsedParticipantsCount >= 0
+        ? parsedParticipantsCount
+        : null,
+  }
+}
+
 export const toChatMessageListResponse = (apiResponse) =>
   toCursorPagingResponse(apiResponse, toChatMessageItem)
