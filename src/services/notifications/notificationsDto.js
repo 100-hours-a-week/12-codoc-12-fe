@@ -3,6 +3,7 @@ const NOTIFICATION_TYPE_LABELS = {
   AI_RECOMMENDED_PROBLEM_ISSUED: 'AI 추천 문제 발급 알림',
   AI_ANALYSIS_REPORT_CREATED: 'AI 분석 레포트 생성 알림',
   LEADERBOARD_CLOSED: '리더보드 시즌 종료 알림',
+  CHAT: '채팅 알림',
 }
 
 const toNotificationTypeLabel = (type) => NOTIFICATION_TYPE_LABELS[type] ?? type ?? '알림'
