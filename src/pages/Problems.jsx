@@ -22,6 +22,7 @@ const EMPTY_FILTERS = {
 
 const BOOKMARK_VALUE = 'bookmarked'
 const PAGE_SIZE = 20
+const AUTO_LOAD_DELAY_MS = 0
 const SCROLL_Y_KEY = 'problems:scrollY'
 const RESTORE_KEY = 'problems:restore'
 const LIST_STATE_KEY = 'problems:listState'
@@ -134,7 +135,10 @@ export default function Problems() {
     }
   }, [appliedFilters, committedQuery, isRestored])
 
-  const handleLoadMore = async () => {
+  const loadMoreSentinelRef = useRef(null)
+  const loadMoreTimerRef = useRef(null)
+
+  const handleLoadMore = useCallback(async () => {
     if (!hasNextPage || isLoadingMore) {
       return
     }
@@ -163,13 +167,13 @@ export default function Problems() {
     } finally {
       setIsLoadingMore(false)
     }
-  }
+  }, [appliedFilters, committedQuery, hasNextPage, isLoadingMore, nextCursor])
 
   const visibleProblems = useMemo(() => problems, [problems])
 
   const getFilterButtonClass = (isSelected) =>
     `gap-2 rounded-full px-4 ${
-      isSelected ? 'bg-info/70 text-info-foreground hover:bg-info/50' : 'border-foreground/20'
+      isSelected ? 'bg-info/70 text-info-foreground hover:bg-info/20' : 'border-foreground/20'
     }`
 
   const toggleAppliedFilter = (key, value) => {
@@ -308,6 +312,45 @@ export default function Problems() {
 
     revalidateList()
   }, [appliedFilters, isLoading, revalidateList])
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current
+    if (!sentinel || !hasNextPage || isLoading || isLoadingMore || loadError || loadMoreError) {
+      return
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          if (loadMoreTimerRef.current) {
+            return
+          }
+          loadMoreTimerRef.current = window.setTimeout(() => {
+            loadMoreTimerRef.current = null
+            handleLoadMore()
+          }, AUTO_LOAD_DELAY_MS)
+        } else if (loadMoreTimerRef.current) {
+          window.clearTimeout(loadMoreTimerRef.current)
+          loadMoreTimerRef.current = null
+        }
+      },
+      {
+        root: null,
+        rootMargin: '48px 0px',
+        threshold: 0.4,
+      },
+    )
+
+    observer.observe(sentinel)
+
+    return () => {
+      if (loadMoreTimerRef.current) {
+        window.clearTimeout(loadMoreTimerRef.current)
+        loadMoreTimerRef.current = null
+      }
+      observer.disconnect()
+    }
+  }, [handleLoadMore, hasNextPage, isLoading, isLoadingMore, loadError, loadMoreError])
 
   const handleOpenProblem = () => {
     sessionStorage.setItem(SCROLL_Y_KEY, String(window.scrollY))
@@ -475,18 +518,24 @@ export default function Problems() {
             {loadMoreError ? (
               <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-4 text-center">
                 <StatusMessage tone="error">{loadMoreError}</StatusMessage>
+                <Button
+                  className="mt-3"
+                  disabled={isLoadingMore}
+                  onClick={handleLoadMore}
+                  type="button"
+                  variant="outline"
+                >
+                  다시 시도
+                </Button>
+              </Card>
+            ) : null}
+            {isLoadingMore ? (
+              <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-4 text-center">
+                <StatusMessage>추가 문제를 불러오는 중입니다.</StatusMessage>
               </Card>
             ) : null}
             {hasNextPage ? (
-              <Button
-                className="w-full"
-                disabled={isLoadingMore}
-                onClick={handleLoadMore}
-                type="button"
-                variant="outline"
-              >
-                {isLoadingMore ? '불러오는 중...' : '더 불러오기'}
-              </Button>
+              <div ref={loadMoreSentinelRef} aria-hidden="true" className="h-1 w-full" />
             ) : null}
           </>
         )}
