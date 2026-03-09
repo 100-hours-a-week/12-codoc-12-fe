@@ -14,7 +14,11 @@ import { api } from '@/lib/api'
 import { trackEvent } from '@/lib/ga4'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
-import { getProblemDetail, startProblemSession } from '@/services/problems/problemsService'
+import {
+  getActiveProblemSession,
+  getProblemDetail,
+  startProblemSession,
+} from '@/services/problems/problemsService'
 import { submitProblem, submitQuiz } from '@/services/submissions/submissionsService'
 import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
 import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
@@ -52,12 +56,17 @@ export default function Quiz() {
   const [recommendedProblemId, setRecommendedProblemId] = useState(null)
   const [recommendedError, setRecommendedError] = useState(null)
   const [isSessionStarting, setIsSessionStarting] = useState(false)
+  const [isSessionSyncing, setIsSessionSyncing] = useState(true)
   const [sessionError, setSessionError] = useState(null)
   const [isSessionRequired, setIsSessionRequired] = useState(false)
 
   const { sessions, initSession, updateSession, resetSession } = useQuizStore()
   const session = problemId ? sessions[String(problemId)] : null
-  const { sessions: problemSessions, setSession: setProblemSession } = useProblemSessionStore()
+  const {
+    sessions: problemSessions,
+    setSession: setProblemSession,
+    clearSession: clearProblemSession,
+  } = useProblemSessionStore()
   const { fetchProblem: fetchProblemDetail, setProblem: setCachedProblem } = useProblemDetailStore()
   const problemSession = problemId ? problemSessions[String(problemId)] : null
   const sessionId = problemSession?.sessionId ?? null
@@ -89,6 +98,52 @@ export default function Quiz() {
     }
     trackEvent('quiz_view', { problem_id: String(problemId) })
   }, [problemId])
+
+  useEffect(() => {
+    let isActive = true
+
+    const syncActiveSession = async () => {
+      if (!problemId) {
+        if (isActive) {
+          setIsSessionSyncing(false)
+        }
+        return
+      }
+
+      setIsSessionSyncing(true)
+
+      try {
+        const activeSession = await getActiveProblemSession()
+        if (!isActive) {
+          return
+        }
+
+        if (String(activeSession?.problemId ?? '') === String(problemId)) {
+          setProblemSession(problemId, activeSession)
+        }
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        if (error?.response?.status === 404) {
+          clearProblemSession(problemId)
+          navigate(`/problems/${problemId}`, { replace: true })
+          return
+        }
+      } finally {
+        if (isActive) {
+          setIsSessionSyncing(false)
+        }
+      }
+    }
+
+    syncActiveSession()
+
+    return () => {
+      isActive = false
+    }
+  }, [clearProblemSession, navigate, problemId, setProblemSession])
 
   useEffect(() => {
     let isActive = true
@@ -412,7 +467,7 @@ export default function Quiz() {
         </div>
       </div>
 
-      {hasActiveSession && !isResultView ? (
+      {hasActiveSession && !isResultView && !isSessionSyncing ? (
         <div className="flex justify-end">
           <SessionTimer expiresAt={problemSession?.expiresAt} />
         </div>
@@ -428,6 +483,10 @@ export default function Quiz() {
           <Button className="mt-4" onClick={() => window.location.reload()} variant="secondary">
             다시 시도
           </Button>
+        </Card>
+      ) : isSessionSyncing ? (
+        <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
+          <p className="text-sm text-muted-foreground">세션 정보를 확인하는 중입니다.</p>
         </Card>
       ) : isSessionRequired || !hasActiveSession ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
