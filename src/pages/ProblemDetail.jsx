@@ -3,6 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
+import remarkMath from 'remark-math'
 
 import SessionTimer from '@/components/SessionTimer'
 import StatusMessage from '@/components/StatusMessage'
@@ -24,6 +25,7 @@ import {
 import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
 import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import remarkGfm from 'remark-gfm'
+import rehypeKatex from 'rehype-katex'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -574,7 +576,8 @@ export default function ProblemDetail() {
           <section className="space-y-3">
             {problem.content ? (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkBreaks]}
+                remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={{
                   h1: ({ node: _node, ...props }) => (
                     <h2 className="mt-6 mb-2 text-lg font-bold text-foreground" {...props} />

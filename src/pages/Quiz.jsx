@@ -1,10 +1,15 @@
 import { BookOpen, Brain, Clover, Trophy } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
 import { trackEvent } from '@/lib/ga4'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
@@ -23,6 +28,10 @@ const TAB_ITEMS = [
 const ACTIVE_TAB_ID = 'quiz'
 const QUIZ_ALLOWED_STATUSES = ['summary_card_passed', 'solved']
 const QUIZ_REWARD_XP = 50
+
+const markdownComponents = {
+  p: ({ children }) => <span>{children}</span>,
+}
 
 const buildIdempotencyKey = (quizId) =>
   `${quizId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -460,7 +469,13 @@ export default function Quiz() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-md border bg-background text-sm font-semibold">
                     {currentIndex + 1}
                   </span>
-                  <p className="text-sm font-semibold text-foreground">{currentQuiz?.question}</p>
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={markdownComponents}
+                  >
+                    {currentQuiz?.question ?? ''}
+                  </ReactMarkdown>
                 </div>
               </CardContent>
             </Card>
@@ -511,7 +526,13 @@ export default function Quiz() {
                           : '✕'
                         : getOptionLabel(index)}
                     </span>
-                    <span>{choice}</span>
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={markdownComponents}
+                    >
+                      {choice}
+                    </ReactMarkdown>
                   </button>
                 )
               })}
@@ -521,9 +542,15 @@ export default function Quiz() {
               <Card ref={explanationRef} className="bg-muted/40">
                 <CardContent className="space-y-2 p-4">
                   <p className="text-sm font-semibold text-foreground">해설</p>
-                  <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                    {currentExplanation}
-                  </p>
+                  <div className="text-sm leading-relaxed text-muted-foreground">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={markdownComponents}
+                    >
+                      {currentExplanation}
+                    </ReactMarkdown>
+                  </div>
                 </CardContent>
               </Card>
             ) : null}

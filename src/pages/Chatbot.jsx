@@ -3,7 +3,9 @@ import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useStat
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkBreaks from 'remark-breaks'
+import remarkMath from 'remark-math'
 import remarkGfm from 'remark-gfm'
+import rehypeKatex from 'rehype-katex'
 
 import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
@@ -260,7 +262,8 @@ const ChatMessage = memo(function ChatMessage({
               </div>
             ) : (
               <ReactMarkdown
-                remarkPlugins={[remarkGfm, remarkBreaks]}
+                remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                rehypePlugins={[rehypeKatex]}
                 components={markdownComponents}
               >
                 {message.content}

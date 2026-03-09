@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -6,6 +7,10 @@ import { isSessionRequiredError } from '@/lib/session'
 import { submitSummaryCards } from '@/services/summaryCards/summaryCardsService'
 import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
+import remarkMath from 'remark-math'
+import rehypeKatex from 'rehype-katex'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
 
 const SUMMARY_CARD_LABELS = {
   BACKGROUND: '문제 배경',
@@ -22,6 +27,10 @@ const SUMMARY_CARD_PROMPTS = {
 }
 
 const SUMMARY_CARD_SUFFIX = '을 고려하는 문제이다.'
+
+const markdownComponents = {
+  p: ({ children }) => <span>{children}</span>,
+}
 
 const getCardKey = (card, index) => String(card.paragraphType ?? card.id ?? `summary-${index}`)
 
@@ -175,7 +184,17 @@ export default function ProblemSummaryCards({
                             : 'border-dashed border-muted-foreground/40 bg-muted/40 text-neutral-500'
                       } ${isActive && !isGraded ? 'ring-2 ring-info/30' : ''}`}
                     >
-                      {selectedChoiceText ?? placeholder}
+                      {selectedChoiceText ? (
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={markdownComponents}
+                        >
+                          {selectedChoiceText}
+                        </ReactMarkdown>
+                      ) : (
+                        placeholder
+                      )}
                     </button>
                   </span>
                 )
@@ -215,7 +234,13 @@ export default function ProblemSummaryCards({
                               onClick={() => handleSelectChoice(activeKey, choiceIndex)}
                               type="button"
                             >
-                              {choice}
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                                rehypePlugins={[rehypeKatex]}
+                                components={markdownComponents}
+                              >
+                                {choice}
+                              </ReactMarkdown>
                             </button>
                           )
                         })}
