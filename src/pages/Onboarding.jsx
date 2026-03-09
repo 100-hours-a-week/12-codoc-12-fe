@@ -123,7 +123,10 @@ export default function Onboarding() {
     try {
       await api.patch('/api/user/init-survey', payload)
       await refreshAccessToken()
-      window.location.replace('/')
+      if (typeof window !== 'undefined') {
+        window.localStorage.removeItem('codoc_help_auto_shown')
+      }
+      window.location.replace('/problems/1')
     } catch {
       setSubmitError('설문 저장에 실패했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
