@@ -166,6 +166,7 @@ export default function Quiz() {
   const isPerfectScore = totalQuestions > 0 && totalCorrect === totalQuestions
   const isFirstSolved =
     Boolean(submissionResult?.xpGranted) && submissionResult?.nextStatus === 'solved'
+  const solvingDurationLabel = submissionResult?.solvingDurationLabel ?? ''
 
   const handleSelectChoice = (choiceIndex) => {
     if (!currentQuiz || isSubmitting || hasAnsweredCurrent) {
@@ -427,6 +428,11 @@ export default function Quiz() {
                 </p>
                 {isFirstSolved ? (
                   <p className="text-lg font-semibold text-info">+{QUIZ_REWARD_XP} XP</p>
+                ) : null}
+                {solvingDurationLabel ? (
+                  <p className="text-lg font-semibold text-muted-foreground">
+                    총 소요 시간: {solvingDurationLabel}
+                  </p>
                 ) : null}
               </div>
             </div>
