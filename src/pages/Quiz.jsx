@@ -10,6 +10,7 @@ import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
 import rehypeKatex from 'rehype-katex'
+import { api } from '@/lib/api'
 import { trackEvent } from '@/lib/ga4'
 import { queueProblemListUpdate } from '@/lib/problemListUpdates'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
@@ -47,6 +48,9 @@ export default function Quiz() {
   const [isBlocked, setIsBlocked] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [actionError, setActionError] = useState(null)
+  const [isOpeningRecommended, setIsOpeningRecommended] = useState(false)
+  const [recommendedProblemId, setRecommendedProblemId] = useState(null)
+  const [recommendedError, setRecommendedError] = useState(null)
   const [isSessionStarting, setIsSessionStarting] = useState(false)
   const [sessionError, setSessionError] = useState(null)
   const [isSessionRequired, setIsSessionRequired] = useState(false)
@@ -167,6 +171,55 @@ export default function Quiz() {
   const isFirstSolved =
     Boolean(submissionResult?.xpGranted) && submissionResult?.nextStatus === 'solved'
   const solvingDurationLabel = submissionResult?.solvingDurationLabel ?? ''
+  const canOpenRecommended = submissionResult?.nextStatus === 'solved'
+
+  useEffect(() => {
+    if (!isResultView || !canOpenRecommended) {
+      return
+    }
+
+    let isActive = true
+
+    const fetchRecommendedProblem = async () => {
+      setIsOpeningRecommended(true)
+      setRecommendedProblemId(null)
+      setRecommendedError(null)
+
+      try {
+        const response = await api.get('/api/problems/recommended')
+        if (!isActive) {
+          return
+        }
+
+        const nextProblemId = response?.data?.data?.problem?.problemId
+        if (!nextProblemId) {
+          return
+        }
+
+        setRecommendedProblemId(nextProblemId)
+      } catch (error) {
+        if (!isActive) {
+          return
+        }
+
+        if (error?.response?.status === 404) {
+          return
+        }
+
+        setRecommendedError('추천 문제를 불러오지 못했습니다.')
+      } finally {
+        if (isActive) {
+          setIsOpeningRecommended(false)
+        }
+      }
+    }
+
+    fetchRecommendedProblem()
+
+    return () => {
+      isActive = false
+    }
+  }, [canOpenRecommended, isResultView])
 
   const handleSelectChoice = (choiceIndex) => {
     if (!currentQuiz || isSubmitting || hasAnsweredCurrent) {
@@ -282,6 +335,13 @@ export default function Quiz() {
 
   const handleGoHome = () => {
     navigate('/')
+  }
+
+  const handleOpenRecommended = () => {
+    if (!recommendedProblemId) {
+      return
+    }
+    navigate(`/problems/${recommendedProblemId}`)
   }
 
   const handleStartSession = async () => {
@@ -437,6 +497,20 @@ export default function Quiz() {
               </div>
             </div>
             <div className="space-y-3">
+              {canOpenRecommended ? (
+                <Button
+                  className="w-full rounded-xl border-2 border-info/50 bg-info/50 text-info-foreground hover:bg-info/50 hover:opacity-100 disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-neutral-600 disabled:opacity-100"
+                  disabled={isOpeningRecommended || !recommendedProblemId}
+                  onClick={handleOpenRecommended}
+                  variant="secondary"
+                >
+                  {isOpeningRecommended
+                    ? '추천 문제 확인 중...'
+                    : recommendedProblemId
+                      ? '다음 추천 문제 풀기'
+                      : '추천 문제 준비 중'}
+                </Button>
+              ) : null}
               <Button
                 className="w-full rounded-xl border-2 border-info bg-info text-info-foreground hover:bg-info hover:opacity-100"
                 onClick={isPerfectScore ? handleGoProblemList : handleRestart}
@@ -451,6 +525,7 @@ export default function Quiz() {
               >
                 홈으로 돌아가기
               </Button>
+              {recommendedError ? <p className="text-xs text-danger">{recommendedError}</p> : null}
             </div>
           </div>
         </div>
