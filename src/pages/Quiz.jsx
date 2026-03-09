@@ -412,7 +412,7 @@ export default function Quiz() {
         </div>
       </div>
 
-      {hasActiveSession ? (
+      {hasActiveSession && !isResultView ? (
         <div className="flex justify-end">
           <SessionTimer expiresAt={problemSession?.expiresAt} />
         </div>
