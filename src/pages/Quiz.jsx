@@ -1,6 +1,6 @@
 import { BookOpen, Brain, Clover, Trophy } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import SessionTimer from '@/components/SessionTimer'
@@ -33,6 +33,7 @@ const TAB_ITEMS = [
 const ACTIVE_TAB_ID = 'quiz'
 const QUIZ_ALLOWED_STATUSES = ['summary_card_passed', 'solved']
 const QUIZ_REWARD_XP = 50
+const PerfectScoreLottie = lazy(() => import('@/components/PerfectScoreLottie'))
 
 const markdownComponents = {
   p: ({ children }) => <span>{children}</span>,
@@ -531,10 +532,17 @@ export default function Quiz() {
         </Card>
       ) : isResultView ? (
         <div className="flex min-h-[70vh] flex-col items-center justify-center">
-          <div className="w-full space-y-6 text-center">
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex h-20 w-20 items-center justify-center rounded-full bg-background shadow-sm">
-                <Trophy className="h-10 w-10" />
+          <div className="relative w-full space-y-6 text-center">
+            <div className="relative z-10 flex flex-col items-center gap-3">
+              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-background shadow-sm">
+                {isPerfectScore ? (
+                  <div className="pointer-events-none absolute left-1/2 top-0 z-0 w-[260px] -translate-x-1/2 -translate-y-[50%]">
+                    <Suspense fallback={null}>
+                      <PerfectScoreLottie containerClassName="w-full opacity-90" />
+                    </Suspense>
+                  </div>
+                ) : null}
+                <Trophy className="relative z-10 h-10 w-10" />
               </div>
               <div className="space-y-4">
                 {isPerfectScore ? (
@@ -555,7 +563,7 @@ export default function Quiz() {
                 ) : null}
               </div>
             </div>
-            <div className="space-y-3">
+            <div className="relative z-10 space-y-3">
               {canOpenRecommended ? (
                 <Button
                   className="w-full rounded-xl border-2 border-info/50 bg-info/50 text-info-foreground hover:bg-info/50 hover:opacity-100 disabled:border-neutral-300 disabled:bg-neutral-200 disabled:text-neutral-600 disabled:opacity-100"
