@@ -89,7 +89,10 @@ export default function Quiz() {
   const attemptId = session?.attemptId ?? null
   const isResultView = session?.isResultView ?? false
   const submissionResult = session?.submissionResult ?? null
-  const quizzes = useMemo(() => problemSession?.quizzes ?? [], [problemSession])
+  const quizzes = useMemo(
+    () => problemSession?.quizzes ?? problem?.quizzes ?? [],
+    [problem?.quizzes, problemSession?.quizzes],
+  )
   const explanationRef = useRef(null)
   const totalQuestions = quizzes.length
 
@@ -121,7 +124,11 @@ export default function Quiz() {
 
         if (String(activeSession?.problemId ?? '') === String(problemId)) {
           setProblemSession(problemId, activeSession)
+          return
         }
+
+        clearProblemSession(problemId)
+        navigate(`/problems/${problemId}`, { replace: true })
       } catch (error) {
         if (!isActive) {
           return
@@ -207,6 +214,19 @@ export default function Quiz() {
       updateSession(problemId, { currentIndex: totalQuestions - 1 })
     }
   }, [currentIndex, problemId, totalQuestions, updateSession])
+
+  useEffect(() => {
+    return () => {
+      if (!problemId) {
+        return
+      }
+      const currentSession = useQuizStore.getState().sessions[String(problemId)]
+      if (currentSession?.isResultView) {
+        useQuizStore.getState().resetSession(problemId)
+      }
+    }
+  }, [problemId])
+
   const currentQuiz = quizzes[currentIndex]
   const correctCount = useMemo(() => Object.values(results).filter(Boolean).length, [results])
 
@@ -370,6 +390,11 @@ export default function Quiz() {
         title: problem?.title,
       })
       updateSession(problemId, { submissionResult: response, isResultView: true })
+      setProblemSession(problemId, {
+        problemId,
+        summaryCards: problemSession?.summaryCards ?? [],
+        quizzes: problemSession?.quizzes ?? problem?.quizzes ?? [],
+      })
     } catch (error) {
       if (isSessionRequiredError(error)) {
         setIsSessionRequired(true)
@@ -489,7 +514,7 @@ export default function Quiz() {
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
           <p className="text-sm text-muted-foreground">세션 정보를 확인하는 중입니다.</p>
         </Card>
-      ) : isSessionRequired || !hasActiveSession ? (
+      ) : !isResultView && (isSessionRequired || !hasActiveSession) ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
           <p className="text-sm text-muted-foreground">
             {isExpired || isSessionRequired
@@ -526,7 +551,7 @@ export default function Quiz() {
             </Button>
           </div>
         </Card>
-      ) : totalQuestions === 0 ? (
+      ) : !isResultView && totalQuestions === 0 ? (
         <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
           <p className="text-sm text-muted-foreground">등록된 퀴즈가 없습니다.</p>
         </Card>
