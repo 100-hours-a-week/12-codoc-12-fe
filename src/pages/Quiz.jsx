@@ -370,11 +370,12 @@ export default function Quiz() {
     try {
       const response = await submitProblem(problemId, { sessionId })
       const correctCountForEvent = response?.correctCount ?? correctCount
+      const isPerfectResult = totalQuestions > 0 && correctCountForEvent === totalQuestions
       trackEvent('quiz_complete', {
         problem_id: String(problemId),
         correct_count: correctCountForEvent,
         total_questions: totalQuestions,
-        is_perfect: totalQuestions > 0 && correctCountForEvent === totalQuestions,
+        is_perfect: isPerfectResult,
         xp_granted: response?.xpGranted ?? null,
         next_status: response?.nextStatus ?? null,
       })
@@ -390,11 +391,9 @@ export default function Quiz() {
         title: problem?.title,
       })
       updateSession(problemId, { submissionResult: response, isResultView: true })
-      setProblemSession(problemId, {
-        problemId,
-        summaryCards: problemSession?.summaryCards ?? [],
-        quizzes: problemSession?.quizzes ?? problem?.quizzes ?? [],
-      })
+      if (isPerfectResult && response?.closedAt) {
+        clearProblemSession(problemId)
+      }
     } catch (error) {
       if (isSessionRequiredError(error)) {
         setIsSessionRequired(true)
@@ -412,6 +411,9 @@ export default function Quiz() {
 
   const handleRestart = () => {
     resetSession(problemId)
+    setIsSessionRequired(false)
+    setSessionError(null)
+    setActionError(null)
   }
 
   const handleGoHome = () => {
