@@ -242,8 +242,9 @@ export default function Quiz() {
   const currentExplanation = currentQuiz ? explanations[currentQuiz.id] : ''
   const isPrimaryActionEnabled =
     hasAnsweredCurrent || (selectedChoiceIndex !== null && selectedChoiceIndex !== undefined)
+  const resultTotalQuestions = submissionResult?.totalQuestionsAtSubmission ?? totalQuestions
   const totalCorrect = submissionResult?.correctCount ?? correctCount
-  const isPerfectScore = totalQuestions > 0 && totalCorrect === totalQuestions
+  const isPerfectScore = resultTotalQuestions > 0 && totalCorrect === resultTotalQuestions
   const isFirstSolved =
     Boolean(submissionResult?.xpGranted) && submissionResult?.nextStatus === 'solved'
   const solvingDurationLabel = submissionResult?.solvingDurationLabel ?? ''
@@ -390,7 +391,13 @@ export default function Quiz() {
         difficulty: problem?.difficulty,
         title: problem?.title,
       })
-      updateSession(problemId, { submissionResult: response, isResultView: true })
+      updateSession(problemId, {
+        submissionResult: {
+          ...response,
+          totalQuestionsAtSubmission: totalQuestions,
+        },
+        isResultView: true,
+      })
       if (isPerfectResult && response?.closedAt) {
         clearProblemSession(problemId)
       }
@@ -495,7 +502,7 @@ export default function Quiz() {
         </div>
       </div>
 
-      {hasActiveSession && !isResultView && !isSessionSyncing ? (
+      {hasActiveSession && !isSessionSyncing ? (
         <div className="flex justify-end">
           <SessionTimer expiresAt={problemSession?.expiresAt} />
         </div>
@@ -578,7 +585,7 @@ export default function Quiz() {
                   <p className="text-xl font-semibold">다시 도전해보세요!</p>
                 )}
                 <p className="text-2xl font-semibold">
-                  {totalCorrect} / {totalQuestions}
+                  {totalCorrect} / {resultTotalQuestions}
                 </p>
                 {isFirstSolved ? (
                   <p className="text-lg font-semibold text-info">+{QUIZ_REWARD_XP} XP</p>
