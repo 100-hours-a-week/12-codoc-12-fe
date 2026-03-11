@@ -568,21 +568,33 @@ export default function Quiz() {
         <div className="flex min-h-[70vh] flex-col items-center justify-center">
           <div className="relative w-full space-y-6 text-center">
             <div className="relative z-10 flex flex-col items-center gap-3">
-              <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-background shadow-sm">
+              <div
+                className={`relative flex items-center justify-center ${
+                  isPerfectScore
+                    ? 'h-[clamp(180px,58vw,260px)] w-[clamp(180px,58vw,260px)] isolate'
+                    : 'h-20 w-20 rounded-full bg-background shadow-sm'
+                }`}
+              >
                 {isPerfectScore ? (
-                  <div className="pointer-events-none absolute left-1/2 top-0 z-10 w-[260px] -translate-x-1/2 -translate-y-[50%]">
-                    <Suspense fallback={null}>
-                      <PerfectScoreLottie containerClassName="w-full opacity-90" />
-                    </Suspense>
+                  <div className="relative h-full w-full">
+                    <img
+                      alt="퀴즈 완료 콘페티"
+                      className="absolute inset-0 z-0 m-auto h-[clamp(170px,55vw,250px)] w-[clamp(170px,55vw,250px)] max-w-none object-contain"
+                      src="/codoc-confetti.png"
+                    />
+                    <div className="pointer-events-none absolute left-1/2 top-0 z-20 h-[clamp(180px,50vw,240px)] w-[clamp(240px,74vw,360px)] -translate-x-1/2 -translate-y-[55%]">
+                      <Suspense fallback={null}>
+                        <PerfectScoreLottie
+                          containerClassName="absolute inset-0 h-full w-full opacity-80"
+                          loopDelayMs={1000}
+                          speed={0.8}
+                        />
+                      </Suspense>
+                    </div>
                   </div>
                 ) : null}
-                <img
-                  alt="퀴즈 완료 콘페티"
-                  className="relative z-0 h-[250px] w-[250px] shrink-0 max-w-none object-contain"
-                  src="/codoc-confetti.png"
-                />
               </div>
-              <div className="space-y-4">
+              <div className="relative z-10 space-y-4">
                 {isPerfectScore ? (
                   <p className="text-xl font-semibold">축하합니다!</p>
                 ) : (
