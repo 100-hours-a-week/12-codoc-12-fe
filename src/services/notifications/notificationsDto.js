@@ -1,9 +1,10 @@
 const NOTIFICATION_TYPE_LABELS = {
-  ATTENDANCE: '연속 학습 알림',
-  AI_RECOMMENDED_PROBLEM_ISSUED: 'AI 추천 문제 발급 알림',
-  AI_ANALYSIS_REPORT_CREATED: 'AI 분석 레포트 생성 알림',
-  LEADERBOARD_CLOSED: '리더보드 시즌 종료 알림',
-  CHAT: '채팅 알림',
+  ATTENDANCE: '연속 학습 (일일)',
+  AI_RECOMMENDED_PROBLEM_ISSUED: 'AI 추천 문제 발급 (일일)',
+  AI_ANALYSIS_REPORT_CREATED: 'AI 분석 레포트 발급 (주간)',
+  LEADERBOARD_CLOSED: '리더보드 시즌 종료',
+  LEADERBOARD_STARTED: '리더보드 시즌 시작',
+  CHAT: '채팅',
 }
 
 const toNotificationTypeLabel = (type) => NOTIFICATION_TYPE_LABELS[type] ?? type ?? '알림'
