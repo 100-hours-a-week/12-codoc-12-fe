@@ -1,4 +1,4 @@
-import { BookOpen, Brain, Clover, Trophy } from 'lucide-react'
+import { BookOpen, Brain, Clover } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -570,13 +570,17 @@ export default function Quiz() {
             <div className="relative z-10 flex flex-col items-center gap-3">
               <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-background shadow-sm">
                 {isPerfectScore ? (
-                  <div className="pointer-events-none absolute left-1/2 top-0 z-0 w-[260px] -translate-x-1/2 -translate-y-[50%]">
+                  <div className="pointer-events-none absolute left-1/2 top-0 z-10 w-[260px] -translate-x-1/2 -translate-y-[50%]">
                     <Suspense fallback={null}>
                       <PerfectScoreLottie containerClassName="w-full opacity-90" />
                     </Suspense>
                   </div>
                 ) : null}
-                <Trophy className="relative z-10 h-10 w-10" />
+                <img
+                  alt="퀴즈 완료 콘페티"
+                  className="relative z-0 h-[250px] w-[250px] shrink-0 max-w-none object-contain"
+                  src="/codoc-confetti.png"
+                />
               </div>
               <div className="space-y-4">
                 {isPerfectScore ? (
