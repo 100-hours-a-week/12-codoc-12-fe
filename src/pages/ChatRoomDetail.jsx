@@ -16,6 +16,7 @@ import { getAccessTokenPayload } from '@/lib/auth'
 import { toChatMessageItem } from '@/services/chat/chatDto'
 import {
   createChatStompConnection,
+  toChatMessageReadAckDestination,
   toChatMessageSendDestination,
   toChatRoomTopic,
 } from '@/services/chat/chatRealtime'
@@ -137,6 +138,17 @@ const toCreatedAtTime = (message) => {
 const toNumericMessageId = (message) => {
   const value = Number(message?.messageId)
   return Number.isFinite(value) ? value : null
+}
+
+const toLatestReadAckMessageId = (items = []) => {
+  for (const item of items) {
+    const messageId = toNumericMessageId(item)
+    if (messageId != null && messageId > 0) {
+      return messageId
+    }
+  }
+
+  return null
 }
 
 const compareMessagesDesc = (a, b) => {
@@ -320,6 +332,7 @@ export default function ChatRoomDetail() {
   const previousMessageCountRef = useRef(0)
   const prependScrollRestoreRef = useRef(null)
   const lastLoadMoreAtRef = useRef(0)
+  const lastReadAckMessageIdRef = useRef(0)
 
   useEffect(() => {
     const previousBodyOverflow = document.body.style.overflow
@@ -409,6 +422,7 @@ export default function ChatRoomDetail() {
   )
 
   const orderedMessages = useMemo(() => [...messages].reverse(), [messages])
+  const latestReadAckMessageId = useMemo(() => toLatestReadAckMessageId(messages), [messages])
   const shouldShowScrollDownButton =
     !isAtBottom &&
     !isLoading &&
@@ -601,6 +615,36 @@ export default function ChatRoomDetail() {
       window.clearTimeout(timer)
     }
   }, [isLoading, messages.length, normalizedRoomId, refreshUnreadChatStatus])
+
+  useEffect(() => {
+    lastReadAckMessageIdRef.current = 0
+  }, [normalizedRoomId])
+
+  useEffect(() => {
+    if (normalizedRoomId == null || latestReadAckMessageId == null) {
+      return
+    }
+    if (!isNetworkOnline || connectionStatus !== 'connected') {
+      return
+    }
+    if (latestReadAckMessageId <= lastReadAckMessageIdRef.current) {
+      return
+    }
+
+    const connection = connectionRef.current
+    if (!connection || !connection.isConnected()) {
+      return
+    }
+
+    try {
+      connection.publishJson(toChatMessageReadAckDestination(normalizedRoomId), {
+        lastReadMessageId: latestReadAckMessageId,
+      })
+      lastReadAckMessageIdRef.current = latestReadAckMessageId
+    } catch {
+      return
+    }
+  }, [connectionStatus, isNetworkOnline, latestReadAckMessageId, normalizedRoomId])
 
   useEffect(() => {
     if (normalizedRoomId == null) {
