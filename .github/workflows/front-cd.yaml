@@ -4,13 +4,11 @@ on:
   workflow_call:
     inputs:
       ref_name:
-        description: 'Branch name from caller workflow'
         required: true
         type: string
   workflow_dispatch:
     inputs:
       ref_name:
-        description: 'Branch name to deploy'
         required: true
         type: string
 
@@ -19,137 +17,133 @@ permissions:
   actions: read
 
 concurrency:
-  group: frontend-cd-s3-cloudfront
-  cancel-in-progress: true
+  group: frontend-cd
+  cancel-in-progress: false
 
 jobs:
-  deploy:
-    # develop 자동 배포, main은 수동 실행일 때만 배포
-    if: >
-      inputs.ref_name == 'develop' ||
-      (github.event_name == 'workflow_dispatch' && inputs.ref_name == 'main')
 
+  deploy-dev:
+    if: inputs.ref_name == 'develop'
     runs-on: ubuntu-latest
 
     steps:
-      # 1. CI artifact 다운로드
-      - name: Download FE Artifact (from CI run)
+      - name: Download artifact
         uses: actions/download-artifact@v4
         with:
           name: frontend-build
           path: ./artifact
-          github-token: ${{ github.token }}
 
-      # 2. 다운로드 확인
-      - name: List downloaded files
-        run: |
-          echo "Downloaded artifact:"
-          find ./artifact -maxdepth 3 -type f | head -n 200
+      - name: Clean release dir on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            rm -rf /home/ubuntu/frontend-release/*
 
-      # 3. 빌드 산출물 폴더 탐지
-      - name: Detect build output folder
-        id: out
-        run: |
-          OUT=""
-          [ -d artifact/dist ] && OUT="artifact/dist"
-          [ -z "$OUT" ] && [ -d artifact/build ] && OUT="artifact/build"
-          [ -z "$OUT" ] && [ -d artifact/.next ] && OUT="artifact/.next"
-          # download-artifact가 폴더 없이 루트에 바로 풀리는 경우 대응
-          if [ -z "$OUT" ] && [ -f artifact/index.html ]; then
-            OUT="artifact"
-          fi
-          if [ -z "$OUT" ]; then
-            echo "ERROR: No build output found under artifact/ (dist/build/.next)"
-            echo "Artifact directory snapshot:"
-            find artifact -maxdepth 3 -mindepth 1 -print | head -n 200 || true
-            exit 1
-          fi
-          echo "path=$OUT" >> $GITHUB_OUTPUT
-          echo "Detected output: $OUT"
+      - name: Upload to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_SSH_KEY }}
+          source: "artifact/**"
+          target: "/home/ubuntu/frontend-release"
+          strip_components: 1
 
-      # 4. 배포 대상(bucket/distribution) 선택
-      - name: Resolve deploy target
-        id: target
-        env:
-          REF_NAME: ${{ inputs.ref_name }}
-          FE_S3_BUCKET_DEV: ${{ secrets.FE_S3_BUCKET_DEV }}
-          FE_S3_BUCKET_PROD: ${{ secrets.FE_S3_BUCKET_PROD }}
-          FE_CF_DIST_DEV: ${{ secrets.FE_CF_DIST_DEV }}
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEV_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEV_SSH_KEY }}
+          script: |
+            sudo rm -rf /var/www/current/*
+            sudo cp -r /home/ubuntu/frontend-release/* /var/www/current/
+
+      - name: Health check dev
         run: |
-          set -euo pipefail
-          if [ "$REF_NAME" = "develop" ]; then
-            BUCKET="$FE_S3_BUCKET_DEV"
-            DIST_ID="$FE_CF_DIST_DEV"
-          elif [ "$REF_NAME" = "main" ]; then
-            BUCKET="$FE_S3_BUCKET_PROD"
-            DIST_ID="$FE_CF_DIST_DEV"
+          curl --fail --silent --show-error https://dev.codoc.cloud/ > /dev/null
+
+      - name: Notify CD result to Discord
+        if: always()
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ "${{ job.status }}" = "success" ]; then
+            STATUS="success"
+            COLOR="65280"
           else
-            echo "Unsupported ref_name for deploy: $REF_NAME"
-            exit 1
+            STATUS="failure"
+            COLOR="16711680"
           fi
 
-          [ -n "$BUCKET" ] || (echo "Missing S3 bucket secret" && exit 1)
-          [ -n "$DIST_ID" ] || (echo "Missing CloudFront distribution secret" && exit 1)
+          curl -X POST -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"[FE] CD result\",
+                \"description\": \"Status: ${STATUS}\\nBranch: develop\\nTarget: https://dev.codoc.cloud/\",
+                \"color\": ${COLOR},
+                \"fields\": [
+                  {\"name\": \"Run\", \"value\": \"${RUN_URL}\"}
+                ]
+              }]
+            }" \
+            "${{ secrets.DISCORD_WEBHOOK }}"
 
-          echo "bucket=$BUCKET" >> $GITHUB_OUTPUT
-          echo "dist_id=$DIST_ID" >> $GITHUB_OUTPUT
+  deploy-prod:
+    if: inputs.ref_name == 'main'
+    runs-on: ubuntu-latest
 
-      # 5. AWS 자격증명 설정
-      - name: Configure AWS credentials
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: ./artifact
+
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 6. S3 배포
-      - name: Sync build to S3
+      - name: Deploy to S3
         run: |
-          aws s3 sync "${{ steps.out.outputs.path }}/" "s3://${{ steps.target.outputs.bucket }}" --delete
+          aws s3 sync artifact/ s3://${{ secrets.FE_S3_BUCKET_PROD }} --delete
 
-      # 7. CloudFront 무효화
-      - name: Invalidate CloudFront
+      - name: CloudFront invalidation
         run: |
           aws cloudfront create-invalidation \
-            --distribution-id "${{ steps.target.outputs.dist_id }}" \
+            --distribution-id ${{ secrets.FE_CF_DIST_PROD }} \
             --paths "/*"
 
-      # 8. Discord 알림
-      - name: Notify Discord
-        if: always()
-        env:
-          COMMIT_MSG_RAW: ${{ github.event.head_commit.message }}
+      - name: Health check prod
         run: |
-          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          BRANCH="${{ inputs.ref_name }}"
-          SHA="${{ github.sha }}"
-          ACTOR="${{ github.actor }}"
-          COMMIT_MSG="${COMMIT_MSG_RAW}"
+          curl --fail --silent --show-error https://codoc.cloud/ > /dev/null
 
-          if [ -z "$COMMIT_MSG" ]; then
-            COMMIT_MSG="(커밋 메시지를 이벤트에서 가져올 수 없음)"
-          fi
-
-          COMMIT_MSG_ESCAPED="$(printf '%s' "$COMMIT_MSG" | sed 's/\\/\\\\/g; s/\"/\\\"/g')"
-
+      - name: Notify CD result to Discord
+        if: always()
+        run: |
+          RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           if [ "${{ job.status }}" = "success" ]; then
-            STATUS="성공"
+            STATUS="success"
             COLOR="65280"
           else
-            STATUS="실패"
+            STATUS="failure"
             COLOR="16711680"
           fi
 
           curl -X POST -H "Content-Type: application/json" \
-          -d "{
-            \"embeds\": [{
-              \"title\": \"[FE] CD 결과 알림\",
-              \"description\": \"**상태**: ${STATUS}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
-              \"color\": ${COLOR},
-              \"fields\": [
-                {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG_ESCAPED}\"},
-                {\"name\": \"로그\", \"value\": \"${RUN_URL}\"}
-              ]
-            }]
-          }" \
-          ${{ secrets.DISCORD_WEBHOOK }}
+            -d "{
+              \"embeds\": [{
+                \"title\": \"[FE] CD result\",
+                \"description\": \"Status: ${STATUS}\\nBranch: main\\nTarget: https://codoc.cloud/\",
+                \"color\": ${COLOR},
+                \"fields\": [
+                  {\"name\": \"Run\", \"value\": \"${RUN_URL}\"}
+                ]
+              }]
+            }" \
+            "${{ secrets.DISCORD_WEBHOOK }}"

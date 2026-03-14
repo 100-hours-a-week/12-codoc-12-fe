@@ -1,66 +1,56 @@
 name: frontend-ci
 
 on:
-  # 1) PR이 develop/main으로 들어올 때: 품질 게이트(병합 전 검증)
   pull_request:
     branches: [develop, main]
 
-  # 2) main/develop 브랜치에 push될 때: 테스트용 빌드 + artifact 업로드
   push:
-    branches: [main, develop]
+    branches: [develop, main]
 
-  # 3) 필요하면 수동 실행
   workflow_dispatch: {}
 
 permissions:
   contents: read
   actions: read
 
-# 같은 PR/브랜치에서 커밋이 연속으로 올라오면
-# 이전 실행을 취소하고 최신 커밋만 검증해서 CI 낭비를 줄임
 concurrency:
-  group: frontend-ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  group: frontend-ci
+  cancel-in-progress: false
 
 jobs:
   verify:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 레포 코드 체크아웃
       - name: Checkout
         uses: actions/checkout@v4
 
-      # 2. Node 20 환경 구성 + npm 캐시 사용
-      - name: Setup Node.js (20)
+      - name: Setup Node 20
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: package-lock.json
+          node-version: "20"
+          cache: "npm"
 
-      # 3. 의존성 설치
-      - name: Install
+      - name: Install deps
         env:
           HUSKY: 0
         run: npm ci
 
-      # 4. ESLint 검사
       - name: Lint
         if: github.event_name == 'push'
-        run: npm run lint
+        run: npm run lint --if-present
 
-      # 5. Prettier 포맷 체크 (warn-only)
-      - name: Format Check (warn-only)
+      - name: Format check
         continue-on-error: true
-        run: npm run format:check
+        run: npm run format:check --if-present
 
-      # 6. 타입체크 (있으면)
       - name: Typecheck
         run: npm run typecheck --if-present
 
-      # 7. 의존성 취약점 검사
-      - name: Dependency Audit (warn-only)
+      - name: Test
+        run: npm test --if-present
+
+      - name: Dependency audit (warn-only)
         id: audit
         continue-on-error: true
         run: |
@@ -77,107 +67,84 @@ jobs:
           fs.appendFileSync(process.env.GITHUB_OUTPUT, `high=${high}\ncritical=${critical}\n`);
           NODE
 
-      # 8. audit 경고 알림
-      - name: Notify Audit (Discord)
+      - name: Notify audit warning to Discord
         if: steps.audit.outputs.high != '0' || steps.audit.outputs.critical != '0'
         run: |
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           curl -X POST -H "Content-Type: application/json" \
-          -d "{\"content\":\"⚠️ **Frontend Audit 경고 (warn-only)**\\nHigh: ${{ steps.audit.outputs.high }} / Critical: ${{ steps.audit.outputs.critical }}\\nRepo: ${{ github.repository }}\\nRef: ${{ github.ref }}\\nActor: ${{ github.actor }}\\nRun: ${RUN_URL}\"}" \
-          ${{ secrets.DISCORD_WEBHOOK }}
+            -d "{\"content\":\"⚠️ Frontend audit warning\\nHigh: ${{ steps.audit.outputs.high }} / Critical: ${{ steps.audit.outputs.critical }}\\nRepo: ${{ github.repository }}\\nRef: ${{ github.ref }}\\nActor: ${{ github.actor }}\\nRun: ${RUN_URL}\"}" \
+            "${{ secrets.DISCORD_WEBHOOK }}"
 
-      # 9. 테스트 (있으면)
-      - name: Test
-        run: npm test --if-present
-
-      # 10. 빌드타임 .env 주입
-      - name: Prepare .env (build-time)
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+      - name: Inject build env
         env:
-          FE_ENV: ${{ secrets.FE_ENV }}
+          FE_ENV: ${{ ((github.event_name == 'pull_request' && github.base_ref == 'main') || (github.event_name == 'push' && github.ref_name == 'main')) && secrets.FE_ENV_PROD || secrets.FE_ENV_DEV }}
         run: |
-          if [ -z "$FE_ENV" ]; then
-            echo "ERROR: FE_ENV secret is empty"
-            exit 1
-          fi
           printf '%s' "$FE_ENV" > .env
 
-      # 10. 빌드
       - name: Build
-        env:
-          # push 빌드에서 브랜치별 GA ID 주입
-          VITE_GA_ID: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && secrets.VITE_GA_ID_PROD || github.event_name == 'push' && github.ref == 'refs/heads/develop' && secrets.VITE_GA_ID_DEV || '' }}
         run: npm run build
 
-      # 11. 빌드 산출물 감지
       - name: Detect build output
         id: out
         run: |
-          OUT=""
-          [ -d dist ] && OUT="$OUT dist"
-          [ -d build ] && OUT="$OUT build"
-          [ -d .next ] && OUT="$OUT .next"
-          OUT="$(echo $OUT | xargs)"
-          echo "paths=$OUT" >> $GITHUB_OUTPUT
-          echo "Detected: $OUT"
-          if [ -z "$OUT" ]; then
-            echo "ERROR: No build output directory found (dist/build/.next)"
+          if [ -d dist ]; then
+            echo "path=dist" >> $GITHUB_OUTPUT
+          elif [ -d build ]; then
+            echo "path=build" >> $GITHUB_OUTPUT
+          else
+            echo "Build output not found"
             exit 1
           fi
 
-      # 12. artifact 업로드 (main / develop)
-      - name: Upload Artifact
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+      - name: Upload artifact
+        if: github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: frontend-build
-          path: ${{ steps.out.outputs.paths }}
-          if-no-files-found: error
+          path: ${{ steps.out.outputs.path }}
           retention-days: 7
 
-      # 13. Discord 알림 (항상)
-      - name: Notify Discord (always)
+      - name: Notify CI result to Discord
         if: always()
         env:
           COMMIT_MSG_RAW: ${{ github.event.head_commit.message }}
         run: |
           RUN_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           BRANCH="${{ github.ref_name }}"
-          EVENT="${{ github.event_name }}"
           ACTOR="${{ github.actor }}"
-          SHA="${{ github.sha }}"
           COMMIT_MSG="${COMMIT_MSG_RAW}"
 
           if [ -z "$COMMIT_MSG" ]; then
-            COMMIT_MSG="(커밋 메시지를 이벤트에서 가져올 수 없음)"
+            COMMIT_MSG="(commit message unavailable for this event)"
           fi
 
           COMMIT_MSG_ESCAPED="$(printf '%s' "$COMMIT_MSG" | sed 's/\\/\\\\/g; s/\"/\\\"/g')"
 
           if [ "${{ job.status }}" = "success" ]; then
-            STATUS="성공"
+            STATUS="success"
             COLOR="65280"
           else
-            STATUS="실패"
+            STATUS="failure"
             COLOR="16711680"
           fi
 
           curl -X POST -H "Content-Type: application/json" \
-          -d "{
-            \"embeds\": [{
-              \"title\": \"[FE] CI 결과 알림\",
-              \"description\": \"**상태**: ${STATUS}\\n**브랜치**: ${BRANCH}\\n**담당자**: ${ACTOR}\",
-              \"color\": ${COLOR},
-              \"fields\": [
-                {\"name\": \"커밋 메시지\", \"value\": \"${COMMIT_MSG_ESCAPED}\"},
-                {\"name\": \"로그\", \"value\": \"${RUN_URL}\"}
-              ]
-            }]
-          }" \
-          ${{ secrets.DISCORD_WEBHOOK }}
+            -d "{
+              \"embeds\": [{
+                \"title\": \"[FE] CI result\",
+                \"description\": \"Status: ${STATUS}\\nBranch: ${BRANCH}\\nActor: ${ACTOR}\",
+                \"color\": ${COLOR},
+                \"fields\": [
+                  {\"name\": \"Commit\", \"value\": \"${COMMIT_MSG_ESCAPED}\"},
+                  {\"name\": \"Run\", \"value\": \"${RUN_URL}\"}
+                ]
+              }]
+            }" \
+            "${{ secrets.DISCORD_WEBHOOK }}"
 
   deploy:
     needs: verify
+    if: github.event_name == 'push'
     uses: ./.github/workflows/front-cd.yaml
     secrets: inherit
     with:
