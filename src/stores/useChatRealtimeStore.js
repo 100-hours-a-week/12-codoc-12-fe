@@ -57,9 +57,9 @@ export const useChatRealtimeStore = create((set, get) => ({
     set({ isUnreadChatRefreshing: true })
 
     try {
-      const { hasUnread, totalUnreadCount } = await getChatUnreadStatus()
+      const { totalUnreadCount } = await getChatUnreadStatus()
       set({
-        hasUnreadChat: Boolean(hasUnread),
+        hasUnreadChat: Number.isFinite(totalUnreadCount) && totalUnreadCount > 0,
         totalUnreadChatCount:
           Number.isFinite(totalUnreadCount) && totalUnreadCount > 0 ? totalUnreadCount : 0,
       })
