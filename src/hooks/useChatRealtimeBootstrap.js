@@ -1,7 +1,11 @@
 import { useEffect, useRef } from 'react'
 
 import { getAccessTokenPayload } from '@/lib/auth'
-import { createChatStompConnection, toUserChatRoomsTopic } from '@/services/chat/chatRealtime'
+import {
+  createChatStompConnection,
+  toUserChatRoomsTopic,
+  toUserChatUnreadStatusTopic,
+} from '@/services/chat/chatRealtime'
 import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 
 const toCurrentUserId = () => {
@@ -15,10 +19,12 @@ const toCurrentUserId = () => {
 
 export const useChatRealtimeBootstrap = () => {
   const applyRoomUpdate = useChatRealtimeStore((state) => state.applyRoomUpdate)
+  const applyUnreadStatus = useChatRealtimeStore((state) => state.applyUnreadStatus)
   const refreshUnreadChatStatus = useChatRealtimeStore((state) => state.refreshUnreadChatStatus)
 
   const connectionRef = useRef(null)
-  const subscriptionRef = useRef(null)
+  const roomSubscriptionRef = useRef(null)
+  const unreadSubscriptionRef = useRef(null)
   const connectionTokenRef = useRef(0)
 
   useEffect(() => {
@@ -58,14 +64,25 @@ export const useChatRealtimeBootstrap = () => {
           return
         }
 
-        subscriptionRef.current?.unsubscribe()
-        subscriptionRef.current = connectionRef.current?.subscribe(
+        roomSubscriptionRef.current?.unsubscribe()
+        roomSubscriptionRef.current = connectionRef.current?.subscribe(
           toUserChatRoomsTopic(userId),
           (payload) => {
             if (!payload || typeof payload !== 'object') {
               return
             }
             applyRoomUpdate(payload)
+          },
+        )
+
+        unreadSubscriptionRef.current?.unsubscribe()
+        unreadSubscriptionRef.current = connectionRef.current?.subscribe(
+          toUserChatUnreadStatusTopic(userId),
+          (payload) => {
+            if (!payload || typeof payload !== 'object') {
+              return
+            }
+            applyUnreadStatus(payload)
           },
         )
       },
@@ -76,10 +93,12 @@ export const useChatRealtimeBootstrap = () => {
 
     return () => {
       connectionTokenRef.current += 1
-      subscriptionRef.current?.unsubscribe()
-      subscriptionRef.current = null
+      roomSubscriptionRef.current?.unsubscribe()
+      roomSubscriptionRef.current = null
+      unreadSubscriptionRef.current?.unsubscribe()
+      unreadSubscriptionRef.current = null
       connectionRef.current = null
       connection.deactivate()
     }
-  }, [applyRoomUpdate])
+  }, [applyRoomUpdate, applyUnreadStatus, refreshUnreadChatStatus])
 }

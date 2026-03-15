@@ -52,6 +52,8 @@ export const toChatRoomTopic = (roomId) => `/sub/chat/rooms/${roomId}`
 
 export const toUserChatRoomsTopic = (userId) => `/sub/users/${userId}/chat-rooms`
 
+export const toUserChatUnreadStatusTopic = (userId) => `/sub/users/${userId}/chat-unread-status`
+
 export const toChatMessageSendDestination = (roomId) => `/pub/chat/messages/${roomId}`
 
 export const toChatMessageReadAckDestination = (roomId) => `/pub/chat/messages/${roomId}/read-ack`

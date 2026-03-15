@@ -21,7 +21,6 @@ import {
   toChatRoomTopic,
 } from '@/services/chat/chatRealtime'
 import { getChatRoomMessages, getUserChatRoom, leaveChatRoom } from '@/services/chat/chatService'
-import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
 
 const PAGE_LIMIT = 30
 const MAX_INPUT_LENGTH = 500
@@ -320,8 +319,6 @@ export default function ChatRoomDetail() {
   const [isLeaveDialogOpen, setIsLeaveDialogOpen] = useState(false)
   const [isLeaving, setIsLeaving] = useState(false)
   const [leaveError, setLeaveError] = useState('')
-  const refreshUnreadChatStatus = useChatRealtimeStore((state) => state.refreshUnreadChatStatus)
-
   const currentUserId = useMemo(() => toCurrentUserId(), [])
   const connectionRef = useRef(null)
   const subscriptionRef = useRef(null)
@@ -601,20 +598,6 @@ export default function ChatRoomDetail() {
   useEffect(() => {
     fetchMessages()
   }, [fetchMessages])
-
-  useEffect(() => {
-    if (normalizedRoomId == null || isLoading) {
-      return
-    }
-
-    const timer = window.setTimeout(() => {
-      void refreshUnreadChatStatus()
-    }, 120)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
-  }, [isLoading, messages.length, normalizedRoomId, refreshUnreadChatStatus])
 
   useEffect(() => {
     lastReadAckMessageIdRef.current = 0
