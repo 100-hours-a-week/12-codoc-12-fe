@@ -140,7 +140,7 @@ const JoinedChatRoomCard = ({ room, isOpening, onOpen }) => {
                 </span>
                 {room.unreadCount > 0 ? (
                   <Badge className="shrink-0 rounded-full bg-red-500 px-2.5 py-0.5 text-sm text-white">
-                    {room.unreadCount}
+                    {room.unreadCount >= 1000 ? '999+' : room.unreadCount}
                   </Badge>
                 ) : null}
               </div>
