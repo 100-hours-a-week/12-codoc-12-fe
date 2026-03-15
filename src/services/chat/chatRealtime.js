@@ -58,6 +58,8 @@ export const toChatMessageSendDestination = (roomId) => `/pub/chat/messages/${ro
 
 export const toChatMessageReadAckDestination = (roomId) => `/pub/chat/messages/${roomId}/read-ack`
 
+export const toChatRoomReadAcksTopic = (roomId) => `/sub/chat/rooms/${roomId}/read-acks`
+
 export const createChatStompConnection = (options = {}) => {
   const {
     reconnectDelay = 2000,

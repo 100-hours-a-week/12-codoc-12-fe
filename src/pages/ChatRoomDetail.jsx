@@ -18,6 +18,7 @@ import {
   createChatStompConnection,
   toChatMessageReadAckDestination,
   toChatMessageSendDestination,
+  toChatRoomReadAcksTopic,
   toChatRoomTopic,
 } from '@/services/chat/chatRealtime'
 import { getChatRoomMessages, getUserChatRoom, leaveChatRoom } from '@/services/chat/chatService'
@@ -226,6 +227,14 @@ const toSenderAvatarFallbackText = (message, currentUserId) => {
   return senderLabel ? senderLabel.slice(0, 1) : '?'
 }
 
+function UnreadCountLabel({ count }) {
+  if (count == null || count <= 0) {
+    return null
+  }
+
+  return <p className="shrink-0 text-[11px] font-semibold leading-none text-info">{count}</p>
+}
+
 function ChatMessageItem({ currentUserId, isMine, message }) {
   const isSystemMessage = SYSTEM_MESSAGE_TYPES.has(message.type)
   const timeLabel = toMessageTimeLabel(message)
@@ -247,9 +256,12 @@ function ChatMessageItem({ currentUserId, isMine, message }) {
     return (
       <li className="flex justify-end">
         <div className="flex max-w-[82%] items-end gap-1.5">
-          {timeLabel ? (
-            <p className="shrink-0 text-[11px] leading-none text-neutral-500">{timeLabel}</p>
-          ) : null}
+          <div className="flex shrink-0 flex-col items-end gap-0.5">
+            <UnreadCountLabel count={message.unreadCount} />
+            {timeLabel ? (
+              <p className="text-[11px] leading-none text-neutral-500">{timeLabel}</p>
+            ) : null}
+          </div>
           <div className="inline-block max-w-full rounded-xl bg-info-soft px-3 py-2 text-md text-foreground">
             <p className="whitespace-pre-line break-words">{message.content}</p>
           </div>
@@ -284,9 +296,12 @@ function ChatMessageItem({ currentUserId, isMine, message }) {
             <div className="inline-block max-w-full rounded-xl bg-neutral-300 px-3 py-2 text-md text-foreground">
               <p className="whitespace-pre-line break-words">{message.content}</p>
             </div>
-            {timeLabel ? (
-              <p className="shrink-0 text-[11px] leading-none text-neutral-500">{timeLabel}</p>
-            ) : null}
+            <div className="flex shrink-0 flex-col items-start gap-0.5">
+              <UnreadCountLabel count={message.unreadCount} />
+              {timeLabel ? (
+                <p className="text-[11px] leading-none text-neutral-500">{timeLabel}</p>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
@@ -322,6 +337,7 @@ export default function ChatRoomDetail() {
   const currentUserId = useMemo(() => toCurrentUserId(), [])
   const connectionRef = useRef(null)
   const subscriptionRef = useRef(null)
+  const readAckSubscriptionRef = useRef(null)
   const connectionTokenRef = useRef(0)
   const isNetworkOnlineRef = useRef(toIsNetworkOnline())
   const messagesViewportRef = useRef(null)
@@ -675,6 +691,48 @@ export default function ChatRoomDetail() {
             setMessages((previous) => mergeMessages([nextMessage, ...previous]))
           },
         )
+
+        readAckSubscriptionRef.current?.unsubscribe()
+        readAckSubscriptionRef.current = connectionRef.current?.subscribe(
+          toChatRoomReadAcksTopic(normalizedRoomId),
+          (payload) => {
+            if (!payload || typeof payload !== 'object') {
+              return
+            }
+
+            const readUserId = Number(payload.userId)
+            const prevReadId = Number(payload.previousLastReadMessageId)
+            const newReadId = Number(payload.lastReadMessageId)
+
+            if (
+              !Number.isFinite(readUserId) ||
+              !Number.isFinite(prevReadId) ||
+              !Number.isFinite(newReadId)
+            ) {
+              return
+            }
+
+            setMessages((previous) =>
+              previous.map((msg) => {
+                if (msg.unreadCount == null || msg.unreadCount <= 0) {
+                  return msg
+                }
+                if (msg.type !== 'TEXT') {
+                  return msg
+                }
+                if (msg.senderId === readUserId) {
+                  return msg
+                }
+
+                const msgId = Number(msg.messageId)
+                if (msgId > prevReadId && msgId <= newReadId) {
+                  return { ...msg, unreadCount: Math.max(0, msg.unreadCount - 1) }
+                }
+                return msg
+              }),
+            )
+          },
+        )
       },
       onStompError: () => {
         if (connectionTokenRef.current !== connectionToken) {
@@ -706,6 +764,9 @@ export default function ChatRoomDetail() {
 
     return () => {
       connectionTokenRef.current += 1
+
+      readAckSubscriptionRef.current?.unsubscribe()
+      readAckSubscriptionRef.current = null
 
       subscriptionRef.current?.unsubscribe()
       subscriptionRef.current = null

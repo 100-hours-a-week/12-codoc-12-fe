@@ -94,6 +94,8 @@ export const toChatMessageItem = (item = {}) => {
   const senderAvatarImageUrl = rawSenderAvatarImageUrl.trim()
   const senderNickname = rawSenderNickname.trim()
 
+  const rawUnreadCount = Number(item.unreadCount)
+
   return {
     messageId: item.messageId ?? null,
     clientMessageId:
@@ -109,6 +111,7 @@ export const toChatMessageItem = (item = {}) => {
       Number.isInteger(rawParticipantCount) && rawParticipantCount >= 0
         ? rawParticipantCount
         : null,
+    unreadCount: Number.isInteger(rawUnreadCount) && rawUnreadCount >= 0 ? rawUnreadCount : null,
     createdAt,
     createdAtLabel: toMessageDateTimeLabel(createdAt),
     deliveryStatus:
