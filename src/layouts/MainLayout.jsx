@@ -31,6 +31,7 @@ export default function MainLayout() {
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
   const hasUnread = useNotificationStore((state) => state.hasUnread)
   const hasUnreadChat = useChatRealtimeStore((state) => state.hasUnreadChat)
+  const totalUnreadChatCount = useChatRealtimeStore((state) => state.totalUnreadChatCount)
   const setProblemSession = useProblemSessionStore((state) => state.setSession)
   const clearProblemSessions = useProblemSessionStore((state) => state.clearAllSessions)
   const problemSessions = useProblemSessionStore((state) => state.sessions)
@@ -169,6 +170,8 @@ export default function MainLayout() {
     }
     return { backgroundColor: color }
   }, [sessionTimeLeftMs])
+  const unreadChatBadgeLabel =
+    totalUnreadChatCount >= 1000 ? '999+' : String(Math.max(0, totalUnreadChatCount))
 
   const handleBack = () => {
     if (isChatRoomDetailPath) {
@@ -313,7 +316,9 @@ export default function MainLayout() {
                         <span className="relative inline-flex">
                           <Icon className="h-6 w-6" />
                           {to === '/chat' && hasUnreadChat ? (
-                            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[hsl(var(--danger))]" />
+                            <span className="absolute -right-2 -top-1 inline-flex min-w-4 items-center justify-center rounded-full bg-[hsl(var(--danger))] px-1 py-0.5 text-[10px] font-semibold leading-none text-white">
+                              {unreadChatBadgeLabel}
+                            </span>
                           ) : null}
                         </span>
                         <span>{label}</span>

@@ -27,12 +27,28 @@ const toNormalizedRoomUpdate = (payload = {}) => {
   }
 }
 
+const toNormalizedUnreadStatus = (payload = {}) => {
+  const totalUnreadChatCount = Number(payload.totalUnreadCount)
+  if (!Number.isFinite(totalUnreadChatCount) || totalUnreadChatCount < 0) {
+    return null
+  }
+
+  return {
+    totalUnreadChatCount,
+  }
+}
+
 export const useChatRealtimeStore = create((set, get) => ({
   hasUnreadChat: false,
+  totalUnreadChatCount: 0,
   isUnreadChatRefreshing: false,
   roomUpdatesById: {},
   roomUpdateVersion: 0,
-  setHasUnreadChat: (hasUnreadChat) => set({ hasUnreadChat: Boolean(hasUnreadChat) }),
+  setHasUnreadChat: (hasUnreadChat) =>
+    set((state) => ({
+      hasUnreadChat: Boolean(hasUnreadChat),
+      totalUnreadChatCount: hasUnreadChat ? Math.max(1, state.totalUnreadChatCount) : 0,
+    })),
   refreshUnreadChatStatus: async () => {
     if (get().isUnreadChatRefreshing) {
       return
@@ -41,8 +57,12 @@ export const useChatRealtimeStore = create((set, get) => ({
     set({ isUnreadChatRefreshing: true })
 
     try {
-      const { hasUnread } = await getChatUnreadStatus()
-      set({ hasUnreadChat: Boolean(hasUnread) })
+      const { hasUnread, totalUnreadCount } = await getChatUnreadStatus()
+      set({
+        hasUnreadChat: Boolean(hasUnread),
+        totalUnreadChatCount:
+          Number.isFinite(totalUnreadCount) && totalUnreadCount > 0 ? totalUnreadCount : 0,
+      })
     } catch {
       // Keep previous state when refresh fails.
     } finally {
@@ -63,5 +83,16 @@ export const useChatRealtimeStore = create((set, get) => ({
       },
       roomUpdateVersion: state.roomUpdateVersion + 1,
     }))
+  },
+  applyUnreadStatus: (payload) => {
+    const unreadStatus = toNormalizedUnreadStatus(payload)
+    if (!unreadStatus) {
+      return
+    }
+
+    set({
+      totalUnreadChatCount: unreadStatus.totalUnreadChatCount,
+      hasUnreadChat: unreadStatus.totalUnreadChatCount > 0,
+    })
   },
 }))

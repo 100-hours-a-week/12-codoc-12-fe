@@ -93,7 +93,10 @@ export const getChatRoomList = async (params = {}) => {
 
 export const getChatUnreadStatus = async () => {
   const response = await requestUserChatUnreadStatus()
-  return { hasUnread: Boolean(response?.data?.hasUnread) }
+  return {
+    hasUnread: Boolean(response?.data?.hasUnread),
+    totalUnreadCount: Number(response?.data?.totalUnreadCount ?? 0),
+  }
 }
 
 export const getUserChatRoom = async (params = {}) => {
