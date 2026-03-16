@@ -47,7 +47,11 @@ const getDaysRemaining = (value) => {
     return null
   }
   const now = new Date()
-  const diffMs = date.setHours(23, 59, 59, 999) - now.getTime()
+  date.setHours(0, 0, 0, 0)
+  const diffMs = date.getTime() - now.getTime()
+  if (diffMs <= 0) {
+    return 0
+  }
   return Math.ceil(diffMs / 86400000)
 }
 
