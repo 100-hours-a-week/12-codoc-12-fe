@@ -189,6 +189,7 @@ export default function Home() {
     }
 
     fetchHome()
+    void handleQuestRefresh()
     fetchRecommended()
     fetchLeaderboard()
 
