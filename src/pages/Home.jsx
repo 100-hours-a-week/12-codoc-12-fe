@@ -1,5 +1,5 @@
 import { RefreshCw, Sparkles, Star } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { api } from '@/lib/api'
@@ -87,6 +87,47 @@ export default function Home() {
   const [questPage, setQuestPage] = useState(0)
   const questTouchStartX = useRef(null)
   const questTouchLastX = useRef(null)
+
+  const handleQuestRefresh = useCallback(async () => {
+    if (isRefreshing) {
+      return
+    }
+    setIsRefreshing(true)
+    setLoadError('')
+    setRecommendError('')
+    try {
+      await api.post('/api/user/quests/refresh', {})
+      const [questRes] = await Promise.all([api.get('/api/user/quests')])
+      let nextRecommended = null
+      try {
+        const recommendRes = await api.get('/api/problems/recommended')
+        nextRecommended = recommendRes.data?.data?.problem ?? null
+      } catch (error) {
+        if (error?.response?.status === 404) {
+          nextRecommended = null
+        } else {
+          setRecommendError('추천 문제를 불러오지 못했습니다.')
+        }
+      }
+      const questItems = questRes.data?.data?.quests ?? []
+      const mappedQuests = questItems.map((item) => {
+        const statusMeta = statusCopy[item.status] ?? statusCopy.IN_PROGRESS
+        return {
+          userQuestId: item.userQuestId,
+          title: item.title,
+          reward: item.reward ?? 0,
+          variant: statusMeta.variant,
+          disabled: statusMeta.disabled,
+        }
+      })
+      setQuests(mappedQuests)
+      setRecommendedProblem(nextRecommended)
+    } catch {
+      setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }, [isRefreshing, setLoadError, setQuests, setRecommendError, setRecommendedProblem])
 
   useEffect(() => {
     let mounted = true
@@ -196,48 +237,7 @@ export default function Home() {
     return () => {
       mounted = false
     }
-  }, [])
-
-  const handleQuestRefresh = async () => {
-    if (isRefreshing) {
-      return
-    }
-    setIsRefreshing(true)
-    setLoadError('')
-    setRecommendError('')
-    try {
-      await api.post('/api/user/quests/refresh', {})
-      const [questRes] = await Promise.all([api.get('/api/user/quests')])
-      let nextRecommended = null
-      try {
-        const recommendRes = await api.get('/api/problems/recommended')
-        nextRecommended = recommendRes.data?.data?.problem ?? null
-      } catch (error) {
-        if (error?.response?.status === 404) {
-          nextRecommended = null
-        } else {
-          setRecommendError('추천 문제를 불러오지 못했습니다.')
-        }
-      }
-      const questItems = questRes.data?.data?.quests ?? []
-      const mappedQuests = questItems.map((item) => {
-        const statusMeta = statusCopy[item.status] ?? statusCopy.IN_PROGRESS
-        return {
-          userQuestId: item.userQuestId,
-          title: item.title,
-          reward: item.reward ?? 0,
-          variant: statusMeta.variant,
-          disabled: statusMeta.disabled,
-        }
-      })
-      setQuests(mappedQuests)
-      setRecommendedProblem(nextRecommended)
-    } catch {
-      setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
-    } finally {
-      setIsRefreshing(false)
-    }
-  }
+  }, [handleQuestRefresh])
 
   const handleClaim = async (userQuestId) => {
     if (!userQuestId) {
