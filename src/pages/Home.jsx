@@ -87,11 +87,13 @@ export default function Home() {
   const [questPage, setQuestPage] = useState(0)
   const questTouchStartX = useRef(null)
   const questTouchLastX = useRef(null)
+  const isRefreshingRef = useRef(false)
 
   const handleQuestRefresh = useCallback(async () => {
-    if (isRefreshing) {
+    if (isRefreshingRef.current) {
       return
     }
+    isRefreshingRef.current = true
     setIsRefreshing(true)
     setLoadError('')
     setRecommendError('')
@@ -125,9 +127,10 @@ export default function Home() {
     } catch {
       setLoadError('퀘스트를 새로고침하지 못했습니다. 잠시 후 다시 시도해주세요.')
     } finally {
+      isRefreshingRef.current = false
       setIsRefreshing(false)
     }
-  }, [isRefreshing, setLoadError, setQuests, setRecommendError, setRecommendedProblem])
+  }, [setLoadError, setQuests, setRecommendError, setRecommendedProblem])
 
   useEffect(() => {
     let mounted = true
