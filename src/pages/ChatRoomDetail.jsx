@@ -19,6 +19,7 @@ import {
   toChatMessageReadAckDestination,
   toChatMessageSendDestination,
   toChatRoomReadAcksTopic,
+  toChatRoomViewStateDestination,
   toChatRoomTopic,
 } from '@/services/chat/chatRealtime'
 import { getChatRoomMessages, getUserChatRoom, leaveChatRoom } from '@/services/chat/chatService'
@@ -34,6 +35,17 @@ const toIsNetworkOnline = () => {
   }
 
   return navigator.onLine !== false
+}
+
+const toIsRoomViewActive = () => {
+  if (typeof document === 'undefined') {
+    return true
+  }
+
+  const isVisible = document.visibilityState === 'visible'
+  const hasFocus = typeof document.hasFocus === 'function' ? document.hasFocus() : true
+
+  return isVisible && hasFocus
 }
 
 const toCurrentUserId = () => {
@@ -324,6 +336,7 @@ export default function ChatRoomDetail() {
   const [inputValue, setInputValue] = useState('')
   const [isInputFocused, setIsInputFocused] = useState(false)
   const [isNetworkOnline, setIsNetworkOnline] = useState(() => toIsNetworkOnline())
+  const [isRoomViewActive, setIsRoomViewActive] = useState(() => toIsRoomViewActive())
   const [connectionStatus, setConnectionStatus] = useState('connecting')
   const [roomTitleFromApi, setRoomTitleFromApi] = useState('')
   const [participantCount, setParticipantCount] = useState(() =>
@@ -493,6 +506,24 @@ export default function ChatRoomDetail() {
   }, [])
 
   useEffect(() => {
+    const syncRoomViewActivity = () => {
+      const nextIsRoomViewActive = toIsRoomViewActive()
+      setIsRoomViewActive(nextIsRoomViewActive)
+    }
+
+    window.addEventListener('focus', syncRoomViewActivity)
+    window.addEventListener('blur', syncRoomViewActivity)
+    document.addEventListener('visibilitychange', syncRoomViewActivity)
+    syncRoomViewActivity()
+
+    return () => {
+      window.removeEventListener('focus', syncRoomViewActivity)
+      window.removeEventListener('blur', syncRoomViewActivity)
+      document.removeEventListener('visibilitychange', syncRoomViewActivity)
+    }
+  }, [])
+
+  useEffect(() => {
     setParticipantCount(toParticipantCountFromLocationState(location.state))
   }, [location.state, normalizedRoomId])
 
@@ -623,7 +654,7 @@ export default function ChatRoomDetail() {
     if (normalizedRoomId == null || latestReadAckMessageId == null) {
       return
     }
-    if (!isNetworkOnline || connectionStatus !== 'connected') {
+    if (!isNetworkOnline || connectionStatus !== 'connected' || !isRoomViewActive) {
       return
     }
     if (latestReadAckMessageId <= lastReadAckMessageIdRef.current) {
@@ -643,7 +674,115 @@ export default function ChatRoomDetail() {
     } catch {
       return
     }
-  }, [connectionStatus, isNetworkOnline, latestReadAckMessageId, normalizedRoomId])
+  }, [
+    connectionStatus,
+    isNetworkOnline,
+    isRoomViewActive,
+    latestReadAckMessageId,
+    normalizedRoomId,
+  ])
+
+  const unsubscribeRoomRealtimeSubscriptions = useCallback(() => {
+    readAckSubscriptionRef.current?.unsubscribe()
+    readAckSubscriptionRef.current = null
+
+    subscriptionRef.current?.unsubscribe()
+    subscriptionRef.current = null
+  }, [])
+
+  const subscribeRoomRealtimeSubscriptions = useCallback(() => {
+    if (normalizedRoomId == null) {
+      return
+    }
+
+    const connection = connectionRef.current
+    if (!connection || !connection.isConnected()) {
+      return
+    }
+
+    if (!subscriptionRef.current) {
+      subscriptionRef.current = connection.subscribe(
+        toChatRoomTopic(normalizedRoomId),
+        (payload) => {
+          if (!payload || typeof payload !== 'object') {
+            return
+          }
+
+          const nextMessage = toChatMessageItem(payload)
+          const nextParticipantCount = toParticipantCount(
+            nextMessage.participantCount ?? payload.participantCount,
+          )
+          if (nextParticipantCount != null) {
+            setParticipantCount(nextParticipantCount)
+          }
+          setMessages((previous) => mergeMessages([nextMessage, ...previous]))
+        },
+      )
+    }
+
+    if (!readAckSubscriptionRef.current) {
+      readAckSubscriptionRef.current = connection.subscribe(
+        toChatRoomReadAcksTopic(normalizedRoomId),
+        (payload) => {
+          if (!payload || typeof payload !== 'object') {
+            return
+          }
+
+          const readUserId = Number(payload.userId)
+          const prevReadId = Number(payload.previousLastReadMessageId)
+          const newReadId = Number(payload.lastReadMessageId)
+
+          if (
+            !Number.isFinite(readUserId) ||
+            !Number.isFinite(prevReadId) ||
+            !Number.isFinite(newReadId)
+          ) {
+            return
+          }
+
+          setMessages((previous) =>
+            previous.map((msg) => {
+              if (msg.unreadCount == null || msg.unreadCount <= 0) {
+                return msg
+              }
+              if (msg.type !== 'TEXT') {
+                return msg
+              }
+              if (msg.senderId === readUserId) {
+                return msg
+              }
+
+              const msgId = Number(msg.messageId)
+              if (msgId > prevReadId && msgId <= newReadId) {
+                return { ...msg, unreadCount: Math.max(0, msg.unreadCount - 1) }
+              }
+              return msg
+            }),
+          )
+        },
+      )
+    }
+  }, [normalizedRoomId])
+
+  const publishRoomViewState = useCallback(
+    (active) => {
+      if (normalizedRoomId == null) {
+        return
+      }
+
+      const connection = connectionRef.current
+      if (!connection || !connection.isConnected()) {
+        return
+      }
+
+      try {
+        connection.publishJson(toChatRoomViewStateDestination(normalizedRoomId), { active })
+      } catch {
+        return
+      }
+    },
+    [normalizedRoomId],
+  )
 
   useEffect(() => {
     if (normalizedRoomId == null) {
@@ -672,67 +811,6 @@ export default function ChatRoomDetail() {
         }
 
         setConnectionStatus('connected')
-
-        subscriptionRef.current?.unsubscribe()
-        subscriptionRef.current = connectionRef.current?.subscribe(
-          toChatRoomTopic(normalizedRoomId),
-          (payload) => {
-            if (!payload || typeof payload !== 'object') {
-              return
-            }
-
-            const nextMessage = toChatMessageItem(payload)
-            const nextParticipantCount = toParticipantCount(
-              nextMessage.participantCount ?? payload.participantCount,
-            )
-            if (nextParticipantCount != null) {
-              setParticipantCount(nextParticipantCount)
-            }
-            setMessages((previous) => mergeMessages([nextMessage, ...previous]))
-          },
-        )
-
-        readAckSubscriptionRef.current?.unsubscribe()
-        readAckSubscriptionRef.current = connectionRef.current?.subscribe(
-          toChatRoomReadAcksTopic(normalizedRoomId),
-          (payload) => {
-            if (!payload || typeof payload !== 'object') {
-              return
-            }
-
-            const readUserId = Number(payload.userId)
-            const prevReadId = Number(payload.previousLastReadMessageId)
-            const newReadId = Number(payload.lastReadMessageId)
-
-            if (
-              !Number.isFinite(readUserId) ||
-              !Number.isFinite(prevReadId) ||
-              !Number.isFinite(newReadId)
-            ) {
-              return
-            }
-
-            setMessages((previous) =>
-              previous.map((msg) => {
-                if (msg.unreadCount == null || msg.unreadCount <= 0) {
-                  return msg
-                }
-                if (msg.type !== 'TEXT') {
-                  return msg
-                }
-                if (msg.senderId === readUserId) {
-                  return msg
-                }
-
-                const msgId = Number(msg.messageId)
-                if (msgId > prevReadId && msgId <= newReadId) {
-                  return { ...msg, unreadCount: Math.max(0, msg.unreadCount - 1) }
-                }
-                return msg
-              }),
-            )
-          },
-        )
       },
       onStompError: () => {
         if (connectionTokenRef.current !== connectionToken) {
@@ -765,18 +843,36 @@ export default function ChatRoomDetail() {
     return () => {
       connectionTokenRef.current += 1
 
-      readAckSubscriptionRef.current?.unsubscribe()
-      readAckSubscriptionRef.current = null
-
-      subscriptionRef.current?.unsubscribe()
-      subscriptionRef.current = null
+      unsubscribeRoomRealtimeSubscriptions()
 
       connectionRef.current = null
       connection.deactivate()
 
       setConnectionStatus('disconnected')
     }
-  }, [normalizedRoomId])
+  }, [normalizedRoomId, unsubscribeRoomRealtimeSubscriptions])
+
+  useEffect(() => {
+    if (normalizedRoomId == null || connectionStatus !== 'connected') {
+      unsubscribeRoomRealtimeSubscriptions()
+      return
+    }
+
+    subscribeRoomRealtimeSubscriptions()
+  }, [
+    connectionStatus,
+    normalizedRoomId,
+    subscribeRoomRealtimeSubscriptions,
+    unsubscribeRoomRealtimeSubscriptions,
+  ])
+
+  useEffect(() => {
+    if (normalizedRoomId == null || connectionStatus !== 'connected') {
+      return
+    }
+
+    publishRoomViewState(isRoomViewActive)
+  }, [connectionStatus, isRoomViewActive, normalizedRoomId, publishRoomViewState])
 
   const updateBottomState = useCallback(() => {
     const viewport = messagesViewportRef.current
