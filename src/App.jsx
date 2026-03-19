@@ -8,6 +8,10 @@ import { initGa4, trackPageView } from '@/lib/ga4'
 import Chatbot from '@/pages/Chatbot'
 import ChatRooms from '@/pages/ChatRooms'
 import ChatRoomDetail from '@/pages/ChatRoomDetail'
+import CustomProblemDetail from '@/pages/CustomProblemDetail'
+import CustomProblems from '@/pages/CustomProblems'
+import CustomQuiz from '@/pages/CustomQuiz'
+import CustomSummaryCards from '@/pages/CustomSummaryCards'
 import Home from '@/pages/Home'
 import Leaderboards from '@/pages/Leaderboards'
 import Login from '@/pages/Login'
@@ -57,6 +61,10 @@ function App() {
           <Route element={<SummaryCards />} path="problems/:problemId/summary" />
           <Route element={<Chatbot />} path="problems/:problemId/chatbot" />
           <Route element={<Quiz />} path="problems/:problemId/quiz" />
+          <Route element={<CustomProblems />} path="custom-problems" />
+          <Route element={<CustomProblemDetail />} path="custom-problems/:customProblemId" />
+          <Route element={<CustomSummaryCards />} path="custom-problems/:customProblemId/summary" />
+          <Route element={<CustomQuiz />} path="custom-problems/:customProblemId/quiz" />
           <Route element={<Notifications />} path="notifications" />
           <Route element={<ChatRooms />} path="chat" />
           <Route element={<ChatRoomDetail />} path="chat/:roomId" />

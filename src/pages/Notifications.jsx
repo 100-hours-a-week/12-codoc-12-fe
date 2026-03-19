@@ -14,6 +14,7 @@ const LINK_CODE_PATHS = {
   MY: '/my',
   LEADERBOARD: '/leaderboard',
   CHAT: '/chat',
+  CUSTOM_PROBLEM: '/custom-problems',
 }
 
 const resolveLegacyLink = (linkUrl) => {

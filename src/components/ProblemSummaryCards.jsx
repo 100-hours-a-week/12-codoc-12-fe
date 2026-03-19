@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 
 import { Button } from '@/components/ui/button'
@@ -63,16 +63,18 @@ export default function ProblemSummaryCards({
     [summaryCards],
   )
 
-  useEffect(() => {
+  const resolvedActiveCardKey = useMemo(() => {
     if (cardEntries.length === 0) {
-      setActiveCardKey(null)
-      return
+      return null
     }
-    const nextActive =
+
+    if (activeCardKey && cardEntries.some(({ key }) => key === activeCardKey)) {
+      return activeCardKey
+    }
+
+    return (
       cardEntries.find(({ key }) => selectedChoices[key] === undefined)?.key ?? cardEntries[0].key
-    if (!activeCardKey || !cardEntries.some(({ key }) => key === activeCardKey)) {
-      setActiveCardKey(nextActive)
-    }
+    )
   }, [activeCardKey, cardEntries, selectedChoices])
 
   const handleSelectChoice = (cardKey, choiceIndex) => {
@@ -136,7 +138,7 @@ export default function ProblemSummaryCards({
 
   const handleReset = () => {
     resetSession(problemId)
-    setActiveCardKey(cardEntries[0]?.key ?? null)
+    setActiveCardKey(null)
   }
 
   return (
@@ -166,7 +168,7 @@ export default function ProblemSummaryCards({
                 const placeholder = SUMMARY_CARD_LABELS[card.paragraphType] ?? '빈칸'
                 const prompt = SUMMARY_CARD_PROMPTS[card.paragraphType] ?? '이 문제는'
                 const isCorrect = gradingResults[index]
-                const isActive = activeCardKey === key
+                const isActive = resolvedActiveCardKey === key
 
                 return (
                   <span key={key} className="flex flex-wrap items-center gap-2">
@@ -207,7 +209,7 @@ export default function ProblemSummaryCards({
             <div className="mt-4 rounded-2xl bg-background/80 p-4">
               {(() => {
                 const activeEntry =
-                  cardEntries.find(({ key }) => key === activeCardKey) ?? cardEntries[0]
+                  cardEntries.find(({ key }) => key === resolvedActiveCardKey) ?? cardEntries[0]
                 const activeCard = activeEntry?.card
                 const activeKey = activeEntry?.key
                 if (!activeCard) {
