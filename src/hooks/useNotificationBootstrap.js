@@ -5,7 +5,6 @@ import { useNotificationStore } from '@/stores/useNotificationStore'
 
 export const useNotificationBootstrap = () => {
   const refreshUnreadStatus = useNotificationStore((state) => state.refreshUnreadStatus)
-  const setUnreadStatus = useNotificationStore((state) => state.setUnreadStatus)
 
   useEffect(() => {
     refreshUnreadStatus()
@@ -38,7 +37,7 @@ export const useNotificationBootstrap = () => {
     const registerForegroundMessageListener = async () => {
       try {
         const resolvedUnsubscribe = await subscribeToForegroundMessages(() => {
-          setUnreadStatus(true)
+          void refreshUnreadStatus()
         })
 
         if (!isMounted) {
@@ -58,5 +57,5 @@ export const useNotificationBootstrap = () => {
       isMounted = false
       unsubscribe()
     }
-  }, [setUnreadStatus])
+  }, [refreshUnreadStatus])
 }
