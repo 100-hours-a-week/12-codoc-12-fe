@@ -1,7 +1,14 @@
 import { getApps, initializeApp } from 'firebase/app'
-import { getMessaging, getToken, isSupported } from 'firebase/messaging'
+import { getMessaging, getToken, isSupported, onMessage } from 'firebase/messaging'
 
 const FIREBASE_MESSAGING_SW_PATH = '/firebase-messaging-sw.js'
+const NOTIFICATION_LOGO_PATH = '/notification-icon.png'
+const LINK_CODE_PATHS = {
+  HOME: '/',
+  MY: '/my',
+  LEADERBOARD: '/leaderboard',
+  CHAT: '/chat',
+}
 
 const REQUIRED_ENV_MAP = {
   apiKey: 'VITE_FIREBASE_API_KEY',
@@ -18,6 +25,84 @@ const getEnv = (key) => {
   }
   return value.trim()
 }
+
+const parseLinkParams = (value) => {
+  if (!value) {
+    return {}
+  }
+
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    return value
+  }
+
+  if (typeof value !== 'string') {
+    return {}
+  }
+
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed
+    }
+  } catch {
+    return {}
+  }
+
+  return {}
+}
+
+const resolveLegacyLink = (linkUrl) => {
+  if (!linkUrl || typeof linkUrl !== 'string') {
+    return null
+  }
+
+  if (/^https?:\/\//i.test(linkUrl)) {
+    return linkUrl
+  }
+
+  if (!linkUrl.startsWith('/')) {
+    return `/${linkUrl}`
+  }
+
+  return linkUrl
+}
+
+const resolvePathByLinkCode = (linkCode, linkParams = {}) => {
+  if (!linkCode || typeof linkCode !== 'string') {
+    return null
+  }
+
+  if (linkCode === 'PROBLEM_DETAIL') {
+    const rawProblemId = linkParams?.problemId
+
+    if (rawProblemId === null || rawProblemId === undefined) {
+      return '/problems'
+    }
+
+    const problemId = String(rawProblemId).trim()
+    if (!problemId) {
+      return '/problems'
+    }
+
+    return `/problems/${encodeURIComponent(problemId)}`
+  }
+
+  if (linkCode === 'CHAT') {
+    const rawRoomId = linkParams?.roomId
+    if (rawRoomId !== null && rawRoomId !== undefined) {
+      const roomId = String(rawRoomId).trim()
+      if (roomId) {
+        return `/chat/${encodeURIComponent(roomId)}`
+      }
+    }
+    return '/chat'
+  }
+
+  return LINK_CODE_PATHS[linkCode] ?? null
+}
+
+const resolveTargetLink = ({ linkCode, linkParams, linkUrl }) =>
+  resolvePathByLinkCode(linkCode, linkParams) ?? resolveLegacyLink(linkUrl) ?? '/'
 
 const getFirebaseMessagingConfig = () => ({
   apiKey: getEnv('VITE_FIREBASE_API_KEY'),
@@ -125,6 +210,85 @@ const resolveMessagingServiceWorkerRegistration = async (config) => {
   return serviceWorkerRegistration
 }
 
+const toDisplayNotificationPayload = (payload) => {
+  const hasNotificationPayload = Boolean(payload?.notification)
+  const hasDataDisplayPayload = Boolean(payload?.data?.title || payload?.data?.body)
+
+  if (hasNotificationPayload && !hasDataDisplayPayload) {
+    return null
+  }
+
+  const linkCode = payload?.data?.linkCode ?? null
+  const linkParams = parseLinkParams(payload?.data?.linkParams)
+  const linkUrl = resolveTargetLink({
+    linkCode,
+    linkParams,
+    linkUrl: payload?.data?.linkUrl ?? null,
+  })
+
+  return {
+    title: payload?.data?.title ?? payload?.notification?.title ?? 'Codoc',
+    body: payload?.data?.body ?? payload?.notification?.body ?? '',
+    type: payload?.data?.type ?? 'GENERAL',
+    linkCode,
+    linkParams,
+    linkUrl,
+  }
+}
+
+const showForegroundNotification = async (payload) => {
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') {
+    return
+  }
+
+  if (getNotificationPermission() !== 'granted') {
+    return
+  }
+
+  const notificationPayload = toDisplayNotificationPayload(payload)
+  if (!notificationPayload) {
+    return
+  }
+
+  const notificationOptions = {
+    body: notificationPayload.body,
+    tag: `codoc:${notificationPayload.type}`,
+    icon: NOTIFICATION_LOGO_PATH,
+    badge: NOTIFICATION_LOGO_PATH,
+    data: {
+      linkCode: notificationPayload.linkCode,
+      linkParams: notificationPayload.linkParams,
+      linkUrl: notificationPayload.linkUrl,
+    },
+  }
+
+  try {
+    const serviceWorkerRegistration = await resolveMessagingServiceWorkerRegistration(
+      getFirebaseMessagingConfig(),
+    )
+    await serviceWorkerRegistration.showNotification(notificationPayload.title, notificationOptions)
+    return
+  } catch {
+    // Fall through to window notification.
+  }
+
+  if (typeof window === 'undefined' || !('Notification' in window)) {
+    return
+  }
+
+  const notification = new Notification(notificationPayload.title, notificationOptions)
+  notification.onclick = () => {
+    window.focus()
+
+    try {
+      const targetUrl = new URL(notificationPayload.linkUrl, window.location.origin).toString()
+      window.location.assign(targetUrl)
+    } catch {
+      window.location.assign('/')
+    }
+  }
+}
+
 export const getFirebaseMessagingMissingConfigKeys = () =>
   getMissingRequiredEnvKeys(getFirebaseMessagingConfig())
 
@@ -209,4 +373,30 @@ export const getWebPushToken = async () => {
   } catch {
     throw new Error('FCM_TOKEN_FETCH_FAILED')
   }
+}
+
+export const subscribeToForegroundMessages = async (listener) => {
+  if (!isFirebaseMessagingConfigured()) {
+    return () => {}
+  }
+
+  if (getNotificationPermission() !== 'granted') {
+    return () => {}
+  }
+
+  if (!(await isWebPushSupported())) {
+    return () => {}
+  }
+
+  const config = getFirebaseMessagingConfig()
+  const app = resolveFirebaseApp(config)
+  const messaging = getMessaging(app)
+
+  return onMessage(messaging, async (payload) => {
+    if (typeof listener === 'function') {
+      await listener(payload)
+    }
+
+    await showForegroundNotification(payload)
+  })
 }
