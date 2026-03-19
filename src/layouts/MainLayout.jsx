@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, BookOpen, Home, MessageCircle, User } from 'lucide-react'
+import { ArrowLeft, Bell, BookOpen, Camera, Home, MessageCircle, User } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
@@ -11,6 +11,9 @@ import { cn } from '@/lib/utils'
 import { getActiveProblemSession } from '@/services/problems/problemsService'
 import { useChatbotStore } from '@/stores/useChatbotStore'
 import { useChatRealtimeStore } from '@/stores/useChatRealtimeStore'
+import { useCustomProblemDetailStore } from '@/stores/useCustomProblemDetailStore'
+import { useCustomQuizStore } from '@/stores/useCustomQuizStore'
+import { useCustomSummaryCardStore } from '@/stores/useCustomSummaryCardStore'
 import { useNotificationStore } from '@/stores/useNotificationStore'
 import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
 import { useQuizStore } from '@/stores/useQuizStore'
@@ -20,6 +23,7 @@ const navItems = [
   { to: '/', label: '홈', Icon: Home, end: true },
   { to: '/problems', label: '문제집', Icon: BookOpen },
   { to: '/chat', label: '오픈채팅', Icon: MessageCircle },
+  { to: '/custom-problems', label: '나만의 문제', Icon: Camera },
   { to: '/my', label: '마이', Icon: User },
 ]
 
@@ -29,6 +33,9 @@ export default function MainLayout() {
   const clearChatbotSessions = useChatbotStore((state) => state.clearSessions)
   const clearQuizSessions = useQuizStore((state) => state.clearSessions)
   const clearSummarySessions = useSummaryCardStore((state) => state.clearSessions)
+  const clearCustomProblems = useCustomProblemDetailStore((state) => state.clearProblems)
+  const clearCustomQuizSessions = useCustomQuizStore((state) => state.clearSessions)
+  const clearCustomSummarySessions = useCustomSummaryCardStore((state) => state.clearSessions)
   const hasUnread = useNotificationStore((state) => state.hasUnread)
   const hasUnreadChat = useChatRealtimeStore((state) => state.hasUnreadChat)
   const totalUnreadChatCount = useChatRealtimeStore((state) => state.totalUnreadChatCount)
@@ -52,6 +59,16 @@ export default function MainLayout() {
       clearSummarySessions()
     }
   }, [clearChatbotSessions, clearQuizSessions, clearSummarySessions, location.pathname])
+
+  useEffect(() => {
+    const path = location.pathname
+    const isCustomProblemFlow = /^\/custom-problems\/[^/]+(\/(summary|quiz))?$/.test(path)
+    if (!isCustomProblemFlow) {
+      clearCustomProblems()
+      clearCustomQuizSessions()
+      clearCustomSummarySessions()
+    }
+  }, [clearCustomProblems, clearCustomQuizSessions, clearCustomSummarySessions, location.pathname])
 
   useEffect(() => {
     let isActive = true
@@ -96,9 +113,11 @@ export default function MainLayout() {
     const path = location.pathname
     const isProblemDetail = /^\/problems\/[^/]+$/.test(path)
     const isProblemFlow = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(path)
-    if (isProblemFlow && previousPathRef.current !== path) {
+    const isCustomProblemDetail = /^\/custom-problems\/[^/]+$/.test(path)
+    const isCustomProblemFlow = /^\/custom-problems\/[^/]+(\/(summary|quiz))?$/.test(path)
+    if ((isProblemFlow || isCustomProblemFlow) && previousPathRef.current !== path) {
       requestAnimationFrame(() => {
-        if (isProblemDetail) {
+        if (isProblemDetail || isCustomProblemDetail) {
           window.scrollTo({ top: 0, behavior: 'auto' })
         }
       })
@@ -135,12 +154,15 @@ export default function MainLayout() {
   const isProblemFlowPath = /^\/problems\/[^/]+(\/(chatbot|quiz|summary))?$/.test(location.pathname)
   const isChatbotPath = /^\/problems\/[^/]+\/chatbot$/.test(location.pathname)
   const isChatRoomDetailPath = /^\/chat\/[^/]+$/.test(location.pathname)
+  const isCustomProblemSubPage = /^\/custom-problems\/[^/]+(\/(summary|quiz))?$/.test(
+    location.pathname,
+  )
   const currentProblemIdMatch = location.pathname.match(/^\/problems\/([^/]+)/)
   const currentProblemId = currentProblemIdMatch?.[1] ?? null
   const isFullHeightPage = isChatRoomDetailPath || isChatbotPath
 
-  const showBackButton = isProblemPath || isChatRoomDetailPath
-  const isNavHidden = isProblemFlowPath || isChatRoomDetailPath
+  const showBackButton = isProblemPath || isChatRoomDetailPath || isCustomProblemSubPage
+  const isNavHidden = isProblemFlowPath || isChatRoomDetailPath || isCustomProblemSubPage
   const showNotificationButton = !showBackButton
   const activeSession = useMemo(() => {
     const items = Object.values(problemSessions)
@@ -176,6 +198,10 @@ export default function MainLayout() {
   const handleBack = () => {
     if (isChatRoomDetailPath) {
       navigate('/chat')
+      return
+    }
+    if (isCustomProblemSubPage) {
+      navigate('/custom-problems')
       return
     }
 
@@ -220,7 +246,11 @@ export default function MainLayout() {
               >
                 <ArrowLeft className="h-5 w-5" />
                 <span className="text-xs font-semibold">
-                  {isChatRoomDetailPath ? '오픈채팅 목록' : '문제 목록'}
+                  {isChatRoomDetailPath
+                    ? '오픈채팅 목록'
+                    : isCustomProblemSubPage
+                      ? '나만의 문제 목록'
+                      : '문제 목록'}
                 </span>
               </button>
             ) : null}
@@ -298,7 +328,7 @@ export default function MainLayout() {
             style={{ left: `${shellRect.left}px`, width: `${shellRect.width}px` }}
           >
             <div className="pb-[env(safe-area-inset-bottom)]">
-              <nav className="grid grid-cols-4 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
+              <nav className="grid grid-cols-5 rounded-t-2xl rounded-b-none bg-white/95 px-5 py-2 shadow-[0_-6px_20px_rgba(0,0,0,0.08)] backdrop-blur">
                 {navItems.map(({ to, label, Icon, end }) => (
                   <NavLink
                     key={to}
