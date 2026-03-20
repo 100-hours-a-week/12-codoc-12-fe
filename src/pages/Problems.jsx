@@ -585,7 +585,7 @@ export default function Problems() {
                 <img
                   alt="문제 없음 코독"
                   className="mx-auto mb-3 h-24 w-24 object-contain mix-blend-multiply"
-                  src="/images/problem.png"
+                  src="https://images.codoc.cloud/images/problem.png"
                   onError={(event) => {
                     event.currentTarget.style.display = 'none'
                   }}

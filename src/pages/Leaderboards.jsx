@@ -770,7 +770,7 @@ export default function Leaderboards() {
               <img
                 alt="리그 시작 예정"
                 className="w-full max-w-[420px] object-contain"
-                src="/images/leaderboard-coming.png"
+                src="https://images.codoc.cloud/images/leaderboard-coming.png"
                 onError={(event) => {
                   event.currentTarget.style.display = 'none'
                 }}
@@ -937,7 +937,7 @@ export default function Leaderboards() {
                 <img
                   alt="리그 안내 코독"
                   className="mx-auto h-20 w-20 object-contain"
-                  src="/images/leaderboard_codoc.png"
+                  src="https://images.codoc.cloud/images/leaderboard_codoc.png"
                   onError={(event) => {
                     event.currentTarget.style.display = 'none'
                   }}
