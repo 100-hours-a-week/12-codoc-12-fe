@@ -1,4 +1,13 @@
-import { ArrowDown, BookOpen, Brain, ChevronRight, Clover, Send } from 'lucide-react'
+import {
+  ArrowDown,
+  BarChart3,
+  BookOpen,
+  Brain,
+  Clover,
+  Lightbulb,
+  Send,
+  SquareTerminal,
+} from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -10,6 +19,12 @@ import rehypeKatex from 'rehype-katex'
 import SessionTimer from '@/components/SessionTimer'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import {
+  buildQuickActionMessage,
+  CHATBOT_QUICK_ACTIONS,
+  getParagraphLabel,
+  resolveQuickActionLabel,
+} from '@/constants/chatbotQuickActions'
 import { trackEvent } from '@/lib/ga4'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
 import {
@@ -21,6 +36,7 @@ import { getProblemDetail, startProblemSession } from '@/services/problems/probl
 import { useChatbotStore } from '@/stores/useChatbotStore'
 import { useProblemDetailStore } from '@/stores/useProblemDetailStore'
 import { useProblemSessionStore } from '@/stores/useProblemSessionStore'
+import { useSummaryCardStore } from '@/stores/useSummaryCardStore'
 
 const TAB_ITEMS = [
   { id: 'problem', label: '문제', Icon: BookOpen },
@@ -36,9 +52,6 @@ const STREAM_RATE_LIMIT_MESSAGE = '요청 횟수를 초과했습니다. 잠시 �
 const STREAM_RENDER_BASE_CPS = 44
 const STREAM_RENDER_BACKLOG_CPS = 72
 const STREAM_RENDER_MAX_CHARS_PER_FRAME = 6
-const FINAL_CHATBOT_NODE = 'INSIGHT'
-const CHATBOT_COMPLETED_GUIDE_TEXT =
-  '챗봇 단계가 모두 완료되었습니다. 이제 요약 카드를 만들고 퀴즈를 풀어보세요!'
 const HISTORY_FALLBACK_MESSAGE_BY_STATUS = {
   CANCELED: '답변 생성이 중단되었습니다',
   FAILED: STREAM_FAILED_MESSAGE,
@@ -51,36 +64,19 @@ const INITIAL_MESSAGE = {
     '안녕하세요! 코독이에요.\n지금부터 문제를 4단계로 쪼개 요약카드를 완성해봅시다.\n1단계는 “문제 배경(상황)”입니다.\n지금 어떤 상황인지 말해주세요.\n(누가/무엇을/얼마나를 잡아내면 좋습니다)',
 }
 
-const CHATBOT_COMPLETED_GUIDE_MESSAGE = {
-  id: 'assistant-chatbot-completed-guide',
-  role: 'assistant',
-  content: CHATBOT_COMPLETED_GUIDE_TEXT,
-}
-
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+const getSummaryCardKey = (card, index) =>
+  String(card?.paragraphType ?? card?.id ?? `summary-${index}`)
 const normalizeConversationStatus = (status) =>
   String(status ?? '')
     .trim()
     .toUpperCase()
 
-const normalizeChatbotNode = (node) => (typeof node === 'string' ? node.trim().toUpperCase() : '')
-
-const resolveFinalNode = (result = {}) => {
-  const candidates = [
-    result.current_node,
-    result.currentNode,
-    result.paragraph_type,
-    result.paragraphType,
-  ]
-
-  for (const candidate of candidates) {
-    const normalized = normalizeChatbotNode(candidate)
-    if (normalized) {
-      return normalized
-    }
-  }
-
-  return ''
+const QUICK_ACTION_ICON_BY_ID = {
+  paragraph_hint: Lightbulb,
+  concept_help: BookOpen,
+  solve_pattern: BarChart3,
+  pseudocode: SquareTerminal,
 }
 
 const resolveHistoryFallbackMessage = (status) => {
@@ -116,7 +112,7 @@ const toHistoryMessages = (items = []) => {
 
   const historyMessages = [...items].reverse().flatMap((item) => {
     const conversationId = item?.conversationId ?? buildMessageId()
-    const userMessage = String(item?.userMessage ?? '').trim()
+    const userMessage = resolveQuickActionLabel(item?.userMessage)
     const aiMessage = String(item?.aiMessage ?? '').trim()
     const status = normalizeConversationStatus(item?.status)
     const fallbackMessage = resolveHistoryFallbackMessage(status)
@@ -232,7 +228,7 @@ const ChatMessage = memo(function ChatMessage({
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'}`}>
       {isUser ? (
         <div className="max-w-[78%] space-y-2">
-          <div className="rounded-2xl bg-info-soft px-4 py-3 text-[16px] leading-[28px] text-foreground">
+          <div className="rounded-2xl bg-info-soft px-3 py-2 text-[14px] leading-[28px] text-foreground">
             <p className="whitespace-pre-line">{message.content}</p>
           </div>
         </div>
@@ -291,8 +287,10 @@ export default function Chatbot() {
   const { sessions, initSession, updateSession } = useChatbotStore()
   const session = problemId ? sessions[String(problemId)] : null
   const { sessions: problemSessions, setSession: setProblemSession } = useProblemSessionStore()
+  const { sessions: summaryCardSessions } = useSummaryCardStore()
   const { fetchProblem: fetchProblemDetail } = useProblemDetailStore()
   const problemSession = problemId ? problemSessions[String(problemId)] : null
+  const summaryCardSession = problemId ? summaryCardSessions[String(problemId)] : null
   const sessionId = problemSession?.sessionId ?? null
   const isExpired = isSessionExpired(problemSession?.expiresAt)
   const hasActiveSession = Boolean(sessionId) && !isExpired
@@ -311,6 +309,34 @@ export default function Chatbot() {
   const assistantMessageId = session?.assistantMessageId ?? null
   const isStreaming = session?.isStreaming ?? false
   const sendError = session?.sendError ?? null
+  const selectedSummaryChoices = useMemo(
+    () => summaryCardSession?.selectedChoices ?? {},
+    [summaryCardSession?.selectedChoices],
+  )
+  const currentParagraphType = useMemo(() => {
+    const summaryCards = Array.isArray(problemSession?.summaryCards)
+      ? problemSession.summaryCards
+      : []
+
+    if (summaryCards.length === 0) {
+      return 'BACKGROUND'
+    }
+
+    const pendingCard =
+      summaryCards.find(
+        (card, index) => selectedSummaryChoices[getSummaryCardKey(card, index)] === undefined,
+      ) ?? summaryCards[0]
+
+    return pendingCard?.paragraphType ?? 'BACKGROUND'
+  }, [problemSession?.summaryCards, selectedSummaryChoices])
+  const quickActionContext = useMemo(
+    () => ({
+      paragraphType: currentParagraphType,
+      currentNode: getParagraphLabel(currentParagraphType),
+      problemId: problemId ?? '',
+    }),
+    [currentParagraphType, problemId],
+  )
 
   const streamRef = useRef(null)
   const assistantMessageIdRef = useRef(null)
@@ -535,48 +561,6 @@ export default function Chatbot() {
     [clearTokenBuffer, clearStreamingNodes, problemId, updateSession],
   )
 
-  const handleMarkQuizReady = useCallback(
-    (targetId) => {
-      if (!problemId || !targetId) {
-        return
-      }
-      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? []
-      updateSession(problemId, {
-        messages: currentMessages.map((message) =>
-          message.id === targetId
-            ? {
-                ...message,
-                meta: {
-                  ...(message.meta ?? {}),
-                  showQuizCta: true,
-                },
-              }
-            : message,
-        ),
-      })
-    },
-    [problemId, updateSession],
-  )
-
-  const handleCompleteChatbotSession = useCallback(() => {
-    if (!problemId) {
-      return
-    }
-
-    const completedAt = new Date().toISOString()
-    updateSession(problemId, {
-      isChatbotCompleted: true,
-      inputValue: '',
-      sendError: null,
-    })
-    if (problemSession?.sessionId) {
-      setProblemSession(problemId, {
-        ...problemSession,
-        chatbotCompletedAt: problemSession.chatbotCompletedAt ?? completedAt,
-      })
-    }
-  }, [problemId, problemSession, setProblemSession, updateSession])
-
   const handleStopStreaming = useCallback(
     ({ failureMessage, fallbackStatus, patch = {} } = {}) => {
       if (!problemId) {
@@ -670,16 +654,11 @@ export default function Chatbot() {
         if (isActive) {
           setProblemStatus(data.status)
           if (sessionId) {
-            const isChatbotCompletedState = Boolean(problemSession?.chatbotCompletedAt)
             const historyItems = Array.isArray(history?.items) ? history.items : []
             const historyMessages = toHistoryMessages(historyItems)
             initSession(problemId, historyMessages)
-            updateSession(problemId, {
-              isChatbotCompleted: isChatbotCompletedState,
-              ...(isChatbotCompletedState ? { inputValue: '' } : {}),
-            })
 
-            if (!existingSession && !isChatbotCompletedState) {
+            if (!existingSession) {
               const resumableConversationId = resolveResumableConversationId(historyItems)
               if (resumableConversationId) {
                 const pendingAssistantId = `conv-${resumableConversationId}-assistant`
@@ -740,15 +719,7 @@ export default function Chatbot() {
     return () => {
       isActive = false
     }
-  }, [
-    fetchProblemDetail,
-    initSession,
-    navigate,
-    problemId,
-    problemSession?.chatbotCompletedAt,
-    sessionId,
-    updateSession,
-  ])
+  }, [fetchProblemDetail, initSession, navigate, problemId, sessionId, updateSession])
 
   useLayoutEffect(() => {
     if (isLoading || loadError || isSessionRequired || !hasActiveSession) {
@@ -868,12 +839,6 @@ export default function Chatbot() {
             handleReplaceAssistant(finalMessage)
           }
           didReceiveFinalRef.current = true
-          const isCorrect = eventData?.result?.is_correct ?? eventData?.result?.isCorrect
-          const currentNode = resolveFinalNode(eventData?.result)
-          if (isCorrect === true && currentNode === FINAL_CHATBOT_NODE) {
-            handleMarkQuizReady(assistantMessageIdRef.current)
-            handleCompleteChatbotSession()
-          }
         },
         onStatus: (status) => {
           if (status === 'COMPLETED') {
@@ -893,16 +858,10 @@ export default function Chatbot() {
           return
         },
         onConflict: ({ isResumeStreamRequest }) => {
-          if (isResumeStreamRequest) {
-            handleStopStreaming({
-              failureMessage: STREAM_FAILED_MESSAGE,
-              fallbackStatus: 'FAILED',
-            })
-            return
-          }
-
-          handleCompleteChatbotSession()
-          handleStopStreaming()
+          handleStopStreaming({
+            failureMessage: STREAM_FAILED_MESSAGE,
+            fallbackStatus: isResumeStreamRequest ? 'FAILED' : undefined,
+          })
         },
         onRateLimit: ({ message }) => {
           const rateLimitMessage = message ?? STREAM_RATE_LIMIT_MESSAGE
@@ -922,10 +881,8 @@ export default function Chatbot() {
       streamPayloadRef.current = null
     }
   }, [
-    handleCompleteChatbotSession,
     handleAppendAssistant,
     handleReplaceAssistant,
-    handleMarkQuizReady,
     handleStopStreaming,
     isStreaming,
     problemId,
@@ -947,34 +904,86 @@ export default function Chatbot() {
     }
   }, [clearTokenBuffer, clearStreamingNodes])
 
-  const handleSend = async () => {
+  const sendChatbotMessage = useCallback(
+    ({ displayMessage, requestMessage, messageType = 'ANSWER', shouldClearInput = false }) => {
+      const nextDisplayMessage = String(displayMessage ?? '').trim()
+      const nextRequestMessage = String(requestMessage ?? displayMessage ?? '').trim()
+
+      if (!nextDisplayMessage || !nextRequestMessage || !problemId || isStreaming) {
+        return
+      }
+
+      updateSession(problemId, {
+        sendError: null,
+        ...(shouldClearInput ? { inputValue: '' } : {}),
+      })
+      clearTokenBuffer()
+      clearStreamingNodes()
+      didReceiveFinalRef.current = false
+
+      const userMessage = {
+        id: buildMessageId(),
+        role: 'user',
+        content: nextDisplayMessage,
+      }
+      const assistantId = buildMessageId()
+      assistantMessageIdRef.current = assistantId
+      const currentMessages = useChatbotStore.getState().sessions[String(problemId)]?.messages ?? [
+        INITIAL_MESSAGE,
+      ]
+
+      updateSession(problemId, {
+        assistantMessageId: assistantId,
+        messages: [
+          ...currentMessages,
+          userMessage,
+          { id: assistantId, role: 'assistant', content: '' },
+        ],
+        conversationId: null,
+        isStreaming: true,
+      })
+
+      streamPayloadRef.current = {
+        problemId,
+        message: nextRequestMessage,
+        messageType,
+        sessionId,
+      }
+    },
+    [clearStreamingNodes, clearTokenBuffer, isStreaming, problemId, sessionId, updateSession],
+  )
+
+  const handleSend = useCallback(() => {
     const trimmed = inputValue.trim()
-    if (!trimmed || !problemId || isStreaming || isChatbotCompleted) {
+
+    if (!trimmed) {
       return
     }
 
-    updateSession(problemId, { sendError: null, inputValue: '' })
-    clearTokenBuffer()
-    clearStreamingNodes()
-    didReceiveFinalRef.current = false
-
-    const userMessage = {
-      id: buildMessageId(),
-      role: 'user',
-      content: trimmed,
-    }
-    const assistantId = buildMessageId()
-    assistantMessageIdRef.current = assistantId
-
-    updateSession(problemId, {
-      assistantMessageId: assistantId,
-      messages: [...messages, userMessage, { id: assistantId, role: 'assistant', content: '' }],
-      conversationId: null,
-      isStreaming: true,
+    sendChatbotMessage({
+      displayMessage: trimmed,
+      requestMessage: trimmed,
+      messageType: 'ANSWER',
+      shouldClearInput: true,
     })
+  }, [inputValue, sendChatbotMessage])
 
-    streamPayloadRef.current = { problemId, message: trimmed, sessionId }
-  }
+  const handleQuickAction = useCallback(
+    (action) => {
+      const requestMessage = buildQuickActionMessage(action.id, quickActionContext)
+
+      if (!requestMessage) {
+        return
+      }
+
+      sendChatbotMessage({
+        displayMessage: action.label,
+        requestMessage,
+        messageType: action.messageType,
+      })
+    },
+    [quickActionContext, sendChatbotMessage],
+  )
 
   const handleCancelStream = useCallback(async () => {
     if (!problemId || !isStreaming) {
@@ -1034,18 +1043,6 @@ export default function Chatbot() {
     event.currentTarget.form?.requestSubmit()
   }
 
-  const handleQuizCtaClick = useCallback(() => {
-    if (problemId) {
-      navigate(`/problems/${problemId}/quiz`)
-    }
-  }, [navigate, problemId])
-
-  const handleSummaryCtaClick = useCallback(() => {
-    if (problemId) {
-      navigate(`/problems/${problemId}/summary`)
-    }
-  }, [navigate, problemId])
-
   const handleStartSession = async () => {
     if (!problemId || isSessionStarting) {
       return
@@ -1061,7 +1058,6 @@ export default function Chatbot() {
         conversationId: null,
         assistantMessageId: null,
         isStreaming: false,
-        isChatbotCompleted: false,
         isInputBlocked: false,
         sendError: null,
       })
@@ -1081,29 +1077,6 @@ export default function Chatbot() {
     () => ['summary_card_passed', 'solved'].includes(problemStatus ?? ''),
     [problemStatus],
   )
-  const isChatbotCompleted = useMemo(
-    () => Boolean(session?.isChatbotCompleted) || Boolean(problemSession?.chatbotCompletedAt),
-    [problemSession?.chatbotCompletedAt, session?.isChatbotCompleted],
-  )
-  const renderedMessages = useMemo(
-    () => (isChatbotCompleted ? [...messages, CHATBOT_COMPLETED_GUIDE_MESSAGE] : messages),
-    [isChatbotCompleted, messages],
-  )
-
-  useEffect(() => {
-    if (!isChatbotCompleted || isLoading || loadError || isSessionRequired || !hasActiveSession) {
-      return
-    }
-
-    scrollToBottom('smooth')
-  }, [
-    hasActiveSession,
-    isChatbotCompleted,
-    isLoading,
-    isSessionRequired,
-    loadError,
-    scrollToBottom,
-  ])
 
   return (
     <section className="relative flex min-h-0 flex-1 flex-col overflow-hidden px-4">
@@ -1152,15 +1125,17 @@ export default function Chatbot() {
           </div>
         </div>
 
-        <p className="text-sm text-neutral-500">
-          ※ AI가 생성한 답변은 정확하지 않을 수 있으며, 참고용으로만 제공됩니다.
-        </p>
+        <div className="flex justify-between">
+          <p className="text-[12px] text-neutral-500">
+            ※ AI가 생성한 답변은 정확하지 않을 수 있습니다.
+          </p>
 
-        {hasActiveSession ? (
-          <div className="!mt-0 flex justify-end">
-            <SessionTimer expiresAt={problemSession?.expiresAt} />
-          </div>
-        ) : null}
+          {hasActiveSession ? (
+            <div className="!mt-0 flex justify-end">
+              <SessionTimer expiresAt={problemSession?.expiresAt} />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {isLoading ? (
@@ -1204,7 +1179,7 @@ export default function Chatbot() {
             ref={messagesViewportRef}
           >
             <div className="space-y-10">
-              {renderedMessages.map((message) => {
+              {messages.map((message) => {
                 const isPending =
                   message.role === 'assistant' &&
                   isStreaming &&
@@ -1244,106 +1219,90 @@ export default function Chatbot() {
           ) : null}
 
           <div
-            className="shrink-0 bg-background/95 pt-2 backdrop-blur"
+            className="shrink-0 bg-background/95 backdrop-blur mt-4"
             style={{ paddingBottom: inputBottomOffset }}
           >
-            {sendError ? <p className="m-2 text-xs text-red-500">{sendError}</p> : null}
+            <div className="mb-3 flex items-end gap-2">
+              <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                {CHATBOT_QUICK_ACTIONS.map((action) => {
+                  const Icon = QUICK_ACTION_ICON_BY_ID[action.id] ?? Brain
 
-            {isChatbotCompleted ? (
-              <div className="space-y-2 rounded-2xl bg-background shadow-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button
-                    className="h-auto w-full rounded-2xl border-black bg-background px-3 py-3 text-left text-black hover:bg-muted/20"
-                    onClick={handleSummaryCtaClick}
-                    type="button"
-                    variant="outline"
-                  >
-                    <span className="flex w-full items-center gap-2">
-                      <span className="min-w-0 flex-1 overflow-hidden">
-                        <span className="block truncate break-keep text-[13px] font-semibold leading-5">
-                          문제 요약 카드 만들기
-                        </span>
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0" />
-                    </span>
-                  </Button>
-                  <Button
-                    className="h-auto w-full rounded-2xl border-black bg-background px-3 py-3 text-left text-black hover:bg-muted/20"
-                    onClick={handleQuizCtaClick}
-                    type="button"
-                    variant="outline"
-                  >
-                    <span className="flex w-full items-center gap-2">
-                      <span className="min-w-0 flex-1 overflow-hidden">
-                        <span className="block truncate break-keep text-[13px] font-semibold leading-5">
-                          퀴즈 풀기
-                        </span>
-                      </span>
-                      <ChevronRight className="h-4 w-4 shrink-0" />
-                    </span>
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <p className="m-2 text-right text-[12px] text-neutral-500">
-                  {inputValue.length} / {MAX_INPUT_LENGTH}
-                </p>
-                <form
-                  className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
-                  onSubmit={(event) => {
-                    event.preventDefault()
-                    handleSend()
-                  }}
-                >
-                  <label className="sr-only" htmlFor="chatbot-message-input">
-                    메시지 입력
-                  </label>
-                  <textarea
-                    id="chatbot-message-input"
-                    className="min-h-10 max-h-[120px] flex-1 resize-none border-0 px-2 py-2 text-[16px] leading-6 placeholder:text-neutral-500 shadow-none focus-visible:outline-none"
-                    disabled={isStreaming}
-                    maxLength={MAX_INPUT_LENGTH}
-                    onChange={(event) => {
-                      const nextValue = event.target.value
-                      updateSession(problemId, {
-                        inputValue: nextValue.slice(0, MAX_INPUT_LENGTH),
-                      })
-                    }}
-                    onKeyDown={handleInputKeyDown}
-                    onFocus={handleInputFocus}
-                    placeholder="메시지를 입력하세요"
-                    ref={inputRef}
-                    rows={1}
-                    value={inputValue}
-                  />
-                  {isStreaming ? (
+                  return (
                     <Button
-                      className="h-10 rounded-xl"
-                      onClick={handleCancelStream}
-                      size="sm"
+                      key={action.id}
+                      className="h-9 rounded-full border border-muted-foreground/15 bg-muted/40 px-3 py-2 text-[12px] font-semibold text-foreground shadow-none hover:bg-muted/70"
+                      disabled={isStreaming}
+                      onClick={() => handleQuickAction(action)}
                       type="button"
-                      variant="destructive"
-                    >
-                      중단
-                    </Button>
-                  ) : (
-                    <Button
-                      className={`h-10 rounded-xl ${
-                        inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
-                      }`}
-                      disabled={inputValue.trim().length === 0}
-                      size="sm"
-                      type="submit"
                       variant="secondary"
                     >
-                      <Send className="h-4 w-4" />
-                      전송
+                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span>{action.label}</span>
                     </Button>
-                  )}
-                </form>
-              </>
-            )}
+                  )
+                })}
+              </div>
+
+              <p className="shrink-0 pb-1 text-right text-[12px] text-neutral-500">
+                {inputValue.length} / {MAX_INPUT_LENGTH}
+              </p>
+            </div>
+
+            {sendError ? <p className="mb-2 text-xs text-red-500">{sendError}</p> : null}
+
+            <form
+              className="flex items-end gap-2 rounded-2xl border border-muted-foreground/20 bg-background p-2 shadow-sm"
+              onSubmit={(event) => {
+                event.preventDefault()
+                handleSend()
+              }}
+            >
+              <label className="sr-only" htmlFor="chatbot-message-input">
+                메시지 입력
+              </label>
+              <textarea
+                id="chatbot-message-input"
+                className="min-h-10 max-h-[120px] flex-1 resize-none border-0 px-2 py-2 text-[16px] leading-6 placeholder:text-neutral-500 shadow-none focus-visible:outline-none"
+                disabled={isStreaming}
+                maxLength={MAX_INPUT_LENGTH}
+                onChange={(event) => {
+                  const nextValue = event.target.value
+                  updateSession(problemId, {
+                    inputValue: nextValue.slice(0, MAX_INPUT_LENGTH),
+                  })
+                }}
+                onKeyDown={handleInputKeyDown}
+                onFocus={handleInputFocus}
+                placeholder="메시지를 입력하세요"
+                ref={inputRef}
+                rows={1}
+                value={inputValue}
+              />
+              {isStreaming ? (
+                <Button
+                  className="h-10 rounded-xl"
+                  onClick={handleCancelStream}
+                  size="sm"
+                  type="button"
+                  variant="destructive"
+                >
+                  중단
+                </Button>
+              ) : (
+                <Button
+                  className={`h-10 rounded-xl ${
+                    inputValue.trim().length > 0 ? 'bg-info text-white hover:bg-info/90' : ''
+                  }`}
+                  disabled={inputValue.trim().length === 0}
+                  size="sm"
+                  type="submit"
+                  variant="secondary"
+                >
+                  <Send className="h-4 w-4" />
+                  전송
+                </Button>
+              )}
+            </form>
           </div>
         </div>
       )}

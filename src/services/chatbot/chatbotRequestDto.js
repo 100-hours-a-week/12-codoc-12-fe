@@ -1,10 +1,11 @@
 export const toChatbotMessageRequest = (payload = {}) => {
-  const { problemId, message, sessionId } = payload
+  const { problemId, message, sessionId, messageType } = payload
 
   return {
     problemId,
     message,
     sessionId: sessionId ?? null,
+    message_type: messageType ?? 'ANSWER',
   }
 }
 
