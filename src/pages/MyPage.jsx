@@ -145,6 +145,34 @@ const paragraphLabelMap = {
   GOAL: '목표',
   RULE: '규칙',
   CONSTRAINT: '제약',
+  INSIGHT: '핵심 아이디어',
+  STRATEGY: '풀이 전략',
+}
+
+const quizLabelMap = {
+  ALGORITHM: '알고리즘 선택',
+  LOGIC_CHECK: '로직 점검',
+  DATA_STRUCTURE: '자료구조 선택',
+  TIME_COMPLEXITY: '시간 복잡도 판단',
+}
+
+const metricLabelMap = {
+  accuracy: '정확도',
+  independence: '독립성',
+  efficiency: '효율성',
+  consistency: '일관성',
+}
+
+const reportCharacterImageByUserType = {
+  '숲을 지배한 코알라': '/images/report_codoc/forest.png',
+  '뿌리 깊은 코알라': '/images/report_codoc/ppuri.png',
+  '번개 맞은 코알라': '/images/report_codoc/bungae.png',
+  '잠재력 폭발 아기 코알라': '/images/report_codoc/agi.png',
+}
+
+const resolveReportCharacterImage = (userType) => {
+  const key = String(userType ?? '').trim()
+  return reportCharacterImageByUserType[key] ?? '/images/report.png'
 }
 
 const clampScore = (value) => {
@@ -155,13 +183,17 @@ const clampScore = (value) => {
   return Math.min(100, Math.max(0, numeric))
 }
 
-function StatCard({ label, value }) {
-  return (
-    <div className="rounded-2xl border border-black/15 bg-white px-3 py-3 text-center shadow-[0_10px_20px_rgba(15,23,42,0.05)]">
-      <p className="text-lg font-semibold">{value}</p>
-      <p className="mt-1 text-xs font-semibold text-muted-foreground">{label}</p>
-    </div>
-  )
+const getScoreLabel = (score) => {
+  if (score >= 80) {
+    return '매우 안정적'
+  }
+  if (score >= 60) {
+    return '좋은 흐름'
+  }
+  if (score >= 40) {
+    return '성장 구간'
+  }
+  return '집중 보완'
 }
 
 export default function MyPage() {
@@ -197,11 +229,9 @@ export default function MyPage() {
   const [dailySolveCount, setDailySolveCount] = useState([])
   const heatmapScrollRef = useRef(null)
   const [selectedCell, setSelectedCell] = useState(null)
-  const reportSectionRef = useRef(null)
   const [isLoadingReport, setIsLoadingReport] = useState(true)
   const [reportError, setReportError] = useState('')
   const [report, setReport] = useState(null)
-  const [isReportOpen, setIsReportOpen] = useState(false)
 
   const helperText = useMemo(
     () => ({
@@ -401,15 +431,6 @@ export default function MyPage() {
     }
   }, [contributionRange])
 
-  useEffect(() => {
-    if (!isReportOpen || !reportSectionRef.current) {
-      return
-    }
-    requestAnimationFrame(() => {
-      reportSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }, [isReportOpen])
-
   const handleSaveDailyGoal = async () => {
     if (isSavingGoal) {
       return
@@ -552,17 +573,60 @@ export default function MyPage() {
   const isAnyLoading = isLoadingProfile || isLoadingStats || isLoadingContribution
 
   const statCards = [
-    { label: '해결한 문제', value: stats.solvedCount },
-    { label: '도전 중인 문제', value: stats.solvingCount },
-    { label: '누적 XP', value: stats.totalXp },
+    { label: '해결한 문제', value: `${Number(stats.solvedCount ?? 0).toLocaleString('ko-KR')}개` },
+    {
+      label: '도전 중인 문제',
+      value: `${Number(stats.solvingCount ?? 0).toLocaleString('ko-KR')}개`,
+    },
+    { label: '누적 XP', value: `${Number(stats.totalXp ?? 0).toLocaleString('ko-KR')} XP` },
   ]
   const reportSummary = report?.report?.summary
   const reportPast = report?.report?.past_diagnosis
   const reportPresent = report?.report?.present_growth
   const reportFuture = report?.report?.future_roadmap
-  const reportStats = reportPast?.paragraph_fail_stats ?? {}
-  const reportStatsEntries = Object.entries(reportStats)
-  const maxReportStat = Math.max(1, ...reportStatsEntries.map(([, value]) => Number(value) || 0))
+  const reportSummaryComment =
+    reportSummary?.summary_comment ??
+    reportPast?.summary_comment ??
+    '이번 주 학습 리포트를 생성했어요.'
+  const reportAnalysisText =
+    reportPast?.analysis_text ?? reportFuture?.analysis_text ?? '약점 구간을 분석하고 있어요.'
+  const reportStrategyTip =
+    reportFuture?.strategy_tip ?? reportPast?.strategy_tip ?? '추천 전략이 곧 도착할 예정이에요.'
+  const reportRecommendedAction =
+    reportFuture?.recommended_action ??
+    reportPast?.recommended_action ??
+    '이번 주 실천 과제가 곧 제공될 예정이에요.'
+  const weakSectionLabel =
+    paragraphLabelMap[reportPast?.weak_section] ?? reportPast?.weak_section ?? '분석 중'
+  const weakQuizLabel = quizLabelMap[reportPast?.weak_quiz] ?? reportPast?.weak_quiz ?? '분석 중'
+  const weakestMetricLabel =
+    metricLabelMap[reportPast?.weakest_metric] ?? reportPast?.weakest_metric ?? '분석 중'
+  const metricCards = [
+    {
+      key: 'accuracy',
+      label: '정확도',
+      helper: '핵심 조건을 정확히 반영하는 힘',
+      score: clampScore(reportPresent?.accuracy ?? 0),
+    },
+    {
+      key: 'independence',
+      label: '독립성',
+      helper: '힌트 없이 스스로 푸는 힘',
+      score: clampScore(reportPresent?.independence ?? 0),
+    },
+    {
+      key: 'efficiency',
+      label: '효율성',
+      helper: '적절한 풀이를 빠르게 고르는 힘',
+      score: clampScore(reportPresent?.efficiency ?? 0),
+    },
+    {
+      key: 'consistency',
+      label: '꾸준함',
+      helper: '문제마다 안정적으로 푸는 힘',
+      score: clampScore(reportPresent?.consistency ?? 0),
+    },
+  ]
   const reportRangeLabel =
     report?.analysis_period?.start_date && report?.analysis_period?.end_date
       ? `${formatShortDate(report.analysis_period.start_date)} ~ ${formatShortDate(
@@ -571,6 +635,8 @@ export default function MyPage() {
       : report?.periodStart && report?.periodEnd
         ? `${formatShortDate(report.periodStart)} ~ ${formatShortDate(report.periodEnd)}`
         : ''
+  const reportPeriodLabel = reportRangeLabel || '분석 기간 집계 중'
+  const reportCharacterImage = resolveReportCharacterImage(reportSummary?.user_type)
 
   return (
     <div className="space-y-3">
@@ -583,7 +649,7 @@ export default function MyPage() {
               ) : null}
               {isEditing ? (
                 <button
-                  className="absolute left-1/2 top-1/2 w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70 bg-white/95 px-3 py-1 text-xs font-semibold text-foreground shadow-sm"
+                  className="absolute left-1/2 top-1/2 w-[72px] -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/70 bg-white/95 px-2 py-1 text-[11px] font-semibold text-foreground shadow-sm"
                   type="button"
                   onClick={() => setIsAvatarPickerOpen(true)}
                 >
@@ -749,226 +815,163 @@ export default function MyPage() {
         </section>
       ) : (
         <>
-          <section className="grid grid-cols-3 gap-3">
-            {statCards.map((item) => (
-              <StatCard key={item.label} label={item.label} value={item.value} />
-            ))}
-          </section>
-
           <div className="space-y-3">
-            <section className="space-y-3">
-              <div className="flex items-center justify-between">
-                <button
-                  className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
-                  type="button"
-                  onClick={() => setIsGoalModalOpen(true)}
-                >
-                  일일 목표 설정
-                </button>
-                <div className="relative">
-                  <button
-                    className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
-                    type="button"
-                    onClick={() => setIsYearMenuOpen((prev) => !prev)}
-                  >
-                    <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
-                    <span aria-hidden className="text-xs text-muted-foreground">
-                      ▾
-                    </span>
-                  </button>
-                  {isYearMenuOpen ? (
-                    <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                      <button
-                        className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                          year === 'recent' ? 'bg-[#f3f4f6]' : ''
-                        }`}
-                        type="button"
-                        onClick={() => {
-                          setYear('recent')
-                          setIsYearMenuOpen(false)
+            <section className="overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-[0_16px_32px_rgba(15,23,42,0.08)]">
+              <div className="bg-gradient-to-r from-[#3f8eef] via-[#5ca4f6] to-[#74b6fa] px-4 py-4 text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div className="h-[96px] w-[96px] shrink-0 overflow-hidden">
+                      <img
+                        alt="report"
+                        className="h-full w-full max-w-none scale-[1.18] object-contain"
+                        src="/images/report.png"
+                        onError={(event) => {
+                          if (event.currentTarget.src.endsWith('/images/report.png')) {
+                            event.currentTarget.style.display = 'none'
+                            return
+                          }
+                          event.currentTarget.src = '/images/report.png'
                         }}
-                      >
-                        {recentLabel}
-                      </button>
-                      {years.map((value) => (
-                        <button
-                          key={value}
-                          className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
-                            value === year ? 'bg-[#f3f4f6]' : ''
-                          }`}
-                          type="button"
-                          onClick={() => {
-                            setYear(value)
-                            setIsYearMenuOpen(false)
-                          }}
-                        >
-                          {value}년
-                        </button>
-                      ))}
+                      />
                     </div>
-                  ) : null}
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-semibold text-white/90">AI 학습 리포트</p>
+                      <h3 className="mt-0.5 text-[19px] font-bold leading-tight">
+                        학습 리포트를 통해 성장해보세요
+                      </h3>
+                      <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-full border border-white/45 bg-white/20 px-2.5 py-1">
+                        <span className="shrink-0 text-[10px] font-semibold text-white/90">
+                          분석 기간
+                        </span>
+                        <span className="truncate text-[11px] font-semibold text-white">
+                          {reportPeriodLabel}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-1.5 grid grid-cols-3 gap-2">
+                  {statCards.map((item) => (
+                    <div
+                      key={item.label}
+                      className="rounded-xl border border-white/35 bg-white/95 px-2.5 py-2 text-[#0f172a] shadow-sm"
+                    >
+                      <p className="text-[10px] font-semibold text-[#64748b]">{item.label}</p>
+                      <p className="mt-0.5 text-[14px] font-bold leading-none">{item.value}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
-              <Heatmap
-                model={heatmapModel}
-                monthMarkers={monthMarkers}
-                scrollRef={heatmapScrollRef}
-                selectedCell={selectedCell}
-                onSelectCell={setSelectedCell}
-                levelClasses={levelClasses}
-              />
-            </section>
 
-            <section
-              ref={reportSectionRef}
-              className="rounded-[24px] border border-black/10 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.08)]"
-            >
-              <button
-                className="flex w-full items-center justify-between text-left"
-                type="button"
-                onClick={() => setIsReportOpen((prev) => !prev)}
-                aria-expanded={isReportOpen}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold text-muted-foreground">
-                    AI 분석 리포트
-                  </span>
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    {reportRangeLabel}
-                  </span>
-                </div>
-                <span className="text-lg text-muted-foreground">{isReportOpen ? '▾' : '▸'}</span>
-              </button>
-
-              {isReportOpen ? (
-                isLoadingReport ? (
-                  <StatusMessage className="mt-4">리포트를 불러오는 중...</StatusMessage>
+              <div className="space-y-3 bg-[#f8faff] p-3">
+                {isLoadingReport ? (
+                  <StatusMessage>리포트를 불러오는 중...</StatusMessage>
                 ) : reportError ? (
-                  <StatusMessage className="mt-4">
-                    분석 리포트는 매주 월요일 오전 5시에 발급됩니다.
-                  </StatusMessage>
+                  <div className="rounded-2xl border border-[#c3d4ea] bg-[linear-gradient(180deg,#f2f7ff_0%,#fbfdff_100%)] px-4 py-4 text-left shadow-[0_8px_18px_rgba(90,124,168,0.12)]">
+                    <p className="text-[12px] font-semibold tracking-wide text-[#5a77a1]">
+                      리포트 발급 안내
+                    </p>
+                    <p className="mt-1 text-[16px] font-bold leading-snug text-[#1f3d63]">
+                      분석 리포트는 매주 월요일 오전 5시에 발급됩니다.
+                    </p>
+                  </div>
                 ) : report ? (
-                  <div className="mt-4 space-y-4">
-                    <div className="rounded-2xl border border-black/10 bg-[#f8fafc] px-4 py-3">
+                  <>
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
                       <p className="text-xs font-semibold text-muted-foreground">성장지수</p>
-                      <div className="mt-1 flex items-baseline gap-2">
-                        <span className="text-2xl font-semibold">
-                          {Number(reportSummary?.growth_index ?? 0).toFixed(1)}
-                        </span>
-                        <span className="text-sm font-semibold text-muted-foreground">
-                          {reportSummary?.user_type ?? '분석 중'}
-                        </span>
+                      <div className="mt-2 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-end gap-2">
+                            <span className="text-3xl font-bold leading-none">
+                              {Number(reportSummary?.growth_index ?? 0).toFixed(1)}
+                            </span>
+                            <span className="pb-0.5 text-sm font-semibold text-muted-foreground">
+                              / 100
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm font-semibold text-foreground/85">
+                            {reportSummary?.user_type ?? '분석 중'}
+                          </p>
+                          <p className="mt-1 text-xs font-medium text-muted-foreground">
+                            {reportSummaryComment}
+                          </p>
+                        </div>
+                        <div className="h-[112px] w-[112px] shrink-0 overflow-hidden">
+                          <img
+                            alt={
+                              reportSummary?.user_type
+                                ? `${reportSummary.user_type} 이미지`
+                                : '유형 이미지'
+                            }
+                            className="h-full w-full object-contain"
+                            src={reportCharacterImage}
+                            onError={(event) => {
+                              if (event.currentTarget.src.endsWith('/images/report.png')) {
+                                event.currentTarget.style.display = 'none'
+                                return
+                              }
+                              event.currentTarget.src = '/images/report.png'
+                            }}
+                          />
+                        </div>
                       </div>
-                      <p className="mt-2 text-xs font-medium text-muted-foreground">
-                        {reportSummary?.summary_comment ?? '이번 주 학습 리포트를 생성했어요.'}
-                      </p>
                     </div>
 
-                    <div className="space-y-3">
-                      <div>
-                        <p className="text-sm font-semibold">
-                          문맥 핵심 약점: {paragraphLabelMap[reportPast?.weak_section] ?? '분석 중'}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          {reportPast?.analysis_text ?? '문단별 약점을 분석하고 있어요.'}
-                        </p>
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+                      <p className="text-sm font-semibold">이번 주 핵심 분석</p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        <span className="rounded-full border border-black/10 bg-[#f8fafc] px-2.5 py-1 text-[11px] font-semibold text-foreground/80">
+                          섹션: {weakSectionLabel}
+                        </span>
+                        <span className="rounded-full border border-black/10 bg-[#f8fafc] px-2.5 py-1 text-[11px] font-semibold text-foreground/80">
+                          퀴즈: {weakQuizLabel}
+                        </span>
+                        <span className="rounded-full border border-black/10 bg-[#f8fafc] px-2.5 py-1 text-[11px] font-semibold text-foreground/80">
+                          우선 지표: {weakestMetricLabel}
+                        </span>
                       </div>
-                      <div className="space-y-2">
-                        {reportStatsEntries.length > 0 ? (
-                          reportStatsEntries.map(([key, value]) => {
-                            const normalized = Math.round((Number(value) / maxReportStat) * 100)
-                            return (
-                              <div key={key} className="space-y-1">
-                                <div className="flex items-center justify-between text-[11px] font-semibold text-muted-foreground">
-                                  <span>{paragraphLabelMap[key] ?? key}</span>
-                                  <span>{value ?? 0}</span>
-                                </div>
-                                <div className="h-2 rounded-full bg-[#e5e7eb]">
-                                  <div
-                                    className="h-full rounded-full bg-info"
-                                    style={{ width: `${normalized}%` }}
-                                  />
-                                </div>
-                              </div>
-                            )
-                          })
-                        ) : (
-                          <p className="text-xs text-muted-foreground">
-                            이번 주 약점 데이터가 없습니다.
-                          </p>
-                        )}
+                      <p className="mt-2 text-xs text-muted-foreground">{reportAnalysisText}</p>
+                      <div className="mt-3 rounded-xl border border-black/10 bg-[#f8fafc] px-3 py-2">
+                        <p className="text-[11px] font-semibold text-muted-foreground">
+                          지금 집중하면 좋은 포인트
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-foreground/85">
+                          {weakSectionLabel} 문맥과 {weakQuizLabel} 판단을 우선 정리하면{' '}
+                          {weakestMetricLabel} 개선이 가장 빠르게 반영됩니다.
+                        </p>
                       </div>
                     </div>
 
                     <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
                       <p className="text-sm font-semibold">현재 성장 지표</p>
-                      <div className="mt-3 flex items-center justify-between gap-4">
-                        <div className="flex-1">
-                          <svg viewBox="0 0 120 120" className="h-24 w-24 text-muted-foreground">
-                            <polygon
-                              points="60,10 110,60 60,110 10,60"
-                              fill="none"
-                              stroke="#e5e7eb"
-                              strokeWidth="2"
-                            />
-                            <polygon
-                              points="60,25 95,60 60,95 25,60"
-                              fill="none"
-                              stroke="#f3f4f6"
-                              strokeWidth="2"
-                            />
-                            <polygon
-                              points="60,40 80,60 60,80 40,60"
-                              fill="none"
-                              stroke="#f3f4f6"
-                              strokeWidth="2"
-                            />
-                            {(() => {
-                              const accuracy = clampScore(reportPresent?.accuracy ?? 0) / 100
-                              const efficiency = clampScore(reportPresent?.efficiency ?? 0) / 100
-                              const consistency = clampScore(reportPresent?.consistency ?? 0) / 100
-                              const independence =
-                                clampScore(reportPresent?.independence ?? 0) / 100
-                              const top = 60 - 50 * accuracy
-                              const right = 60 + 50 * efficiency
-                              const bottom = 60 + 50 * consistency
-                              const left = 60 - 50 * independence
-                              const points = `${60},${top} ${right},${60} ${60},${bottom} ${left},${60}`
-                              return (
-                                <polygon
-                                  points={points}
-                                  fill="rgba(59,130,246,0.2)"
-                                  stroke="#3b82f6"
-                                  strokeWidth="2"
-                                />
-                              )
-                            })()}
-                          </svg>
-                        </div>
-                        <div className="flex-1 space-y-2 text-xs font-semibold text-muted-foreground">
-                          <div className="flex items-center justify-between">
-                            <span>정확도</span>
-                            <span className="text-foreground">{reportPresent?.accuracy ?? 0}</span>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        점수가 높을수록 현재 풀이가 더 안정적이라는 뜻이에요.
+                      </p>
+                      <div className="mt-3 space-y-2.5">
+                        {metricCards.map((item) => (
+                          <div
+                            key={item.key}
+                            className="rounded-xl border border-black/10 bg-[#f8fafc] px-3 py-2"
+                          >
+                            <div className="flex items-center justify-between text-xs font-semibold">
+                              <span>{item.label}</span>
+                              <span className="text-foreground">{item.score}점</span>
+                            </div>
+                            <div className="mt-1.5 h-2 rounded-full bg-[#e5e7eb]">
+                              <div
+                                className="h-full rounded-full bg-[#60a5fa]"
+                                style={{ width: `${item.score}%` }}
+                              />
+                            </div>
+                            <div className="mt-1 flex items-center justify-between text-[11px]">
+                              <span className="text-muted-foreground">{item.helper}</span>
+                              <span className="font-semibold text-foreground/80">
+                                {getScoreLabel(item.score)}
+                              </span>
+                            </div>
                           </div>
-                          <div className="flex items-center justify-between">
-                            <span>독립성</span>
-                            <span className="text-foreground">
-                              {reportPresent?.independence ?? 0}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span>효율성</span>
-                            <span className="text-foreground">
-                              {reportPresent?.efficiency ?? 0}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span>꾸준함</span>
-                            <span className="text-foreground">
-                              {reportPresent?.consistency ?? 0}
-                            </span>
-                          </div>
-                        </div>
+                        ))}
                       </div>
                       <p className="mt-3 text-xs text-muted-foreground">
                         {reportPresent?.metrics_analysis_comment ??
@@ -976,33 +979,134 @@ export default function MyPage() {
                       </p>
                     </div>
 
-                    <div className="rounded-2xl border border-black/10 bg-[#f8fafc] px-4 py-3">
-                      <p className="text-sm font-semibold">미래: 독학 전략 & 로드맵</p>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        {reportFuture?.strategy_tip ?? '추천 전략이 곧 도착할 예정이에요.'}
+                    <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
+                      <p className="text-sm font-semibold">코독 제안 학습 플랜</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        아래 순서대로 따라하면 이번 주 점수를 가장 효율적으로 올릴 수 있어요.
                       </p>
+                      <div className="mt-3 space-y-2">
+                        <div className="rounded-xl border border-black/10 bg-[#f8fafc] px-3 py-2">
+                          <p className="text-[11px] font-semibold text-muted-foreground">
+                            1단계. 학습 전략
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-foreground/85">
+                            {reportStrategyTip}
+                          </p>
+                        </div>
+                        <div className="rounded-xl border border-black/10 bg-[#eef5ff] px-3 py-2">
+                          <p className="text-[11px] font-semibold text-[#3b82f6]">
+                            2단계. 이번 주 실행 과제
+                          </p>
+                          <p className="mt-1 text-xs font-semibold text-foreground/85">
+                            {reportRecommendedAction}
+                          </p>
+                        </div>
+                      </div>
                     </div>
 
                     <button
-                      className="w-full rounded-2xl border border-black/10 bg-[#f5f6f8] px-4 py-3 text-left shadow-sm transition hover:bg-[#eef0f2]"
+                      className="w-full rounded-2xl border border-[#cfe0ff] bg-[#eef5ff] px-4 py-3 text-left shadow-sm transition hover:bg-[#e2edff]"
                       type="button"
                       onClick={handleOpenRecommended}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-semibold text-foreground">
-                          추천 문제 풀러가기
+                          AI 추천 문제 풀러 가기
                         </span>
                         <span className="text-sm text-muted-foreground" aria-hidden>
                           ›
                         </span>
                       </div>
                     </button>
-                  </div>
+                  </>
                 ) : (
-                  <StatusMessage className="mt-4">분석 리포트가 아직 없어요.</StatusMessage>
-                )
-              ) : null}
+                  <StatusMessage>분석 리포트가 아직 없어요.</StatusMessage>
+                )}
+              </div>
             </section>
+
+            <section className="rounded-[20px] border border-black/10 bg-white p-3 shadow-[0_10px_20px_rgba(15,23,42,0.06)]">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-[16px] font-bold tracking-tight text-foreground">
+                    학습 히스토리
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    className="rounded-xl border border-black/20 bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-sm"
+                    type="button"
+                    onClick={() => setIsGoalModalOpen(true)}
+                  >
+                    일일 목표 설정
+                  </button>
+                  <div className="relative">
+                    <button
+                      className="inline-flex items-center gap-2 rounded-2xl border border-black/15 bg-white px-4 py-2 text-sm font-semibold shadow-[0_10px_20px_rgba(15,23,42,0.05)]"
+                      type="button"
+                      onClick={() => setIsYearMenuOpen((prev) => !prev)}
+                    >
+                      <span>{year === 'recent' ? recentLabel : `${year}년`}</span>
+                      <span aria-hidden className="text-xs text-muted-foreground">
+                        ▾
+                      </span>
+                    </button>
+                    {isYearMenuOpen ? (
+                      <div className="absolute right-0 z-10 mt-2 w-28 rounded-2xl border border-black/10 bg-white p-1 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                        <button
+                          className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                            year === 'recent' ? 'bg-[#f3f4f6]' : ''
+                          }`}
+                          type="button"
+                          onClick={() => {
+                            setYear('recent')
+                            setIsYearMenuOpen(false)
+                          }}
+                        >
+                          {recentLabel}
+                        </button>
+                        {years.map((value) => (
+                          <button
+                            key={value}
+                            className={`w-full rounded-xl px-3 py-2 text-left text-sm font-semibold transition hover:bg-[#f3f4f6] ${
+                              value === year ? 'bg-[#f3f4f6]' : ''
+                            }`}
+                            type="button"
+                            onClick={() => {
+                              setYear(value)
+                              setIsYearMenuOpen(false)
+                            }}
+                          >
+                            {value}년
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-3">
+                <Heatmap
+                  model={heatmapModel}
+                  monthMarkers={monthMarkers}
+                  scrollRef={heatmapScrollRef}
+                  selectedCell={selectedCell}
+                  onSelectCell={setSelectedCell}
+                  levelClasses={levelClasses}
+                />
+              </div>
+            </section>
+
+            <div className="mt-3">
+              <a
+                className="block w-full rounded-xl border border-black/15 bg-white px-3 py-3 text-center text-[13px] font-medium text-foreground shadow-sm transition hover:bg-[#f3f4f6]"
+                href="https://docs.google.com/forms/d/e/1FAIpQLSd7MbHiijJHphq767m1eeHmpmqqA8XRzcDuG2TljsBKCR3yqQ/viewform?pli=1"
+                target="_blank"
+                rel="noreferrer"
+              >
+                사용자 피드백 설문
+              </a>
+            </div>
           </div>
         </>
       )}
