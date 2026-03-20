@@ -103,7 +103,7 @@ export default function Login() {
             <img
               alt="코독 로그인 이미지"
               className="h-[280px] w-[280px] max-w-full object-contain"
-              src="/images/login_codoc.png"
+              src="https://images.codoc.cloud/images/login_codoc.png"
               onError={() => setIsHeroImageMissing(true)}
             />
           ) : (

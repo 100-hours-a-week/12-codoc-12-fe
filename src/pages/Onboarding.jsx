@@ -246,7 +246,7 @@ export default function Onboarding() {
                 <img
                   alt="온보딩 완료 이미지"
                   className="h-40 w-40 object-contain mix-blend-multiply"
-                  src="/images/onboarding.png"
+                  src="https://images.codoc.cloud/images/onboarding.png"
                   onError={() => setIsResultImageMissing(true)}
                 />
               ) : (

@@ -164,15 +164,15 @@ const metricLabelMap = {
 }
 
 const reportCharacterImageByUserType = {
-  '숲을 지배한 코알라': '/images/report_codoc/forest.png',
-  '뿌리 깊은 코알라': '/images/report_codoc/ppuri.png',
-  '번개 맞은 코알라': '/images/report_codoc/bungae.png',
-  '잠재력 폭발 아기 코알라': '/images/report_codoc/agi.png',
+  '숲을 지배한 코알라': 'https://images.codoc.cloud/images/report_codoc/forest.png',
+  '뿌리 깊은 코알라': 'https://images.codoc.cloud/images/report_codoc/ppuri.png',
+  '번개 맞은 코알라': 'https://images.codoc.cloud/images/report_codoc/bungae.png',
+  '잠재력 폭발 아기 코알라': 'https://images.codoc.cloud/images/report_codoc/agi.png',
 }
 
 const resolveReportCharacterImage = (userType) => {
   const key = String(userType ?? '').trim()
-  return reportCharacterImageByUserType[key] ?? '/images/report.png'
+  return reportCharacterImageByUserType[key] ?? 'https://images.codoc.cloud/images/report.png'
 }
 
 const clampScore = (value) => {
@@ -824,13 +824,13 @@ export default function MyPage() {
                       <img
                         alt="report"
                         className="h-full w-full max-w-none scale-[1.18] object-contain"
-                        src="/images/report.png"
+                        src="https://images.codoc.cloud/images/report.png"
                         onError={(event) => {
                           if (event.currentTarget.src.endsWith('/images/report.png')) {
                             event.currentTarget.style.display = 'none'
                             return
                           }
-                          event.currentTarget.src = '/images/report.png'
+                          event.currentTarget.src = 'https://images.codoc.cloud/images/report.png'
                         }}
                       />
                     </div>
@@ -911,7 +911,8 @@ export default function MyPage() {
                                 event.currentTarget.style.display = 'none'
                                 return
                               }
-                              event.currentTarget.src = '/images/report.png'
+                              event.currentTarget.src =
+                                'https://images.codoc.cloud/images/report.png'
                             }}
                           />
                         </div>
