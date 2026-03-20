@@ -210,7 +210,7 @@ export default function MainLayout() {
         }}
       >
         <header className="sticky top-0 z-30 bg-background/95 backdrop-blur">
-          <div className="relative flex items-center justify-center px-4 py-3 sm:px-6 sm:py-4">
+          <div className="relative flex items-center justify-center px-4 py-2.5 sm:px-6 sm:py-3">
             {showBackButton ? (
               <button
                 aria-label="뒤로 가기"
@@ -226,7 +226,7 @@ export default function MainLayout() {
             ) : null}
 
             <button
-              className="inline-flex items-baseline text-xl font-semibold tracking-tight sm:text-2xl"
+              className="inline-flex translate-y-[2px] items-baseline text-xl font-semibold tracking-tight sm:text-2xl"
               onClick={() => navigate('/')}
               type="button"
             >

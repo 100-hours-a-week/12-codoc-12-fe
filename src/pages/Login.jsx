@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import StatusMessage from '@/components/StatusMessage'
@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth'
 import { setUserId } from '@/lib/ga4'
 
-const fallbackMessage = '서비스 코독에 오신걸 환영 합니다'
+const fallbackMessage = '문제를 읽는 힘\n코독에서 탄탄하게 키워보세요'
 
 const errorMessages = {
   KAKAO_CANCEL: '카카오 로그인을 취소했어요. 다시 시도해주세요.',
@@ -26,6 +26,7 @@ export default function Login() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const errorCode = searchParams.get('error')
+  const [isHeroImageMissing, setIsHeroImageMissing] = useState(false)
 
   const welcomeMessage = useMemo(() => {
     if (!errorCode) {
@@ -83,27 +84,47 @@ export default function Login() {
   }, [navigate])
 
   return (
-    <div className="min-h-screen bg-muted/40 text-foreground">
-      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col items-center justify-center gap-6 bg-background px-6 py-12 text-center">
+    <div className="min-h-screen bg-white text-foreground">
+      <div className="mx-auto flex min-h-screen w-full max-w-[430px] flex-col px-7 pb-9 pt-16 text-center">
         <div className="space-y-3">
-          <h1 className="inline-flex items-baseline text-2xl font-semibold tracking-tight font-[var(--font-display)]">
-            <span aria-hidden>Codo</span>
-            <span aria-hidden className="inline-block scale-x-[-1]">
-              C
-            </span>
-            <span className="sr-only">Codoc</span>
+          <p className="text-[11px] font-semibold tracking-[0.18em] text-[#94a3b8]">
+            코딩테스트 문해력 향상 서비스
+          </p>
+          <h1 className="text-[44px] font-semibold leading-none tracking-[-0.03em] text-[#111827]">
+            CodoC
           </h1>
-          <p className="text-sm text-muted-foreground">{welcomeMessage}</p>
+          <p className="whitespace-pre-line text-[15px] font-medium leading-relaxed text-[#64748b]">
+            {welcomeMessage}
+          </p>
         </div>
-        <a
-          className="w-full rounded-xl border border-foreground/10 bg-[#FEE500] px-4 py-3 text-sm font-semibold text-[#191600]"
-          href={loginUrl}
-        >
-          카카오톡으로 시작하기
-        </a>
-        {errorCode ? (
-          <StatusMessage tone="error">로그인에 실패했습니다. ({errorCode})</StatusMessage>
-        ) : null}
+
+        <div className="mt-11 flex items-center justify-center">
+          {!isHeroImageMissing ? (
+            <img
+              alt="코독 로그인 이미지"
+              className="h-[280px] w-[280px] max-w-full object-contain"
+              src="/images/login_codoc.png"
+              onError={() => setIsHeroImageMissing(true)}
+            />
+          ) : (
+            <div className="flex h-[170px] w-[170px] items-center justify-center rounded-full bg-[#eef2f7] text-lg font-semibold text-[#44526d]">
+              CodoC
+            </div>
+          )}
+        </div>
+
+        <div className="mt-8 space-y-3">
+          <a
+            className="block w-full rounded-2xl border border-black/10 bg-[#FEE500] px-4 py-3.5 text-sm font-semibold text-[#191600] transition hover:brightness-[0.98]"
+            href={loginUrl}
+          >
+            카카오톡으로 시작하기
+          </a>
+          <p className="text-[12px] text-[#94a3b8]">카카오 계정으로 빠르게 시작할 수 있어요.</p>
+          {errorCode ? (
+            <StatusMessage tone="error">로그인에 실패했습니다. ({errorCode})</StatusMessage>
+          ) : null}
+        </div>
       </div>
     </div>
   )
