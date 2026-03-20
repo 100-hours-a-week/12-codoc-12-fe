@@ -32,6 +32,51 @@ const SCOPE_OPTIONS = [
 const normalizeChatRoomLabel = (value = '') =>
   String(value).replaceAll('오픈채팅방', '채팅방').replaceAll('오픈채팅', '채팅')
 
+const toLastMessageAtTime = (value) => {
+  const time = Date.parse(value ?? '')
+  return Number.isFinite(time) ? time : 0
+}
+
+const toRelativeTimeLabel = (value) => {
+  if (!value) {
+    return ''
+  }
+
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const diffMs = Math.max(0, Date.now() - date.getTime())
+  const minuteMs = 60 * 1000
+  const hourMs = 60 * minuteMs
+  const dayMs = 24 * hourMs
+
+  if (diffMs < minuteMs) {
+    return '방금'
+  }
+
+  if (diffMs < hourMs) {
+    return `${Math.floor(diffMs / minuteMs)}분 전`
+  }
+
+  if (diffMs < dayMs) {
+    return `${Math.floor(diffMs / hourMs)}시간 전`
+  }
+
+  return `${Math.floor(diffMs / dayMs)}일 전`
+}
+
+const compareRoomsByLastMessageDesc = (a, b) => {
+  const byLastMessageAt =
+    toLastMessageAtTime(b?.lastMessageAt) - toLastMessageAtTime(a?.lastMessageAt)
+  if (byLastMessageAt !== 0) {
+    return byLastMessageAt
+  }
+
+  return Number(b?.roomId ?? 0) - Number(a?.roomId ?? 0)
+}
+
 const getEmptyMessage = (scope, keyword) => {
   if (scope === 'all') {
     return keyword ? '검색 결과가 없습니다.' : '등록된 전체 채팅방이 없습니다.'
@@ -222,9 +267,11 @@ export default function ChatRooms() {
   const [isPublicJoinDialogOpen, setIsPublicJoinDialogOpen] = useState(false)
   const [publicJoinRoom, setPublicJoinRoom] = useState(null)
   const isCreateFormComplete = createTitle.trim().length > 0
+  const roomUpdatesById = useChatRealtimeStore((state) => state.roomUpdatesById)
   const roomUpdateVersion = useChatRealtimeStore((state) => state.roomUpdateVersion)
-  const setHasUnreadChat = useChatRealtimeStore((state) => state.setHasUnreadChat)
+  const totalUnreadChatCount = useChatRealtimeStore((state) => state.totalUnreadChatCount)
   const hasRealtimeInitializedRef = useRef(false)
+  const unreadStatusSyncInitializedRef = useRef(false)
 
   useEffect(() => {
     const redirectedError = location.state?.chatRedirectError
@@ -276,17 +323,6 @@ export default function ChatRooms() {
         }
         setNextCursor(response.nextCursor)
         setHasNextPage(Boolean(response.hasNextPage))
-
-        if (scope === 'joined' && !keyword && !append) {
-          const hasUnreadInFirstPage = response.items.some(
-            (item) => Number(item.unreadCount ?? 0) > 0,
-          )
-          if (hasUnreadInFirstPage) {
-            setHasUnreadChat(true)
-          } else if (!response.hasNextPage) {
-            setHasUnreadChat(false)
-          }
-        }
       } catch {
         if (!append && !background) {
           setRooms([])
@@ -304,7 +340,7 @@ export default function ChatRooms() {
         }
       }
     },
-    [keyword, scope, setHasUnreadChat],
+    [keyword, scope],
   )
 
   useEffect(() => {
@@ -321,14 +357,22 @@ export default function ChatRooms() {
       return
     }
 
-    const timer = window.setTimeout(() => {
-      fetchRooms({ background: true })
-    }, 120)
-
-    return () => {
-      window.clearTimeout(timer)
-    }
+    void fetchRooms({ background: true })
   }, [fetchRooms, roomUpdateVersion, scope])
+
+  useEffect(() => {
+    if (scope !== 'joined' || keyword) {
+      unreadStatusSyncInitializedRef.current = false
+      return
+    }
+
+    if (!unreadStatusSyncInitializedRef.current) {
+      unreadStatusSyncInitializedRef.current = true
+      return
+    }
+
+    void fetchRooms({ background: true })
+  }, [fetchRooms, keyword, scope, totalUnreadChatCount])
 
   const handleSearchSubmit = (event) => {
     event.preventDefault()
@@ -586,6 +630,41 @@ export default function ChatRooms() {
   }
 
   const emptyMessage = useMemo(() => getEmptyMessage(scope, keyword), [scope, keyword])
+  const displayedRooms = useMemo(() => {
+    if (scope !== 'joined' || rooms.length === 0) {
+      return rooms
+    }
+
+    return rooms
+      .map((room) => {
+        const roomId = Number(room?.roomId)
+        if (!Number.isInteger(roomId) || roomId <= 0) {
+          return room
+        }
+
+        const update = roomUpdatesById[roomId]
+        if (!update) {
+          return room
+        }
+
+        const currentLastMessageAtTime = toLastMessageAtTime(room.lastMessageAt)
+        const updatedLastMessageAtTime = toLastMessageAtTime(update.lastMessageAt)
+        const hasNewerMessage = updatedLastMessageAtTime > currentLastMessageAtTime
+        const currentUnreadCount = Number(room.unreadCount ?? 0)
+
+        return {
+          ...room,
+          lastMessagePreview: update.lastMessagePreview,
+          lastMessageAt: update.lastMessageAt,
+          lastMessageAtLabel: toRelativeTimeLabel(update.lastMessageAt),
+          unreadCount:
+            hasNewerMessage && Number.isFinite(currentUnreadCount)
+              ? Math.max(0, currentUnreadCount) + 1
+              : room.unreadCount,
+        }
+      })
+      .sort(compareRoomsByLastMessageDesc)
+  }, [roomUpdateVersion, roomUpdatesById, rooms, scope])
 
   return (
     <>
@@ -738,15 +817,15 @@ export default function ChatRooms() {
               </Card>
             ) : null}
 
-            {!isLoading && rooms.length === 0 ? (
+            {!isLoading && displayedRooms.length === 0 ? (
               <Card className="border-dashed border-muted-foreground/40 bg-muted/40 p-6 text-center">
                 <StatusMessage>{emptyMessage}</StatusMessage>
               </Card>
             ) : null}
 
-            {!isLoading && rooms.length > 0 ? (
+            {!isLoading && displayedRooms.length > 0 ? (
               <ul className="space-y-3">
-                {rooms.map((room) => {
+                {displayedRooms.map((room) => {
                   const roomId = Number(room.roomId)
                   const isOpening = Number.isInteger(roomId) && pendingRoomId === roomId
 
