@@ -3,12 +3,55 @@ import SockJS from 'sockjs-client/dist/sockjs'
 
 import { getAccessToken, getAccessTokenPayload, refreshAccessToken } from '@/lib/auth'
 
-const WS_ENDPOINT_PATH = '/ws-chat'
+const RAW_WS_ENDPOINT_PATH = '/ws-chat'
+const SOCKJS_ENDPOINT_PATH = '/ws-chat-sockjs'
 const TOKEN_EXPIRY_SKEW_MS = 3000
 
-const resolveWsEndpoint = () => {
-  const baseUrl = (import.meta.env.VITE_API_BASE_URL ?? '').replace(/\/$/, '')
-  return `${baseUrl}${WS_ENDPOINT_PATH}`
+const resolveBaseUrl = () => {
+  const envBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? '').trim()
+  if (envBaseUrl) {
+    return envBaseUrl.replace(/\/$/, '')
+  }
+
+  if (typeof window !== 'undefined') {
+    return window.location.origin.replace(/\/$/, '')
+  }
+
+  return ''
+}
+
+const toWebSocketBaseUrl = (baseUrl) => {
+  if (!baseUrl) {
+    return null
+  }
+
+  if (baseUrl.startsWith('https://')) {
+    return `wss://${baseUrl.slice('https://'.length)}`
+  }
+
+  if (baseUrl.startsWith('http://')) {
+    return `ws://${baseUrl.slice('http://'.length)}`
+  }
+
+  if (baseUrl.startsWith('wss://') || baseUrl.startsWith('ws://')) {
+    return baseUrl
+  }
+
+  return null
+}
+
+const resolveRawWsEndpoint = () => {
+  const wsBaseUrl = toWebSocketBaseUrl(resolveBaseUrl())
+  if (!wsBaseUrl) {
+    return null
+  }
+
+  return `${wsBaseUrl}${RAW_WS_ENDPOINT_PATH}`
+}
+
+const resolveSockJsEndpoint = () => {
+  const baseUrl = resolveBaseUrl()
+  return `${baseUrl}${SOCKJS_ENDPOINT_PATH}`
 }
 
 const isAccessTokenExpired = (token) => {
@@ -74,12 +117,18 @@ export const createChatStompConnection = (options = {}) => {
   } = options
 
   const client = new Client({
-    webSocketFactory: () => new SockJS(resolveWsEndpoint()),
     reconnectDelay,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
     debug: () => {},
   })
+
+  const rawWsEndpoint = resolveRawWsEndpoint()
+  if (typeof WebSocket === 'function' && rawWsEndpoint) {
+    client.brokerURL = rawWsEndpoint
+  } else {
+    client.webSocketFactory = () => new SockJS(resolveSockJsEndpoint())
+  }
 
   client.beforeConnect = async () => {
     onConnecting?.()
