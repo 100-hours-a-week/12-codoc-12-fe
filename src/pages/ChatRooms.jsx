@@ -664,7 +664,7 @@ export default function ChatRooms() {
         }
       })
       .sort(compareRoomsByLastMessageDesc)
-  }, [roomUpdateVersion, roomUpdatesById, rooms, scope])
+  }, [roomUpdatesById, rooms, scope])
 
   return (
     <>
