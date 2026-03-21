@@ -54,6 +54,17 @@ const resolvePathByLinkCode = (linkCode, linkParams = {}) => {
     return `/problems/${encodeURIComponent(problemId)}`
   }
 
+  if (linkCode === 'CUSTOM_PROBLEM') {
+    const rawCustomProblemId = linkParams?.customProblemId
+    if (rawCustomProblemId !== null && rawCustomProblemId !== undefined) {
+      const customProblemId = String(rawCustomProblemId).trim()
+      if (customProblemId) {
+        return `/custom-problems/${encodeURIComponent(customProblemId)}`
+      }
+    }
+    return '/custom-problems'
+  }
+
   if (linkCode === 'CHAT') {
     const rawRoomId = linkParams?.roomId
     if (rawRoomId !== null && rawRoomId !== undefined) {

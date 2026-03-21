@@ -8,6 +8,7 @@ const LINK_CODE_PATHS = {
   MY: '/my',
   LEADERBOARD: '/leaderboard',
   CHAT: '/chat',
+  CUSTOM_PROBLEM: '/custom-problems',
 }
 
 const REQUIRED_ENV_MAP = {
@@ -85,6 +86,17 @@ const resolvePathByLinkCode = (linkCode, linkParams = {}) => {
     }
 
     return `/problems/${encodeURIComponent(problemId)}`
+  }
+
+  if (linkCode === 'CUSTOM_PROBLEM') {
+    const rawCustomProblemId = linkParams?.customProblemId
+    if (rawCustomProblemId !== null && rawCustomProblemId !== undefined) {
+      const customProblemId = String(rawCustomProblemId).trim()
+      if (customProblemId) {
+        return `/custom-problems/${encodeURIComponent(customProblemId)}`
+      }
+    }
+    return '/custom-problems'
   }
 
   if (linkCode === 'CHAT') {
@@ -172,7 +184,16 @@ const registerMessagingServiceWorker = async (config) => {
 
   if (!serviceWorkerRegistrationPromise) {
     serviceWorkerRegistrationPromise = navigator.serviceWorker
-      .register(resolveServiceWorkerUrl(config))
+      .register(resolveServiceWorkerUrl(config), { updateViaCache: 'none' })
+      .then(async (registration) => {
+        try {
+          await registration.update()
+        } catch {
+          // Ignore explicit update failures and keep the active registration.
+        }
+
+        return registration
+      })
       .catch((error) => {
         serviceWorkerRegistrationPromise = null
         throw error

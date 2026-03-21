@@ -5,6 +5,14 @@ importScripts('https://www.gstatic.com/firebasejs/11.0.2/firebase-messaging-comp
 
 const NOTIFICATION_LOGO_PATH = '/notification-icon.png'
 
+self.addEventListener('install', () => {
+  self.skipWaiting()
+})
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
 const LINK_CODE_PATHS = {
   HOME: '/',
   MY: '/my',
@@ -72,6 +80,17 @@ const resolvePathByLinkCode = (linkCode, linkParams = {}) => {
     }
 
     return `/problems/${encodeURIComponent(problemId)}`
+  }
+
+  if (linkCode === 'CUSTOM_PROBLEM') {
+    const rawCustomProblemId = linkParams?.customProblemId
+    if (rawCustomProblemId !== null && rawCustomProblemId !== undefined) {
+      const customProblemId = String(rawCustomProblemId).trim()
+      if (customProblemId) {
+        return `/custom-problems/${encodeURIComponent(customProblemId)}`
+      }
+    }
+    return '/custom-problems'
   }
 
   if (linkCode === 'CHAT') {
