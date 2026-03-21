@@ -6,9 +6,12 @@ import StatusMessage from '@/components/StatusMessage'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { createCustomProblem } from '@/services/customProblems/customProblemsService'
+import {
+  CUSTOM_PROBLEM_ACCEPTED_TYPES,
+  validateCustomProblemImageFile,
+} from '@/services/customProblems/customProblemsUploadPolicy'
 
 const MAX_IMAGES = 4
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 
 const PROGRESS_MESSAGES = {
   upload: '이미지를 업로드하는 중입니다...',
@@ -26,7 +29,15 @@ export default function CustomProblemCreate() {
 
   const addFiles = useCallback(
     (files) => {
-      const validFiles = Array.from(files).filter((file) => ACCEPTED_TYPES.includes(file.type))
+      const candidateFiles = Array.from(files)
+      const firstValidationError =
+        candidateFiles.map(validateCustomProblemImageFile).find(Boolean) ?? null
+      const validFiles = candidateFiles.filter((file) => !validateCustomProblemImageFile(file))
+
+      if (firstValidationError) {
+        setError(firstValidationError)
+      }
+
       if (validFiles.length === 0) {
         return
       }
@@ -41,7 +52,9 @@ export default function CustomProblemCreate() {
 
       setSelectedFiles((prev) => [...prev, ...filesToAdd])
       setPreviews((prev) => [...prev, ...newPreviews])
-      setError(null)
+      if (!firstValidationError) {
+        setError(null)
+      }
     },
     [selectedFiles.length],
   )
@@ -125,7 +138,7 @@ export default function CustomProblemCreate() {
 
           <input
             ref={fileInputRef}
-            accept={ACCEPTED_TYPES.join(',')}
+            accept={CUSTOM_PROBLEM_ACCEPTED_TYPES.join(',')}
             className="hidden"
             multiple
             onChange={handleFileChange}

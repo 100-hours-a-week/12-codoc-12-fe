@@ -11,9 +11,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { createCustomProblem } from '@/services/customProblems/customProblemsService'
+import {
+  CUSTOM_PROBLEM_ACCEPTED_TYPES,
+  validateCustomProblemImageFile,
+} from '@/services/customProblems/customProblemsUploadPolicy'
 
 const MAX_IMAGES = 4
-const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
 const EMPTY_SLOTS = Array.from({ length: MAX_IMAGES }, () => null)
 
 const PROGRESS_MESSAGES = {
@@ -65,7 +68,9 @@ export default function CustomProblemCreateDialog({ open, onOpenChange, onCreate
   const handleFileChange = (index, event) => {
     const file = event.target.files?.[0]
     event.target.value = ''
-    if (!file || !ACCEPTED_TYPES.includes(file.type)) {
+    const validationError = validateCustomProblemImageFile(file)
+    if (!file || validationError) {
+      setError(validationError)
       return
     }
 
@@ -156,7 +161,7 @@ export default function CustomProblemCreateDialog({ open, onOpenChange, onCreate
                   ref={(el) => {
                     fileInputRefs.current[index] = el
                   }}
-                  accept={ACCEPTED_TYPES.join(',')}
+                  accept={CUSTOM_PROBLEM_ACCEPTED_TYPES.join(',')}
                   className="hidden"
                   onChange={(e) => handleFileChange(index, e)}
                   type="file"
