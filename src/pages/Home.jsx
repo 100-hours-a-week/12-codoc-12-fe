@@ -1,19 +1,79 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { RefreshCw, Sparkles, Star, Trophy } from 'lucide-react'
+import { AlarmClock, RefreshCw, Sparkles, Star, Trophy } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
+import remarkBreaks from 'remark-breaks'
+import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import { useNavigate } from 'react-router-dom'
 
 import { api } from '@/lib/api'
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { getLeagueBadgeImage } from '@/constants/leagueBadges'
 import { normalizeProblemStatus, STATUS_OPTIONS } from '@/constants/problemStatusOptions'
+import { getSurpriseQuiz, submitSurpriseQuiz } from '@/services/surpriseQuiz/surpriseQuizService'
 
 const statusCopy = {
   IN_PROGRESS: { variant: 'pending', disabled: true },
   COMPLETED: { variant: 'ready', disabled: false },
   CLAIMED: { variant: 'done', disabled: true },
+}
+
+const markdownComponents = {
+  p: ({ children }) => <span>{children}</span>,
+}
+
+const getChoiceLabel = (choiceNo) => String.fromCharCode(64 + choiceNo)
+
+const formatElapsedLabel = (elapsedMs) => {
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    return '-'
+  }
+
+  const totalSeconds = Math.floor(elapsedMs / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+
+  if (minutes <= 0) {
+    return `${seconds}초`
+  }
+
+  return `${minutes}분 ${seconds}초`
+}
+
+const formatRemainingLabel = (eventEndsAt) => {
+  if (!eventEndsAt) {
+    return '종료 시각 미정'
+  }
+
+  const targetTime = new Date(eventEndsAt).getTime()
+  if (Number.isNaN(targetTime)) {
+    return '종료 시각 미정'
+  }
+
+  const diffMs = targetTime - Date.now()
+  if (diffMs <= 0) {
+    return '이벤트 종료'
+  }
+
+  const totalSeconds = Math.floor(diffMs / 1000)
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}시간 ${minutes}분 남음`
+  }
+
+  if (minutes > 0) {
+    return `${minutes}분 ${seconds}초 남음`
+  }
+
+  return `${seconds}초 남음`
 }
 
 const LEAGUE_HOME_COPY = {
@@ -133,9 +193,36 @@ export default function Home() {
   const [leaderboardError, setLeaderboardError] = useState('')
   const [celebratingQuestIds, setCelebratingQuestIds] = useState({})
   const [questPage, setQuestPage] = useState(0)
+  const [surpriseQuiz, setSurpriseQuiz] = useState(null)
+  const [isSurpriseQuizLoading, setIsSurpriseQuizLoading] = useState(true)
+  const [isSurpriseQuizOpen, setIsSurpriseQuizOpen] = useState(false)
+  const [selectedSurpriseChoiceNo, setSelectedSurpriseChoiceNo] = useState(null)
+  const [surpriseSubmitError, setSurpriseSubmitError] = useState('')
+  const [isSurpriseSubmitting, setIsSurpriseSubmitting] = useState(false)
+  const [surpriseNow, setSurpriseNow] = useState(Date.now())
   const questTouchStartX = useRef(null)
   const questTouchLastX = useRef(null)
   const isRefreshingRef = useRef(false)
+
+  const fetchSurpriseQuiz = useCallback(async () => {
+    setIsSurpriseQuizLoading(true)
+
+    try {
+      const result = await getSurpriseQuiz()
+      setSurpriseQuiz(result)
+      setSelectedSurpriseChoiceNo(null)
+      setSurpriseSubmitError('')
+    } catch (error) {
+      const errorCode = error?.response?.data?.code
+      if (['SURPRISE_EVENT_NOT_OPEN', 'SURPRISE_EVENT_SUBMISSION_CLOSED'].includes(errorCode)) {
+        setSurpriseQuiz(null)
+      } else {
+        setSurpriseQuiz(null)
+      }
+    } finally {
+      setIsSurpriseQuizLoading(false)
+    }
+  }, [])
 
   const handleQuestRefresh = useCallback(async () => {
     if (isRefreshingRef.current) {
@@ -285,6 +372,7 @@ export default function Home() {
     void handleQuestRefresh()
     fetchRecommended()
     fetchLeaderboard()
+    fetchSurpriseQuiz()
 
     return () => {
       mounted = false
@@ -293,7 +381,21 @@ export default function Home() {
       })
       celebrateTimeoutsRef.current = {}
     }
-  }, [handleQuestRefresh])
+  }, [fetchSurpriseQuiz, handleQuestRefresh])
+
+  useEffect(() => {
+    if (!surpriseQuiz?.eventEndsAt) {
+      return undefined
+    }
+
+    const timerId = window.setInterval(() => {
+      setSurpriseNow(Date.now())
+    }, 1000)
+
+    return () => {
+      clearInterval(timerId)
+    }
+  }, [surpriseQuiz?.eventEndsAt])
 
   const handleClaim = async (userQuestId) => {
     if (!userQuestId) {
@@ -334,6 +436,61 @@ export default function Home() {
     navigate(`/problems/${problemId}`)
   }
 
+  const handleOpenSurpriseQuiz = () => {
+    if (!surpriseQuiz) {
+      return
+    }
+
+    if (surpriseQuiz.submissionStatus === 'not_submitted' && isSurpriseQuizClosed) {
+      return
+    }
+
+    if (surpriseQuiz.submissionStatus === 'not_submitted') {
+      setSelectedSurpriseChoiceNo(null)
+      setSurpriseSubmitError('')
+    }
+    setIsSurpriseQuizOpen(true)
+  }
+
+  const handleSubmitSurpriseQuiz = async () => {
+    if (isSurpriseSubmitting) {
+      return
+    }
+
+    if (!selectedSurpriseChoiceNo) {
+      setSurpriseSubmitError('선택지를 골라주세요.')
+      return
+    }
+
+    setIsSurpriseSubmitting(true)
+    setSurpriseSubmitError('')
+
+    try {
+      await submitSurpriseQuiz({
+        choiceNo: selectedSurpriseChoiceNo,
+      })
+      await fetchSurpriseQuiz()
+      setIsSurpriseQuizOpen(false)
+      setSelectedSurpriseChoiceNo(null)
+    } catch (error) {
+      const errorCode = error?.response?.data?.code
+      if (errorCode === 'SURPRISE_QUIZ_ALREADY_SUBMITTED') {
+        setSurpriseSubmitError('이미 제출한 기습퀴즈입니다.')
+        await fetchSurpriseQuiz()
+        setIsSurpriseQuizOpen(false)
+      } else if (errorCode === 'SURPRISE_EVENT_SUBMISSION_CLOSED') {
+        setSurpriseSubmitError('기습퀴즈 제출 시간이 종료되었습니다.')
+        await fetchSurpriseQuiz()
+      } else if (errorCode === 'SURPRISE_INVALID_CHOICE_NO') {
+        setSurpriseSubmitError('선택지가 올바르지 않습니다. 다시 선택해주세요.')
+      } else {
+        setSurpriseSubmitError('기습퀴즈 제출에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      }
+    } finally {
+      setIsSurpriseSubmitting(false)
+    }
+  }
+
   const normalizedRecommendStatus = normalizeProblemStatus(recommendedProblem?.status)
   const recommendedStatus =
     STATUS_OPTIONS.find((option) => option.value === normalizedRecommendStatus) ?? null
@@ -352,9 +509,51 @@ export default function Home() {
   const questPages = Math.max(1, Math.ceil(questItems.length / 3))
   const isQuestPaged = questItems.length > 3
   const questOffsetPct = Math.min(questPages - 1, questPage) * (100 / questPages)
+  const remainingLabel = formatRemainingLabel(surpriseQuiz?.eventEndsAt)
+  const isSurpriseQuizClosed = surpriseQuiz?.eventEndsAt
+    ? new Date(surpriseQuiz.eventEndsAt).getTime() <= surpriseNow
+    : false
 
   return (
     <div className="space-y-3">
+      {!isSurpriseQuizLoading && surpriseQuiz ? (
+        <section className="overflow-hidden rounded-[18px] border border-[#f0c36b] bg-[linear-gradient(120deg,#2b1904_0%,#6a3d00_32%,#f0a81a_100%)] shadow-[0_14px_30px_rgba(120,53,15,0.18)]">
+          <button
+            className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
+            type="button"
+            onClick={handleOpenSurpriseQuiz}
+            disabled={surpriseQuiz.submissionStatus === 'not_submitted' && isSurpriseQuizClosed}
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold tracking-[0.08em] text-[#fff3d6]">
+                  SURPRISE QUIZ
+                </span>
+                <span className="rounded-full bg-[#ffe3a3] px-2 py-0.5 text-[10px] font-bold text-[#7c4700]">
+                  LIVE
+                </span>
+              </div>
+              <h2 className="mt-2 text-[18px] font-bold tracking-tight text-white">
+                코독 기습퀴즈가 열렸습니다
+              </h2>
+              <p className="mt-1 text-[12px] leading-relaxed text-[#fff3d6]">
+                {surpriseQuiz.submissionStatus === 'submitted'
+                  ? surpriseQuiz.isCorrect
+                    ? `정답 · ${surpriseQuiz.rank ? `${surpriseQuiz.rank}위` : '순위 집계 중'} · ${formatElapsedLabel(surpriseQuiz.elapsedMs)}`
+                    : '오답 · 결과 확인하기'
+                  : `남은 시간 ${remainingLabel} · 선착순 정답 순위 기록`}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <span className="rounded-full bg-white/12 p-2 text-[#ffe7b2]">
+                <AlarmClock className="h-4 w-4" aria-hidden />
+              </span>
+              <span className="text-xl font-semibold leading-none text-white">›</span>
+            </div>
+          </button>
+        </section>
+      ) : null}
+
       <section className="rounded-[16px] border border-black/5 bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
         <div className="relative space-y-3">
           <div className="flex items-center justify-between">
@@ -670,6 +869,133 @@ export default function Home() {
           <StatusMessage className="mt-3">코독보드 데이터를 준비하고 있어요.</StatusMessage>
         )}
       </section>
+
+      <Dialog open={isSurpriseQuizOpen} onOpenChange={setIsSurpriseQuizOpen}>
+        <DialogContent className="max-w-[390px] rounded-[24px] border-[#f3d596] bg-[#fffdf7] p-0">
+          <div className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5">
+            <DialogHeader>
+              <DialogTitle className="text-[18px] font-bold tracking-tight text-[#5f3700]">
+                코독 기습퀴즈
+              </DialogTitle>
+              <p className="mt-1 text-[12px] font-medium text-[#8a5a13]">{remainingLabel}</p>
+            </DialogHeader>
+
+            {surpriseQuiz?.quiz ? (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-2xl border border-[#f4dfac] bg-white p-4 text-[14px] leading-relaxed text-foreground">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                    rehypePlugins={[rehypeKatex]}
+                    components={markdownComponents}
+                  >
+                    {surpriseQuiz.quiz.content}
+                  </ReactMarkdown>
+                </div>
+
+                <div className="space-y-2.5">
+                  {surpriseQuiz.quiz.choices.map((choice) => {
+                    const isSelected = selectedSurpriseChoiceNo === choice.choiceNo
+                    return (
+                      <button
+                        key={choice.id}
+                        className={`flex w-full items-start gap-3 rounded-2xl border px-3 py-3 text-left transition ${
+                          isSelected
+                            ? 'border-[#d18b00] bg-[#fff7db] shadow-[0_8px_16px_rgba(209,139,0,0.10)]'
+                            : 'border-[#ead9b2] bg-white hover:border-[#d6b16f]'
+                        } disabled:cursor-not-allowed disabled:opacity-60`}
+                        type="button"
+                        disabled={isSurpriseSubmitting}
+                        onClick={() => {
+                          setSelectedSurpriseChoiceNo(choice.choiceNo)
+                          setSurpriseSubmitError('')
+                        }}
+                      >
+                        <span
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                            isSelected ? 'bg-[#d18b00] text-white' : 'bg-[#f8edd3] text-[#8a5a13]'
+                          }`}
+                        >
+                          {getChoiceLabel(choice.choiceNo)}
+                        </span>
+                        <span className="pt-1 text-[14px] font-medium leading-relaxed text-foreground">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={markdownComponents}
+                          >
+                            {choice.content}
+                          </ReactMarkdown>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {surpriseSubmitError ? (
+                  <StatusMessage tone="error">{surpriseSubmitError}</StatusMessage>
+                ) : null}
+
+                <button
+                  className="w-full rounded-2xl bg-[#1f2937] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#111827] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]"
+                  type="button"
+                  disabled={isSurpriseSubmitting}
+                  onClick={handleSubmitSurpriseQuiz}
+                >
+                  {isSurpriseSubmitting ? '제출 중...' : '답안 제출'}
+                </button>
+              </div>
+            ) : surpriseQuiz?.submissionStatus === 'submitted' ? (
+              <div className="mt-4 space-y-4">
+                <div
+                  className={`rounded-2xl border p-4 ${
+                    surpriseQuiz.isCorrect
+                      ? 'border-[#d7c38a] bg-[#fff7db]'
+                      : 'border-[#f1c5c5] bg-[#fff5f5]'
+                  }`}
+                >
+                  <p
+                    className={`text-[16px] font-bold ${
+                      surpriseQuiz.isCorrect ? 'text-[#7c4700]' : 'text-[#b42318]'
+                    }`}
+                  >
+                    {surpriseQuiz.isCorrect ? '정답입니다' : '틀렸습니다'}
+                  </p>
+                  {surpriseQuiz.isCorrect ? (
+                    <div className="mt-3 grid grid-cols-2 gap-2">
+                      <div className="rounded-xl border border-[#ead9b2] bg-white px-3 py-2">
+                        <p className="text-[11px] font-semibold text-[#a16207]">등수</p>
+                        <p className="mt-1 text-[15px] font-bold text-[#5f3700]">
+                          {surpriseQuiz.rank ? `${surpriseQuiz.rank}위` : '집계 중'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-[#ead9b2] bg-white px-3 py-2">
+                        <p className="text-[11px] font-semibold text-[#a16207]">걸린 시간</p>
+                        <p className="mt-1 text-[15px] font-bold text-[#5f3700]">
+                          {formatElapsedLabel(surpriseQuiz.elapsedMs)}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[13px] leading-relaxed text-[#b42318]">
+                      이번 기습퀴즈는 오답 처리되었습니다.
+                    </p>
+                  )}
+                </div>
+
+                <button
+                  className="w-full rounded-2xl bg-[#1f2937] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#111827]"
+                  type="button"
+                  onClick={() => setIsSurpriseQuizOpen(false)}
+                >
+                  확인
+                </button>
+              </div>
+            ) : (
+              <StatusMessage className="mt-4">기습퀴즈 정보를 준비 중입니다.</StatusMessage>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
