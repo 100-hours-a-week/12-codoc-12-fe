@@ -5,6 +5,7 @@ const NOTIFICATION_TYPE_LABELS = {
   LEADERBOARD_CLOSED: '코독보드 시즌 종료',
   LEADERBOARD_STARTED: '코독보드 시즌 시작',
   CHAT: '채팅',
+  CUSTOM_PROBLEM_COMPLETED: '나만의 문제 생성',
 }
 
 const toNotificationTypeLabel = (type) => NOTIFICATION_TYPE_LABELS[type] ?? type ?? '알림'
