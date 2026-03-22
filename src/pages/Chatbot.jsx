@@ -1,13 +1,4 @@
-import {
-  ArrowDown,
-  BarChart3,
-  BookOpen,
-  Brain,
-  Clover,
-  Lightbulb,
-  Send,
-  SquareTerminal,
-} from 'lucide-react'
+import { ArrowDown, BookOpen, Brain, Clover, Send } from 'lucide-react'
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
@@ -27,6 +18,7 @@ import {
 } from '@/constants/chatbotQuickActions'
 import { trackEvent } from '@/lib/ga4'
 import { isSessionExpired, isSessionRequiredError } from '@/lib/session'
+import { cn } from '@/lib/utils'
 import {
   createChatbotStream,
   getAllChatbotConversations,
@@ -61,7 +53,7 @@ const INITIAL_MESSAGE = {
   id: 'assistant-intro',
   role: 'assistant',
   content:
-    '안녕하세요! 코독이에요.\n지금부터 문제를 4단계로 쪼개 요약카드를 완성해봅시다.\n1단계는 “문제 배경(상황)”입니다.\n지금 어떤 상황인지 말해주세요.\n(누가/무엇을/얼마나를 잡아내면 좋습니다)',
+    '안녕하세요! 코독이에요 🐨 \n문제를 4단계로 나눠 핵심을 하나씩 정리해볼 거예요.\n각 단계에서 키워드를 맞추면 다음 단계로 넘어갈 수 있어요.\n중간에 힌트, 개념 설명, 의사코드 등 다양한 도구도 자유롭게 활용해보세요!',
 }
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -73,10 +65,10 @@ const normalizeConversationStatus = (status) =>
     .toUpperCase()
 
 const QUICK_ACTION_ICON_BY_ID = {
-  paragraph_hint: Lightbulb,
-  concept_help: BookOpen,
-  solve_pattern: BarChart3,
-  pseudocode: SquareTerminal,
+  paragraph_hint: '💡',
+  concept_help: '📖',
+  solve_pattern: '📊',
+  pseudocode: '💻',
 }
 
 const resolveHistoryFallbackMessage = (status) => {
@@ -1222,28 +1214,33 @@ export default function Chatbot() {
             className="shrink-0 bg-background/95 backdrop-blur mt-4"
             style={{ paddingBottom: inputBottomOffset }}
           >
-            <div className="mb-3 flex items-end gap-2">
-              <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+            <div className="mb-3">
+              <div className="grid grid-cols-2 gap-2">
                 {CHATBOT_QUICK_ACTIONS.map((action) => {
-                  const Icon = QUICK_ACTION_ICON_BY_ID[action.id] ?? Brain
+                  const icon = QUICK_ACTION_ICON_BY_ID[action.id] ?? '🤖'
 
                   return (
                     <Button
                       key={action.id}
-                      className="h-9 rounded-full border border-muted-foreground/15 bg-muted/40 px-3 py-2 text-[12px] font-semibold text-foreground shadow-none hover:bg-muted/70"
+                      className={cn(
+                        'h-9 w-full justify-center rounded-full border px-3 py-2 text-[12px] font-semibold shadow-none',
+                        action.toneClassName,
+                      )}
                       disabled={isStreaming}
                       onClick={() => handleQuickAction(action)}
                       type="button"
                       variant="secondary"
                     >
-                      <Icon className="h-3.5 w-3.5 shrink-0" />
+                      <span aria-hidden="true" className="shrink-0 text-[14px] leading-none">
+                        {icon}
+                      </span>
                       <span>{action.label}</span>
                     </Button>
                   )
                 })}
               </div>
 
-              <p className="shrink-0 pb-1 text-right text-[12px] text-neutral-500">
+              <p className="mt-2 text-right text-[12px] text-neutral-500">
                 {inputValue.length} / {MAX_INPUT_LENGTH}
               </p>
             </div>
