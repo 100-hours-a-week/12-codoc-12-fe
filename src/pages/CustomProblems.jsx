@@ -1,4 +1,4 @@
-import { ArrowUp, CircleHelp, Plus, Trash2 } from 'lucide-react'
+import { ArrowUp, ChevronDown, CircleHelp, Lightbulb, Plus, Search, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -51,6 +51,7 @@ export default function CustomProblems() {
   const [deleteError, setDeleteError] = useState(null)
   const [isGuideOpen, setIsGuideOpen] = useState(false)
   const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isUsageOpen, setIsUsageOpen] = useState(false)
   const loadMoreSentinelRef = useRef(null)
 
   const fetchProblems = useCallback(async () => {
@@ -171,7 +172,10 @@ export default function CustomProblems() {
         <CardHeader className="pb-0">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <CardTitle>나만의 문제</CardTitle>
+              <CardTitle className="flex items-center gap-1.5">
+                <Search className="h-4 w-4 text-muted-foreground" aria-hidden />
+                나만의 문제
+              </CardTitle>
             </div>
             <div className="flex gap-2">
               <Button
@@ -198,7 +202,40 @@ export default function CustomProblems() {
           </div>
         </CardHeader>
         <CardContent className="pt-3">
-          <CardDescription>문제 이미지를 업로드해 나만의 문제를 만들어보세요</CardDescription>
+          <CardDescription>문제 이미지를 올리면 AI가 나만의 문제로 만들어줘요</CardDescription>
+        </CardContent>
+      </Card>
+
+      <Card className="border-[#e4e8f0] bg-[#f7f8fb] shadow-sm">
+        <CardContent className="p-3">
+          <button
+            className="flex w-full items-center justify-between text-left"
+            type="button"
+            onClick={() => setIsUsageOpen((prev) => !prev)}
+            aria-expanded={isUsageOpen}
+            aria-controls="custom-problem-usage-guide"
+          >
+            <span className="flex items-center gap-1.5 text-[13px] font-semibold text-[#3d4a62]">
+              <Lightbulb className="h-4 w-4 text-[#c78b12]" aria-hidden />
+              이렇게 활용하세요
+            </span>
+            <ChevronDown
+              className={`h-4 w-4 text-[#6b7280] transition-transform ${isUsageOpen ? 'rotate-180' : ''}`}
+              aria-hidden
+            />
+          </button>
+
+          {isUsageOpen ? (
+            <ul
+              id="custom-problem-usage-guide"
+              className="mt-2 space-y-1 text-[12px] font-medium leading-relaxed text-[#4b5563]"
+            >
+              <li>• 코딩테스트 문제를 캡처하거나 촬영해보세요.</li>
+              <li>• AI가 자동으로 문제를 인식하고 퀴즈를 생성합니다.</li>
+              <li>• 생성된 문제로 바로 학습할 수 있습니다.</li>
+              <li>• 모든 문제는 안전하게 저장됩니다.</li>
+            </ul>
+          ) : null}
         </CardContent>
       </Card>
 
