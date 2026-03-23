@@ -637,6 +637,17 @@ export default function MyPage() {
         : ''
   const reportPeriodLabel = reportRangeLabel || '분석 기간 집계 중'
   const reportCharacterImage = resolveReportCharacterImage(reportSummary?.user_type)
+  const hiddenMetricsComment = '점수가 높을수록 현재 풀이가 더 안정적이라는 뜻이에요.'
+  const metricsAnalysisComment =
+    reportPresent?.metrics_analysis_comment?.trim() === hiddenMetricsComment
+      ? ''
+      : (reportPresent?.metrics_analysis_comment ?? '').trim()
+  const metricsAnalysisLines = metricsAnalysisComment
+    ? metricsAnalysisComment
+        .split(/(?<=[.!?])\s+/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+    : []
 
   return (
     <div className="space-y-3">
@@ -893,9 +904,6 @@ export default function MyPage() {
                           <p className="mt-2 text-sm font-semibold text-foreground/85">
                             {reportSummary?.user_type ?? '분석 중'}
                           </p>
-                          <p className="mt-1 text-xs font-medium text-muted-foreground">
-                            {reportSummaryComment}
-                          </p>
                         </div>
                         <div className="h-[112px] w-[112px] shrink-0 overflow-hidden">
                           <img
@@ -916,6 +924,14 @@ export default function MyPage() {
                             }}
                           />
                         </div>
+                      </div>
+                      <div className="mt-3 rounded-xl border border-[#d7e3f8] bg-[#f5f9ff] px-3 py-2.5">
+                        <p className="text-[11px] font-semibold tracking-wide text-[#4c6b99]">
+                          리포트 안내
+                        </p>
+                        <p className="mt-1 text-[13px] font-semibold leading-relaxed text-[#20324f]">
+                          {reportSummaryComment}
+                        </p>
                       </div>
                     </div>
 
@@ -946,9 +962,6 @@ export default function MyPage() {
 
                     <div className="rounded-2xl border border-black/10 bg-white px-4 py-4">
                       <p className="text-sm font-semibold">현재 성장 지표</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        점수가 높을수록 현재 풀이가 더 안정적이라는 뜻이에요.
-                      </p>
                       <div className="mt-3 space-y-2.5">
                         {metricCards.map((item) => (
                           <div
@@ -974,10 +987,20 @@ export default function MyPage() {
                           </div>
                         ))}
                       </div>
-                      <p className="mt-3 text-xs text-muted-foreground">
-                        {reportPresent?.metrics_analysis_comment ??
-                          '성장 지표를 기반으로 다음 학습을 추천합니다.'}
-                      </p>
+                      {metricsAnalysisLines.length > 0 ? (
+                        <div className="mt-3 rounded-xl border border-[#d7e3f8] bg-[#f5f9ff] px-3 py-2.5 text-center">
+                          {metricsAnalysisLines.map((line, index) => (
+                            <p
+                              key={`${line}-${index}`}
+                              className={`text-[12px] font-semibold leading-relaxed text-[#2d456d] ${
+                                index > 0 ? 'mt-0.5' : ''
+                              }`}
+                            >
+                              {line}
+                            </p>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="rounded-2xl border border-black/10 bg-white px-4 py-3">
