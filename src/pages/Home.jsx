@@ -1,17 +1,24 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlarmClock, RefreshCw, Sparkles, Star, Trophy } from 'lucide-react'
+import { RefreshCw, Sparkles, Star, Trophy, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import rehypeKatex from 'rehype-katex'
 import remarkBreaks from 'remark-breaks'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { api } from '@/lib/api'
+import PerfectScoreLottie from '@/components/PerfectScoreLottie'
 import StatusMessage from '@/components/StatusMessage'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { formatDifficultyLabel } from '@/constants/difficulty'
 import { getLeagueBadgeImage } from '@/constants/leagueBadges'
 import { normalizeProblemStatus, STATUS_OPTIONS } from '@/constants/problemStatusOptions'
@@ -66,14 +73,14 @@ const formatRemainingLabel = (eventEndsAt) => {
   const seconds = totalSeconds % 60
 
   if (hours > 0) {
-    return `${hours}시간 ${minutes}분 남음`
+    return `${hours}시간 ${minutes}분`
   }
 
   if (minutes > 0) {
-    return `${minutes}분 ${seconds}초 남음`
+    return `${minutes}분 ${seconds}초`
   }
 
-  return `${seconds}초 남음`
+  return `${seconds}초`
 }
 
 const LEAGUE_HOME_COPY = {
@@ -179,6 +186,7 @@ function QuestCard({ quest, onClaim, isCelebrating = false }) {
 
 export default function Home() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [quests, setQuests] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -470,14 +478,12 @@ export default function Home() {
         choiceNo: selectedSurpriseChoiceNo,
       })
       await fetchSurpriseQuiz()
-      setIsSurpriseQuizOpen(false)
       setSelectedSurpriseChoiceNo(null)
     } catch (error) {
       const errorCode = error?.response?.data?.code
       if (errorCode === 'SURPRISE_QUIZ_ALREADY_SUBMITTED') {
         setSurpriseSubmitError('이미 제출한 기습퀴즈입니다.')
         await fetchSurpriseQuiz()
-        setIsSurpriseQuizOpen(false)
       } else if (errorCode === 'SURPRISE_EVENT_SUBMISSION_CLOSED') {
         setSurpriseSubmitError('기습퀴즈 제출 시간이 종료되었습니다.')
         await fetchSurpriseQuiz()
@@ -510,48 +516,117 @@ export default function Home() {
   const isQuestPaged = questItems.length > 3
   const questOffsetPct = Math.min(questPages - 1, questPage) * (100 / questPages)
   const remainingLabel = formatRemainingLabel(surpriseQuiz?.eventEndsAt)
+  const surpriseRemainingMs = surpriseQuiz?.eventEndsAt
+    ? new Date(surpriseQuiz.eventEndsAt).getTime() - surpriseNow
+    : null
+  const isSurpriseUrgent =
+    Number.isFinite(surpriseRemainingMs) &&
+    surpriseRemainingMs > 0 &&
+    surpriseRemainingMs <= 3600000
   const isSurpriseQuizClosed = surpriseQuiz?.eventEndsAt
     ? new Date(surpriseQuiz.eventEndsAt).getTime() <= surpriseNow
     : false
+  const isSurpriseQuizLivePhase =
+    surpriseQuiz?.submissionStatus === 'not_submitted' && !isSurpriseQuizClosed
+  const isSurpriseSubmitted = surpriseQuiz?.submissionStatus === 'submitted'
+  const surpriseResultPreview = searchParams.get('surpriseResult')
+  const isSurpriseResultPreviewCorrect = surpriseResultPreview === 'correct'
+  const isSurpriseResultPreviewWrong = surpriseResultPreview === 'wrong'
+  const surpriseIsCorrect = isSurpriseResultPreviewCorrect
+    ? true
+    : isSurpriseResultPreviewWrong
+      ? false
+      : surpriseQuiz?.isCorrect === true
+  const surpriseParticipationRewardXp = 10
+  const surpriseHomeSubMessage = isSurpriseSubmitted
+    ? '탭해서 결과를 확인해보세요!'
+    : isSurpriseQuizClosed
+      ? '이번 기습퀴즈가 종료됐어요. 다음 오픈을 기다려주세요.'
+      : `남은 시간 ${remainingLabel} · 탭해서 바로 참여`
+  const surpriseDialogTitle = isSurpriseSubmitted
+    ? surpriseIsCorrect
+      ? '🎉 코독이 구조 미션 성공! 🎉'
+      : '코독이의 친구가 대신 구출했어요!'
+    : '코독 기습퀴즈'
+  const surpriseDialogDescription = isSurpriseSubmitted
+    ? surpriseIsCorrect
+      ? '다음 미션은 금요일 오후 8시에 다시 시작됩니다!'
+      : '다음 미션에는 당신의 힘으로 코독이를 구출해봐요!'
+    : '문제를 맞혀 코독이를 구조해주세요!'
+  const shouldShowSurpriseHomeCard = !isSurpriseQuizLoading && surpriseQuiz
 
   return (
     <div className="space-y-3">
-      {!isSurpriseQuizLoading && surpriseQuiz ? (
-        <section className="overflow-hidden rounded-[18px] border border-[#f0c36b] bg-[linear-gradient(120deg,#2b1904_0%,#6a3d00_32%,#f0a81a_100%)] shadow-[0_14px_30px_rgba(120,53,15,0.18)]">
-          <button
-            className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left"
-            type="button"
-            onClick={handleOpenSurpriseQuiz}
-            disabled={surpriseQuiz.submissionStatus === 'not_submitted' && isSurpriseQuizClosed}
-          >
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="rounded-full bg-white/15 px-2.5 py-1 text-[10px] font-bold tracking-[0.08em] text-[#fff3d6]">
-                  SURPRISE QUIZ
-                </span>
-                <span className="rounded-full bg-[#ffe3a3] px-2 py-0.5 text-[10px] font-bold text-[#7c4700]">
-                  LIVE
+      {shouldShowSurpriseHomeCard ? (
+        isSurpriseQuizLivePhase ? (
+          <section className="overflow-hidden rounded-[18px] border border-[#e9ca95] bg-[linear-gradient(130deg,#fffaf2_0%,#fff3df_100%)] shadow-[0_10px_20px_rgba(120,74,18,0.12)]">
+            <button
+              className="w-full px-4 py-4 text-left transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-70"
+              type="button"
+              onClick={handleOpenSurpriseQuiz}
+              disabled={surpriseQuiz.submissionStatus === 'not_submitted' && isSurpriseQuizClosed}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="relative h-[108px] w-[108px] shrink-0 overflow-visible rounded-xl">
+                  <span className="absolute -right-2 -top-2 z-10 rounded-full bg-[#ef4444] px-2 py-0.5 text-[10px] font-bold text-white shadow-sm">
+                    HELP!
+                  </span>
+                  <img
+                    alt="코독 구조 미션"
+                    className="h-full w-full rounded-xl object-cover shadow-[0_8px_16px_rgba(96,54,16,0.24)]"
+                    src="/images/codoc_locked.png"
+                    onError={(event) => {
+                      event.currentTarget.style.display = 'none'
+                    }}
+                  />
+                </div>
+
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-[17px] font-bold tracking-tight text-[#6a3e04]">
+                    코독이를 살려주세요!
+                  </h2>
+                  <p className="mt-1 text-[12px] font-semibold leading-snug text-[#7f5523]">
+                    정답을 맞추면 코독이를 구할 수 있어요.
+                  </p>
+                  <p className="mt-1 text-[12px] font-bold text-[#6a3e04]">
+                    남은 시간 {remainingLabel} 남음
+                  </p>
+                  <p className="text-[12px] font-semibold text-[#7a5320]">탭해서 구조 미션 시작!</p>
+                </div>
+                <span className="shrink-0 text-[20px] font-semibold leading-none text-[#8b5a14]">
+                  ›
                 </span>
               </div>
-              <h2 className="mt-2 text-[18px] font-bold tracking-tight text-white">
-                코독 기습퀴즈가 열렸습니다
-              </h2>
-              <p className="mt-1 text-[12px] leading-relaxed text-[#fff3d6]">
-                {surpriseQuiz.submissionStatus === 'submitted'
-                  ? surpriseQuiz.isCorrect
-                    ? `정답 · ${surpriseQuiz.rank ? `${surpriseQuiz.rank}위` : '순위 집계 중'} · ${formatElapsedLabel(surpriseQuiz.elapsedMs)}`
-                    : '오답 · 결과 확인하기'
-                  : `남은 시간 ${remainingLabel} · 선착순 정답 순위 기록`}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <span className="rounded-full bg-white/12 p-2 text-[#ffe7b2]">
-                <AlarmClock className="h-4 w-4" aria-hidden />
-              </span>
-              <span className="text-xl font-semibold leading-none text-white">›</span>
-            </div>
-          </button>
-        </section>
+            </button>
+          </section>
+        ) : (
+          <section className="overflow-hidden rounded-[14px] border border-[#e5c899] bg-[linear-gradient(130deg,#fff9ef_0%,#fff3df_100%)] shadow-[0_6px_14px_rgba(120,74,18,0.10)]">
+            <button
+              className="w-full px-3.5 py-3 text-left transition hover:bg-white/25 disabled:cursor-not-allowed disabled:opacity-70"
+              type="button"
+              onClick={handleOpenSurpriseQuiz}
+              disabled={surpriseQuiz.submissionStatus === 'not_submitted' && isSurpriseQuizClosed}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <p className="inline-flex items-center gap-1 rounded-md bg-[#ffefd4] px-2 py-0.5 text-[10px] font-bold text-[#94611a]">
+                    <Sparkles className="h-3 w-3" aria-hidden />
+                    Surprise Quiz
+                  </p>
+                  <p className="mt-1 text-[16px] font-extrabold leading-tight tracking-tight text-[#6a3e04]">
+                    코독이 기습 퀴즈
+                  </p>
+                  <p className="mt-1.5 text-[12px] font-semibold leading-snug text-[#7a5320]">
+                    {surpriseHomeSubMessage}
+                  </p>
+                </div>
+                <span className="shrink-0 text-[18px] font-semibold leading-none text-[#8b5a14]">
+                  ›
+                </span>
+              </div>
+            </button>
+          </section>
+        )
       ) : null}
 
       <section className="rounded-[16px] border border-black/5 bg-white p-3 shadow-[0_8px_18px_rgba(15,23,42,0.06)]">
@@ -871,16 +946,280 @@ export default function Home() {
       </section>
 
       <Dialog open={isSurpriseQuizOpen} onOpenChange={setIsSurpriseQuizOpen}>
-        <DialogContent className="max-w-[390px] rounded-[24px] border-[#f3d596] bg-[#fffdf7] p-0">
+        <DialogContent
+          className={`max-w-[390px] overflow-hidden rounded-[24px] p-0 ${
+            isSurpriseQuizLivePhase
+              ? 'border-[#f1a8a8] bg-[linear-gradient(180deg,#fff6f6_0%,#ffecec_100%)]'
+              : 'border-[#f1d2a0] bg-[#fffaf1]'
+          }`}
+        >
           <div className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5">
-            <DialogHeader>
-              <DialogTitle className="text-[18px] font-bold tracking-tight text-[#5f3700]">
-                코독 기습퀴즈
-              </DialogTitle>
-              <p className="mt-1 text-[12px] font-medium text-[#8a5a13]">{remainingLabel}</p>
+            <DialogHeader className="space-y-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <DialogTitle
+                    className={`text-[18px] font-bold tracking-tight ${
+                      isSurpriseQuizLivePhase ? 'text-[#9f1f1f]' : 'text-[#5f3700]'
+                    }`}
+                  >
+                    {surpriseDialogTitle}
+                  </DialogTitle>
+                  <p
+                    className={`text-[12px] font-medium ${
+                      isSurpriseQuizLivePhase ? 'text-[#b23b3b]' : 'text-[#8a5a13]'
+                    }`}
+                  >
+                    {surpriseDialogDescription}
+                  </p>
+                </div>
+                <DialogClose asChild>
+                  <button
+                    aria-label="닫기"
+                    className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border bg-white/95 transition hover:bg-white ${
+                      isSurpriseQuizLivePhase
+                        ? 'border-[#f2b7b7] text-[#a02e2e]'
+                        : 'border-[#e7d7bc] text-[#7a5320]'
+                    }`}
+                    type="button"
+                  >
+                    <X className="h-4 w-4" aria-hidden />
+                  </button>
+                </DialogClose>
+              </div>
             </DialogHeader>
 
-            {surpriseQuiz?.quiz ? (
+            {isSurpriseUrgent && !isSurpriseSubmitted && !isSurpriseQuizClosed ? (
+              <div className="mt-3 rounded-xl border border-[#f4a4a4] bg-[#ffe5e5] px-3 py-2">
+                <p className="text-[12px] font-semibold text-[#b42323]">
+                  ⏰ 마감 임박! 지금 정답을 제출하면 코독이를 구할 수 있어요.
+                </p>
+              </div>
+            ) : null}
+
+            {surpriseQuiz?.quiz && surpriseQuiz.submissionStatus === 'not_submitted' ? (
+              <div className="mt-4 space-y-3.5">
+                <div className="rounded-2xl border border-[#efb2b2] bg-white p-3.5">
+                  <div className="mb-2 flex items-center gap-1.5 text-[10px] font-semibold text-[#a02a2a]">
+                    <span className="rounded-full border border-[#efbdbd] bg-[#fff1f1] px-2 py-0.5">
+                      객관식
+                    </span>
+                    <span className="rounded-full border border-[#efbdbd] bg-[#fff1f1] px-2 py-0.5">
+                      1문제
+                    </span>
+                  </div>
+                  <div className="rounded-xl border border-[#efc2c2] bg-[#fff9f9] p-3 text-[14px] leading-relaxed text-foreground">
+                    <ReactMarkdown
+                      remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                      rehypePlugins={[rehypeKatex]}
+                      components={markdownComponents}
+                    >
+                      {surpriseQuiz.quiz.content}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {surpriseQuiz.quiz.choices.map((choice) => {
+                    const isSelected = selectedSurpriseChoiceNo === choice.choiceNo
+                    return (
+                      <button
+                        key={choice.id}
+                        className={`flex w-full items-start gap-3 rounded-xl border px-3 py-2.5 text-left transition ${
+                          isSelected
+                            ? 'border-[#d85c5c] bg-[#ffecec] shadow-[0_8px_16px_rgba(200,70,70,0.14)]'
+                            : 'border-[#efbdbd] bg-white hover:border-[#e49696]'
+                        } disabled:cursor-not-allowed disabled:opacity-60`}
+                        type="button"
+                        disabled={isSurpriseSubmitting}
+                        onClick={() => {
+                          setSelectedSurpriseChoiceNo(choice.choiceNo)
+                          setSurpriseSubmitError('')
+                        }}
+                      >
+                        <span
+                          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                            isSelected ? 'bg-[#cf3f3f] text-white' : 'bg-[#ffe3e3] text-[#a02a2a]'
+                          }`}
+                        >
+                          {getChoiceLabel(choice.choiceNo)}
+                        </span>
+                        <div className="pt-0.5 text-[14px] font-medium leading-relaxed text-foreground">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkBreaks, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={markdownComponents}
+                          >
+                            {choice.content}
+                          </ReactMarkdown>
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="rounded-xl border border-[#efbdbd] bg-[#fff2f2] px-3 py-2 text-center">
+                  <p className="text-[11px] font-semibold text-[#a02a2a]">
+                    ⚠ 코독이를 구할 기회는 한 번뿐이에요. 신중하게 선택하세요!
+                  </p>
+                </div>
+
+                {surpriseSubmitError ? (
+                  <StatusMessage tone="error">{surpriseSubmitError}</StatusMessage>
+                ) : null}
+
+                <button
+                  className="w-full rounded-xl bg-[#cf3f3f] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#b73232] disabled:cursor-not-allowed disabled:bg-[#e4b3b3]"
+                  type="button"
+                  disabled={isSurpriseSubmitting}
+                  onClick={handleSubmitSurpriseQuiz}
+                >
+                  {isSurpriseSubmitting ? '구조 진행 중...' : '코독이 구출하기'}
+                </button>
+
+                <div className="rounded-xl border border-[#efbdbd] bg-[#fff4f4] p-3">
+                  <p className="text-[11px] font-semibold leading-relaxed text-[#8e4a4a]">
+                    • 코독 구조 미션은 한 번만 도전 가능
+                    <br />• 정답 + 빠른 제출일수록 랭킹에 유리
+                    <br />• 오답이어도 참가 보상 XP가 지급돼요
+                    <br />• 획득한 XP는 코독보드 점수에 반영돼요
+                  </p>
+                </div>
+              </div>
+            ) : surpriseQuiz?.submissionStatus === 'submitted' ? (
+              <div className="mt-4 space-y-3.5">
+                {surpriseIsCorrect ? (
+                  <>
+                    <motion.div
+                      className="rounded-2xl border border-[#f4d39a] bg-[#fff6e9] px-3 py-2.5 text-center shadow-[0_8px_14px_rgba(180,118,30,0.12)]"
+                      animate={{ scale: [1, 1.02, 1] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      <p className="inline-flex items-center gap-1 text-[11px] font-bold tracking-[0.04em] text-[#b26b14]">
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                        MISSION CLEAR
+                      </p>
+                      <p className="mt-1 text-[17px] font-extrabold leading-snug text-[#7c4700]">
+                        코독이를 구해줘서 고마워요!
+                      </p>
+                      <p className="mt-0.5 text-[14px] font-semibold text-[#8b5a14]">
+                        다음 미션도 부탁해요~!
+                      </p>
+                    </motion.div>
+
+                    <div className="rounded-2xl border border-[#efd8b1] bg-white px-4 py-5 text-center shadow-[0_10px_20px_rgba(120,74,18,0.08)]">
+                      <div className="mx-auto h-36 w-36 overflow-hidden rounded-2xl">
+                        <img
+                          alt="코독 구조 성공"
+                          className="h-full w-full object-contain"
+                          src="/images/codoc_live.png"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      </div>
+
+                      <div className="relative mt-3 overflow-hidden rounded-2xl border border-[#f2d3a4] bg-[linear-gradient(180deg,#fff1dd_0%,#ffe6c5_100%)] px-4 py-4 text-center">
+                        <PerfectScoreLottie
+                          containerClassName="absolute left-1/2 top-1/2 w-[240px] -translate-x-1/2 -translate-y-1/2 opacity-90"
+                          speed={1.1}
+                          loopDelayMs={900}
+                        />
+                        <div className="relative z-10">
+                          <Trophy className="mx-auto h-8 w-8 text-[#b26b14]" aria-hidden />
+                          <p className="mt-2 text-[16px] font-semibold text-[#9a5a10]">현재 순위</p>
+                          <p className="mt-1 text-[40px] font-bold leading-none text-[#84420b]">
+                            {surpriseQuiz.rank ? `${surpriseQuiz.rank}등` : '집계 중'}
+                          </p>
+                          <p className="mt-1 text-[11px] font-semibold text-[#9a5a10]">
+                            XP는 종료 후 순위별 지급
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <motion.div
+                      className="rounded-2xl border border-[#f4d39a] bg-[#fff6e9] px-3 py-2.5 text-center shadow-[0_8px_14px_rgba(180,118,30,0.12)]"
+                      animate={{ scale: [1, 1.015, 1] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    >
+                      <p className="inline-flex items-center gap-1 text-[11px] font-bold tracking-[0.04em] text-[#b26b14]">
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                        NEXT CHANCE
+                      </p>
+                      <p className="mt-1 text-[17px] font-extrabold leading-snug text-[#7c4700]">
+                        코독이의 친구가 대신 구출했어요!
+                      </p>
+                      <p className="mt-0.5 text-[14px] font-semibold text-[#8b5a14]">
+                        다음 미션에는 직접 구출해봐요!
+                      </p>
+                    </motion.div>
+
+                    <div className="rounded-2xl border border-[#dce1ea] bg-white px-4 py-5 text-center shadow-[0_10px_20px_rgba(15,23,42,0.06)]">
+                      <div className="mx-auto h-40 w-40 overflow-hidden rounded-2xl">
+                        <img
+                          alt="코독이 친구 구출"
+                          className="h-full w-full object-contain"
+                          src="/images/codoc_rescue.png"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      </div>
+                      <div className="mt-3 rounded-xl border border-[#d4dae5] bg-[#f3f5f8] px-3.5 py-3 text-center">
+                        <Trophy className="mx-auto h-8 w-8 text-[#4b5563]" aria-hidden />
+                        <p className="mt-1.5 text-[15px] font-semibold text-[#4b5563]">
+                          참가 보상 XP
+                        </p>
+                        <p className="mt-1 text-[36px] font-bold leading-none text-[#1f2937]">
+                          {surpriseParticipationRewardXp}
+                        </p>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {surpriseIsCorrect ? (
+                  <motion.div
+                    className="grid grid-cols-[0.9fr_1.35fr] gap-2"
+                    initial={{ opacity: 0.96, y: 0.5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18 }}
+                  >
+                    <div className="rounded-xl border border-[#e1cfad] bg-white px-2.5 py-2">
+                      <p className="text-[11px] font-semibold text-[#8a5a13]">걸린 시간</p>
+                      <p className="mt-1 text-[15px] font-bold text-[#5f3700]">
+                        {formatElapsedLabel(surpriseQuiz.elapsedMs)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-[#e1cfad] bg-white px-3 py-2">
+                      <p className="text-[11px] font-semibold text-[#8a5a13]">보상 지급</p>
+                      <p className="mt-1 whitespace-nowrap text-[12px] font-bold leading-snug text-[#5f3700]">
+                        이벤트 종료 후 순위 기준 지급
+                      </p>
+                    </div>
+                  </motion.div>
+                ) : null}
+
+                <button
+                  className="w-full rounded-xl bg-[#54575f] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#42444b]"
+                  type="button"
+                  onClick={() => setIsSurpriseQuizOpen(false)}
+                >
+                  완료
+                </button>
+
+                <div className="rounded-xl border border-[#e3d2ad] bg-[#f2efe7] p-3">
+                  <p className="text-[11px] font-semibold leading-relaxed text-[#6f6148]">
+                    • 코독 구조 미션은 한 번만 도전 가능
+                    <br />• 정답 + 빠른 제출일수록 랭킹에 유리
+                    <br />• 오답이어도 참가 보상 XP가 지급돼요
+                    <br />• 획득한 XP는 코독보드 점수에 반영돼요
+                  </p>
+                </div>
+              </div>
+            ) : surpriseQuiz?.quiz ? (
               <div className="mt-4 space-y-4">
                 <div className="rounded-2xl border border-[#f4dfac] bg-white p-4 text-[14px] leading-relaxed text-foreground">
                   <ReactMarkdown
@@ -942,52 +1281,6 @@ export default function Home() {
                   onClick={handleSubmitSurpriseQuiz}
                 >
                   {isSurpriseSubmitting ? '제출 중...' : '답안 제출'}
-                </button>
-              </div>
-            ) : surpriseQuiz?.submissionStatus === 'submitted' ? (
-              <div className="mt-4 space-y-4">
-                <div
-                  className={`rounded-2xl border p-4 ${
-                    surpriseQuiz.isCorrect
-                      ? 'border-[#d7c38a] bg-[#fff7db]'
-                      : 'border-[#f1c5c5] bg-[#fff5f5]'
-                  }`}
-                >
-                  <p
-                    className={`text-[16px] font-bold ${
-                      surpriseQuiz.isCorrect ? 'text-[#7c4700]' : 'text-[#b42318]'
-                    }`}
-                  >
-                    {surpriseQuiz.isCorrect ? '정답입니다' : '틀렸습니다'}
-                  </p>
-                  {surpriseQuiz.isCorrect ? (
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <div className="rounded-xl border border-[#ead9b2] bg-white px-3 py-2">
-                        <p className="text-[11px] font-semibold text-[#a16207]">등수</p>
-                        <p className="mt-1 text-[15px] font-bold text-[#5f3700]">
-                          {surpriseQuiz.rank ? `${surpriseQuiz.rank}위` : '집계 중'}
-                        </p>
-                      </div>
-                      <div className="rounded-xl border border-[#ead9b2] bg-white px-3 py-2">
-                        <p className="text-[11px] font-semibold text-[#a16207]">걸린 시간</p>
-                        <p className="mt-1 text-[15px] font-bold text-[#5f3700]">
-                          {formatElapsedLabel(surpriseQuiz.elapsedMs)}
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-[13px] leading-relaxed text-[#b42318]">
-                      이번 기습퀴즈는 오답 처리되었습니다.
-                    </p>
-                  )}
-                </div>
-
-                <button
-                  className="w-full rounded-2xl bg-[#1f2937] px-4 py-3 text-[14px] font-semibold text-white transition hover:bg-[#111827]"
-                  type="button"
-                  onClick={() => setIsSurpriseQuizOpen(false)}
-                >
-                  확인
                 </button>
               </div>
             ) : (
