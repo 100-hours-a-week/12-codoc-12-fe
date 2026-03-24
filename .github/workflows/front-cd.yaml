@@ -64,7 +64,7 @@ jobs:
 
       - name: Health check dev
         run: |
-          curl --fail --silent --show-error https://dev.codoc.cloud/ > /dev/null
+          curl --fail --silent --show-error https://codoc.cloud/ > /dev/null
 
       - name: Notify CD result to Discord
         if: always()
@@ -82,7 +82,7 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"[FE] CD result\",
-                \"description\": \"Status: ${STATUS}\\nBranch: develop\\nTarget: https://dev.codoc.cloud/\",
+                \"description\": \"Status: ${STATUS}\\nBranch: develop\\nTarget: https://codoc.cloud/\",
                 \"color\": ${COLOR},
                 \"fields\": [
                   {\"name\": \"Run\", \"value\": \"${RUN_URL}\"}
@@ -121,7 +121,7 @@ jobs:
 
       - name: Health check prod
         run: |
-          curl --fail --silent --show-error https://codoc.cloud/ > /dev/null
+          curl --fail --silent --show-error https://dev.codoc.cloud/ > /dev/null
 
       - name: Notify CD result to Discord
         if: always()
@@ -139,7 +139,7 @@ jobs:
             -d "{
               \"embeds\": [{
                 \"title\": \"[FE] CD result\",
-                \"description\": \"Status: ${STATUS}\\nBranch: main\\nTarget: https://codoc.cloud/\",
+                \"description\": \"Status: ${STATUS}\\nBranch: main\\nTarget: https://dev.codoc.cloud/\",
                 \"color\": ${COLOR},
                 \"fields\": [
                   {\"name\": \"Run\", \"value\": \"${RUN_URL}\"}
