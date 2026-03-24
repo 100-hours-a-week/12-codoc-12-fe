@@ -53,7 +53,7 @@ const INITIAL_MESSAGE = {
   id: 'assistant-intro',
   role: 'assistant',
   content:
-    '안녕하세요! 코독이에요 🐨 \n문제를 4단계로 나눠 핵심을 하나씩 정리해볼 거예요.\n각 단계에서 키워드를 맞추면 다음 단계로 넘어갈 수 있어요.\n중간에 힌트, 개념 설명, 의사코드 등 다양한 도구도 자유롭게 활용해보세요!',
+    '안녕하세요! 코독이에요 🐨 \n문제를 자료구조-목표-알고리즘-제약사항으로 나눠 핵심을 하나씩 정리해볼 거예요.\n각 단계에서 키워드를 맞추면 다음 단계로 넘어갈 수 있어요.\n중간에 힌트, 개념 설명, 의사코드 등 다양한 도구도 자유롭게 활용해보세요!\n먼저 문제 배경(자료구조)이 무엇일까요?',
 }
 
 const buildMessageId = () => `msg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
@@ -213,6 +213,14 @@ const ChatMessage = memo(function ChatMessage({
             {children}
           </code>
         ),
+      a: ({ node: _node, ...props }) => (
+        <a
+          className="text-blue-500 underline hover:text-blue-700"
+          target="_blank"
+          rel="noopener noreferrer"
+          {...props}
+        />
+      ),
     }),
     [],
   )
